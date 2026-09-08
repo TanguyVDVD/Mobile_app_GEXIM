@@ -1,0 +1,73 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Cible Windows. `ephemeral/` contient le moteur Flutter et les liens
+# symboliques vers les greffons, regeneres a chaque build : des centaines de
+# mega-octets qui n'ont rien a faire dans le depot. Le reste de `windows/`
+# (runner C++, CMakeLists) est du code source et doit etre versionne.
+/windows/flutter/ephemeral/
+
+# Signature Android.
+#
+# Rien de tout cela n'existe encore — la compilation release utilise la cle de
+# debogage — mais le jour ou une vraie cle sera generee pour le Play Store,
+# elle atterrira ici sous ces noms. Un keystore pousse sur GitHub ne se
+# revoque pas : il faut republier l'application sous une nouvelle identite, et
+# tous les appareils installes perdent la mise a jour. On les exclut avant
+# qu'ils n'existent, pas apres.
+*.jks
+*.keystore
+/android/key.properties
+
+# Configuration de lancement.
+#
+# La cle « publishable » n'est PAS un secret : elle est embarquee dans chaque
+# APK et extractible en une commande. Sa surete vient entierement des policies
+# RLS, jamais de sa discretion. On l'ignore quand meme, pour deux raisons :
+# l'URL identifie le projet, et un fichier de config finit toujours par
+# accueillir un jour une valeur qui, elle, est sensible.
+env.json
+CLAUDE.md
