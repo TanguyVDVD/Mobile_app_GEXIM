@@ -5,7 +5,8 @@ sur chantier : les percements de parois pour câbles et tuyauteries, et les
 dispositifs coupe-feu qui les rebouchent.
 
 Chaque traversée doit être prouvée par deux clichés — la percée nue, puis le
-calfeutrement réalisé — accompagnés des matériaux mis en œuvre. À la clôture du
+calfeutrement réalisé — et caractérisée : configuration, niveau EI, produits mis
+en œuvre. À la clôture du
 chantier, l'ensemble devient un **rapport de conformité PDF** remis au client.
 C'est un document à valeur contractuelle, opposable en cas de sinistre.
 
@@ -19,12 +20,18 @@ avec des gants.
 ### 1. Le backend
 
 Créez un projet sur [supabase.com](https://supabase.com), puis collez
-**`supabase/bootstrap.sql`** dans le SQL Editor. Ce fichier réunit les neuf
-migrations et les données de départ ; il s'applique en une fois sur un projet
-vierge.
+**`supabase/bootstrap.sql`** dans le SQL Editor. Ce fichier réunit les trois
+migrations — schéma, droits d'accès, stockage — et s'applique en une fois sur un
+projet vierge. Il installe au passage les six listes de la fiche de traversée —
+configurations, configurations détaillées, niveaux EI, fournisseurs, types de
+produit et produits — qu'un administrateur complète ensuite depuis
+*Paramètres*.
 
-Créez ensuite un compte dans **Authentication › Users** (cochez *Auto Confirm
-User*) et promouvez-le :
+`bootstrap.sql` est généré : après toute modification d'une migration,
+`dart run tools/bootstrap.dart` le reconstruit.
+
+Créez ensuite un compte — depuis l'écran *Créer un compte* de l'application, ou
+dans **Authentication › Users** (cochez *Auto Confirm User*) — et promouvez-le :
 
 ```sql
 update public.profiles set role = 'admin' where email = 'vous@exemple.be';
@@ -46,11 +53,27 @@ flutter run --dart-define-from-file=env.json
 
 Sous VS Code, **F5** suffit — la configuration est dans `.vscode/launch.json`.
 
-Pour un APK installable sur les tablettes :
+### 3. L'APK des tablettes
+
+L'APK de production est signé par une clé que désigne `android/key.properties`
+— hors dépôt ; `android/key.properties.example` explique comment créer le
+keystore. Sans lui, la compilation s'arrête plutôt que de signer avec la clé de
+débogage.
 
 ```bash
 flutter build apk --release --dart-define-from-file=env.json
 ```
+
+L'APK sort dans `build/app/outputs/flutter-apk/app-release.apk`. Pour
+l'installer : `adb install` sur une tablette branchée en USB (débogage
+activé), ou copie du fichier sur la tablette puis ouverture, après avoir
+autorisé l'installation d'applications de sources inconnues.
+
+> **Sauvegardez le keystore ailleurs que sur le poste de build.** En diffusion
+> directe, cette clé est l'identité de l'application : Android refuse toute
+> mise à jour signée autrement. La perdre oblige à désinstaller l'app de
+> chaque tablette — et donc à perdre les relevés qui n'y ont pas encore été
+> transmis.
 
 > La clé publishable est **compilée dans l'APK**. Ce n'est pas un secret : elle
 > est publique par conception, et ce sont les policies de sécurité au niveau
@@ -66,7 +89,7 @@ flutter build apk --release --dart-define-from-file=env.json
 | | Technicien | Administrateur |
 |---|---|---|
 | Voit | uniquement les chantiers auxquels il est **affecté** | tous |
-| Fait | relève des traversées, photographie, renseigne les matériaux | gère clients, chantiers, affectations et comptes |
+| Fait | relève, photographie et caractérise les traversées | gère clients, chantiers, affectations, listes et comptes |
 | Clôture un chantier | non | oui, ce qui gèle le relevé et produit le rapport |
 
 Tout compte créé par inscription naît technicien et **ne voit aucun chantier**
@@ -109,7 +132,7 @@ confort. Le verrou réel est dans les policies RLS : un APK modifié, une tablet
 à l'heure fausse ou un appel direct à l'API se heurtent aux mêmes règles.
 
 Une policy trop permissive ne produit **aucune erreur** — elle laisse passer.
-Les refus sont donc prouvés par 14 tests SQL rejouant les migrations réelles sur
+Les refus sont donc prouvés par 26 tests SQL rejouant les migrations réelles sur
 un Postgres jetable :
 
 ```bash
@@ -121,21 +144,27 @@ docker compose -f docker/docker-compose.yml exec -T db \
 ### Le rapport est une donnée dérivée
 
 `packages/firestop_report/` est un package **Dart pur**, sans dépendance
-Flutter ni entrée-sortie : le rendu est une fonction de (données, gabarit) vers
-des octets. Le même code produira le document côté serveur le jour où la
-génération y sera déplacée.
+Flutter ni entrée-sortie : le rendu est une fonction des données vers des
+octets. Le même code produira le document côté serveur le jour où la génération
+y sera déplacée.
 
 Le PDF ne transite donc pas par la file d'attente : il se reconstruit à
 l'identique depuis les traversées, ce qui vaut mieux que de faire voyager des
 dizaines de mégaoctets.
 
-La mise en page est **configurable par client** — couleur, page de garde,
-disposition des clichés, marges, et **papier à en-tête** : le rapport se compose
-par-dessus votre document type. Tout se règle depuis *Clients › Mise en page du
-rapport*, sans écrire de JSON. Voir `docs/gabarit-rapport.md`.
+La mise en page n'est **pas** configurable, et c'est volontaire : le document
+est toujours la fiche « Resserrage RF — AS BUILT », composée par-dessus
+`template_rapport.png`. Une traversée par page, les clichés suivants sur des
+pages de suite. Seuls le logo et l'adresse du client y varient — tous deux
+exigés à la création d'un client.
 
-Le gabarit est lu avec tolérance : une valeur erronée retombe sur un défaut
-plutôt que d'empêcher la production d'un document contractuel.
+Ce qui change d'une entreprise à l'autre se règle dans *Paramètres* :
+configurations, configurations détaillées, niveaux EI, fournisseurs, types de
+produit et produits. Ce sont des listes de données, pas du code : un
+administrateur en ajoute sans migration.
+
+Le détail — ce qui remplit chaque ligne, la pagination, et ce qu'il faut refaire
+si le formulaire est retouché — est dans `docs/fiche-as-built.md`.
 
 ---
 
@@ -155,14 +184,20 @@ supabase/
   bootstrap.sql généré, pour l'installation initiale
 docker/
   rls_tests.sql banc d'essai des policies
+tools/
+  bootstrap.dart  régénère supabase/bootstrap.sql
+docs/
+  fiche-as-built.md  ce qui remplit chaque ligne du rapport
+template_rapport.png le formulaire, fond de chaque page — à versionner :
+                     les cases du rapport sont relevées au pixel sur lui
 ```
 
 ## Vérifier
 
 ```bash
 flutter analyze                                  # doit rester à zéro
-flutter test                                     # 51 tests
-cd packages/firestop_report && dart test         # 29 tests
+flutter test                                     # 97 tests
+cd packages/firestop_report && dart test         # 18 tests
 ```
 
 `dart run build_runner build` est **obligatoire** après toute modification de
@@ -172,6 +207,10 @@ table ou de DAO.
 
 ## Ce qui reste à faire
 
+0. **Le premier essai en conditions réelles.** La version 0.1.0 est prête à
+   installer, mais n'a encore tourné sur aucune tablette réelle : un relevé
+   complet photos comprises, hors réseau puis au retour du réseau, jusqu'au
+   rapport ouvert et relu.
 1. **Deux polices TrueType** à déposer dans `assets/fonts/`. Sans elles, le PDF
    perd silencieusement `—`, `’`, `œ` et `…` — des caractères que les correcteurs
    de clavier produisent tout seuls. Voir `assets/fonts/README.md`.
@@ -181,3 +220,6 @@ table ou de DAO.
 3. **La purge locale après révocation** : retirer un technicien d'un chantier lui
    coupe l'accès côté serveur, mais les données déjà descendues restent sur sa
    tablette jusqu'à une reconnexion.
+4. **Deux permissions de stockage superflues** dans l'APK, apportées par le
+   plugin caméra. L'application ne s'en sert pas ; les retirer demande un essai
+   de prise de vue sur une tablette Android 9 ou antérieure.

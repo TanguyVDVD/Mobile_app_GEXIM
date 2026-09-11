@@ -8,6 +8,7 @@ import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../database/daos/point_dao.dart';
 import '../../database/tables/enums.dart';
+import '../../database/tables/tables.dart' show floorLabel;
 import '../../shared/widgets/plate.dart';
 import '../../shared/widgets/sync_status_bar.dart';
 
@@ -183,9 +184,14 @@ class _PointPlate extends StatelessWidget {
   Widget build(BuildContext context) {
     final point = summary.point;
     final complete = summary.hasBefore && summary.hasAfter;
-    final location = [point.floor, point.room]
-        .where((s) => s != null && s.isNotEmpty)
-        .join(' · ');
+    // Bâtiment, étage, local — dans l'ordre où on situe une traversée sur un
+    // site, du plus large au plus précis. L'étage passe par `floorLabel` et non
+    // par son entier brut : « Rez-de-chaussée » se lit, « 0 » se déchiffre.
+    final location = [
+      point.building,
+      if (point.floorLevel case final int niveau) floorLabel(niveau),
+      point.room,
+    ].where((s) => s != null && s.isNotEmpty).join(' · ');
 
     return Plate(
       accent: !complete,

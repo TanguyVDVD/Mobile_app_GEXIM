@@ -28,9 +28,6 @@ abstract final class Plateforme {
   static bool get estBureau =>
       Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
-  /// Tablette de chantier : le technicien.
-  static bool get estMobile => Platform.isAndroid || Platform.isIOS;
-
   /// `camera` n'a pas d'implémentation Windows ni Linux.
   ///
   /// Ce n'est pas une privation : photographier une traversée est le travail du

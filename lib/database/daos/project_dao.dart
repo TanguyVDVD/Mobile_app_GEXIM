@@ -118,24 +118,31 @@ class ProjectDao extends DatabaseAccessor<AppDatabase> with _$ProjectDaoMixin {
   // Écriture
   // ---------------------------------------------------------------------------
 
+  /// Crée un client.
+  ///
+  /// [id] est paramétrable, et ce n'est pas une commodité de test : le logo est
+  /// **obligatoire**, et son objet distant est rangé sous l'identifiant du
+  /// client. L'appelant doit donc connaître cet identifiant avant de téléverser
+  /// le binaire, c'est-à-dire avant que la ligne n'existe. Voir
+  /// `ClientEditorScreen`.
   Future<String> createClient({
     required String name,
+    required String address,
+    required String logoPath,
+    String? id,
     String? contactName,
     String? contactEmail,
     String? contactPhone,
-    String? address,
-    String? templateId,
   }) async {
     final now = DateTime.now();
     final row = Client(
-      id: newId(),
+      id: id ?? newId(),
       name: name,
       contactName: contactName,
       contactEmail: contactEmail,
       contactPhone: contactPhone,
       address: address,
-      logoPath: null,
-      templateId: templateId,
+      logoPath: logoPath,
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
@@ -147,6 +154,7 @@ class ProjectDao extends DatabaseAccessor<AppDatabase> with _$ProjectDaoMixin {
   Future<String> createProject({
     required String clientId,
     required String name,
+    String? code,
     String? description,
     DateTime? startedOn,
   }) async {
@@ -154,6 +162,7 @@ class ProjectDao extends DatabaseAccessor<AppDatabase> with _$ProjectDaoMixin {
     final row = Project(
       id: newId(),
       clientId: clientId,
+      code: code,
       name: name,
       description: description,
       startedOn: startedOn ?? now,
@@ -170,10 +179,10 @@ class ProjectDao extends DatabaseAccessor<AppDatabase> with _$ProjectDaoMixin {
   Future<void> updateClient(
     String clientId, {
     required String name,
+    required String address,
     String? contactName,
     String? contactEmail,
     String? contactPhone,
-    String? address,
   }) async {
     final current =
         await (select(clients)..where((t) => t.id.equals(clientId))).getSingle();
@@ -181,12 +190,30 @@ class ProjectDao extends DatabaseAccessor<AppDatabase> with _$ProjectDaoMixin {
     await _persistClient(
       current.copyWith(
         name: name,
+        address: address,
         contactName: Value(contactName),
         contactEmail: Value(contactEmail),
         contactPhone: Value(contactPhone),
-        address: Value(address),
         updatedAt: DateTime.now(),
       ),
+    );
+  }
+
+  /// Remplace le logo d'un client par un objet déjà déposé dans le bucket.
+  ///
+  /// Séparé de [updateClient], parce que le geste l'est : le binaire est
+  /// téléversé d'abord — cela demande du réseau — et seul son chemin transite
+  /// ensuite par la file d'attente. Mélanger les deux exposerait à enregistrer
+  /// un chemin pointant vers un objet qui n'existe pas.
+  ///
+  /// L'ancien objet n'est pas effacé du bucket : il peut encore figurer dans
+  /// un rapport déjà remis.
+  Future<void> setClientLogo(String clientId, String logoPath) async {
+    final current =
+        await (select(clients)..where((t) => t.id.equals(clientId))).getSingle();
+
+    await _persistClient(
+      current.copyWith(logoPath: logoPath, updatedAt: DateTime.now()),
     );
   }
 
@@ -194,6 +221,7 @@ class ProjectDao extends DatabaseAccessor<AppDatabase> with _$ProjectDaoMixin {
     String projectId, {
     required String name,
     required String clientId,
+    String? code,
     String? description,
     DateTime? startedOn,
   }) async {
@@ -203,6 +231,7 @@ class ProjectDao extends DatabaseAccessor<AppDatabase> with _$ProjectDaoMixin {
       current.copyWith(
         name: name,
         clientId: clientId,
+        code: Value(code),
         description: Value(description),
         startedOn: Value(startedOn),
         updatedAt: DateTime.now(),

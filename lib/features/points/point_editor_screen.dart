@@ -1,21 +1,33 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../app/theme.dart';
+import '../../core/plateforme.dart';
+import '../../database/daos/point_dao.dart';
 import '../../database/database.dart';
 import '../../database/tables/enums.dart';
+import '../../database/tables/tables.dart' show floorLabel, floorRange;
 import '../../shared/widgets/photo_thumbnail.dart';
 import '../../shared/widgets/plate.dart';
 import '../../shared/widgets/sync_status_bar.dart';
-import '../../core/plateforme.dart';
 import '../capture/camera_screen.dart';
 
-/// Fiche d'une traversée : localisation, matériaux, clichés.
+/// Fiche d'une traversée — la saisie de terrain, et l'exact reflet du
+/// formulaire « Resserrage RF — Fiche AS BUILT » qui sortira au rapport.
+///
+/// L'ordre des sections suit celui du formulaire imprimé, volontairement : un
+/// technicien qui a la fiche papier sous les yeux doit retrouver ses champs
+/// dans le même ordre, sans traduire.
+///
+/// Les champs de texte s'enregistrent après une temporisation ; les listes
+/// déroulantes et la date, immédiatement — un choix dans une liste est un geste
+/// achevé, il n'y a rien à attendre.
 class PointEditorScreen extends ConsumerStatefulWidget {
   const PointEditorScreen({required this.pointId, super.key});
 
@@ -26,7 +38,8 @@ class PointEditorScreen extends ConsumerStatefulWidget {
 }
 
 class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
-  final _floor = TextEditingController();
+  final _purchaseOrder = TextEditingController();
+  final _building = TextEditingController();
   final _room = TextEditingController();
   final _description = TextEditingController();
 
@@ -46,13 +59,13 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
     // est purement locale, elle aboutira même si l'écran a disparu.
     unawaited(_persist());
 
-    _floor.dispose();
-    _room.dispose();
-    _description.dispose();
+    for (final c in [_purchaseOrder, _building, _room, _description]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
-  /// Enregistrement différé.
+  /// Enregistrement différé des champs libres.
   ///
   /// Bien plus agréable qu'un bouton « Enregistrer » sur un chantier, et sans
   /// coût réseau : le fusionnement de l'outbox réduit toutes ces retouches
@@ -68,8 +81,8 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
     //
     // `_loaded` : tant que la fiche n'a pas reçu ses valeurs, les champs sont
     // vides. Fermer l'écran avant que la base n'ait répondu — un aller-retour
-    // rapide, ou une tablette poussive — écrasait alors l'étage, le local et
-    // les observations par des chaînes vides, sans rien afficher d'anormal.
+    // rapide, ou une tablette poussive — écrasait alors la saisie par des
+    // chaînes vides, sans rien afficher d'anormal.
     //
     // `_dirty` : simplement consulter une traversée ne doit pas produire
     // d'écriture, ni une entrée de synchronisation.
@@ -77,11 +90,95 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
 
     await ref.read(pointDaoProvider).updatePoint(
           widget.pointId,
-          floor: _floor.text,
-          room: _room.text,
-          description: _description.text,
+          purchaseOrder: Value(_texteOuNull(_purchaseOrder)),
+          building: Value(_texteOuNull(_building)),
+          room: Value(_texteOuNull(_room)),
+          description: Value(_texteOuNull(_description)),
         );
     _dirty = false;
+  }
+
+  static String? _texteOuNull(TextEditingController c) =>
+      c.text.trim().isEmpty ? null : c.text.trim();
+
+  /// Écriture immédiate d'un champ choisi, sans passer par la temporisation.
+  ///
+  /// Les saisies libres en attente partent avec : sans cela, choisir un produit
+  /// juste après avoir tapé un bâtiment écrirait la fiche sans ce bâtiment,
+  /// puis la temporisation le réécrirait — deux entrées d'outbox pour un seul
+  /// geste, et une fenêtre où la donnée affichée n'est pas celle enregistrée.
+  Future<void> _ecrire(Future<void> Function(PointDao dao) action) async {
+    _debounce?.cancel();
+    await _persist();
+    await action(ref.read(pointDaoProvider));
+  }
+
+  /// Range une option choisie dans **sa** colonne.
+  ///
+  /// La correspondance liste → colonne vit ici et nulle part ailleurs. La
+  /// disperser dans les sous-widgets — un rappel par champ, chacun sachant
+  /// quel paramètre nommé viser — reviendrait à recopier la signature du DAO
+  /// dans l'écran : neuf occasions de se tromper de colonne, pour une erreur
+  /// qui ne se verrait qu'à la relecture du rapport.
+  Future<void> _choisirOption({
+    required SettingKind kind,
+    required String? optionId,
+    int rangProduit = 0,
+  }) {
+    final valeur = Value(optionId);
+
+    return _ecrire(
+      (dao) => switch ((kind, rangProduit)) {
+        (SettingKind.configuration, _) =>
+          dao.updatePoint(widget.pointId, configurationId: valeur),
+        (SettingKind.configurationDetail, _) =>
+          dao.updatePoint(widget.pointId, configurationDetailId: valeur),
+        (SettingKind.eiLevel, _) =>
+          dao.updatePoint(widget.pointId, eiLevelId: valeur),
+        (SettingKind.supplier, _) =>
+          dao.updatePoint(widget.pointId, supplierId: valeur),
+        (SettingKind.productType, _) =>
+          dao.updatePoint(widget.pointId, productTypeId: valeur),
+        (SettingKind.product, 0) =>
+          dao.updatePoint(widget.pointId, product1Id: valeur),
+        (SettingKind.product, 1) =>
+          dao.updatePoint(widget.pointId, product2Id: valeur),
+        (SettingKind.product, 2) =>
+          dao.updatePoint(widget.pointId, product3Id: valeur),
+        (SettingKind.product, 3) =>
+          dao.updatePoint(widget.pointId, product4Id: valeur),
+        (SettingKind.product, _) =>
+          dao.updatePoint(widget.pointId, product5Id: valeur),
+      },
+    );
+  }
+
+  Future<void> _choisirDate(DateTime actuelle) async {
+    final choisie = await showDatePicker(
+      context: context,
+      initialDate: actuelle,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Date de la traversée',
+    );
+    if (choisie == null) return;
+
+    // L'heure de la saisie initiale est conservée : elle n'est pas affichée,
+    // mais elle ordonne les clichés et les relevés d'une même journée.
+    await _ecrire(
+      (dao) => dao.updatePoint(
+        widget.pointId,
+        capturedAt: Value(
+          DateTime(
+            choisie.year,
+            choisie.month,
+            choisie.day,
+            actuelle.hour,
+            actuelle.minute,
+          ),
+        ),
+      ),
+    );
   }
 
   /// Supprime la traversée, après confirmation.
@@ -91,8 +188,8 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Supprimer cette traversée ?'),
         content: const Text(
-          'Ses clichés et ses matériaux disparaîtront avec elle, et elle ne '
-          'figurera pas au rapport de conformité.',
+          'Ses clichés et ses caractéristiques disparaîtront avec elle, et elle '
+          'ne figurera pas au rapport de conformité.',
         ),
         actions: [
           TextButton(
@@ -124,17 +221,31 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
     final File? original = await CameraScreen.push(context, title);
     if (original == null) return;
 
-    await ref.read(photoCaptureServiceProvider).capture(
-          pointId: widget.pointId,
-          kind: kind,
-          original: original,
-        );
+    try {
+      await ref.read(photoCaptureServiceProvider).capture(
+            pointId: widget.pointId,
+            kind: kind,
+            original: original,
+          );
+    } on Object catch (e) {
+      // Compression ou enregistrement en échec. Sans ce message, l'écran de
+      // prise de vue se refermait comme après un succès : le technicien
+      // quittait le chantier persuadé d'avoir sa photo, et l'emplacement vide
+      // ne se découvrait qu'au rapport.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Le cliché n\'a pas été enregistré : $e. '
+              'Reprenez la photo.'),
+          duration: const Duration(seconds: 8),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final point = ref.watch(pointProvider(widget.pointId));
-    final photos = ref.watch(pointPhotosProvider(widget.pointId));
 
     return Scaffold(
       appBar: AppBar(
@@ -155,7 +266,8 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
             return const Center(child: Text('Traversée introuvable.'));
           }
           if (!_loaded) {
-            _floor.text = row.floor ?? '';
+            _purchaseOrder.text = row.purchaseOrder ?? '';
+            _building.text = row.building ?? '';
             _room.text = row.room ?? '';
             _description.text = row.description ?? '';
             _loaded = true;
@@ -165,66 +277,73 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
             children: [
               const SyncStatusBar(),
               Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    const SectionHeading('Localisation'),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _floor,
-                            decoration: const InputDecoration(
-                              labelText: 'Étage',
-                              border: OutlineInputBorder(),
-                            ),
-                            onChanged: (_) => _scheduleSave(),
+                child: ReadableWidth(
+                  child: ListView(
+                    padding: const EdgeInsets.all(Fs.lg),
+                    children: [
+                      const SectionHeading('Identification'),
+                      _Identification(
+                        point: row,
+                        purchaseOrder: _purchaseOrder,
+                        building: _building,
+                        onEdit: _scheduleSave,
+                        onDate: () => _choisirDate(row.capturedAt),
+                        onFloor: (niveau) => _ecrire(
+                          (dao) => dao.updatePoint(
+                            widget.pointId,
+                            floorLevel: Value(niveau),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 2,
-                          child: TextField(
-                            controller: _room,
-                            decoration: const InputDecoration(
-                              labelText: 'Local',
-                              border: OutlineInputBorder(),
-                            ),
-                            onChanged: (_) => _scheduleSave(),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    const SectionHeading('Clichés'),
-                    photos.when(
-                      loading: () => const LinearProgressIndicator(),
-                      error: (e, _) => Text('Erreur : $e'),
-                      data: (list) => _PhotoSlots(
-                        photos: list,
-                        captureDisponible: Plateforme.captureDisponible,
+                      ),
+
+                      const SizedBox(height: Fs.xl),
+                      const SectionHeading('Photographies'),
+                      _Photographies(
+                        pointId: widget.pointId,
                         onShoot: _shoot,
-                        onRetire: (id) =>
-                            ref.read(photoCaptureServiceProvider).retire(id),
                       ),
-                    ),
-                    const SizedBox(height: 20),
-                    const SectionHeading('Matériaux mis en œuvre'),
-                    _MaterialPicker(pointId: widget.pointId),
-                    const SizedBox(height: 20),
-                    const SectionHeading('Observations'),
-                    TextField(
-                      controller: _description,
-                      minLines: 3,
-                      maxLines: 6,
-                      decoration: const InputDecoration(
-                        hintText: 'Nature de la traversée, remarques…',
-                        border: OutlineInputBorder(),
+
+                      const SizedBox(height: Fs.xl),
+                      const SectionHeading('Caractéristiques'),
+                      _Caracteristiques(
+                        point: row,
+                        onChoisir: _choisirOption,
                       ),
-                      onChanged: (_) => _scheduleSave(),
-                    ),
-                    const SizedBox(height: 40),
-                  ],
+
+                      const SizedBox(height: Fs.xl),
+                      // Hors formulaire imprimé, et annoncé comme tel : un
+                      // technicien doit savoir ce qui atterrira sous les yeux
+                      // du client et ce qui reste un repère interne.
+                      const SectionHeading('Repères internes'),
+                      Text(
+                        'Ces deux champs ne figurent pas sur la fiche du '
+                        'rapport.',
+                        style: Fs.metaOf(context),
+                      ),
+                      const SizedBox(height: Fs.md),
+                      TextField(
+                        controller: _room,
+                        decoration: const InputDecoration(
+                          labelText: 'Local',
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (_) => _scheduleSave(),
+                      ),
+                      const SizedBox(height: Fs.md),
+                      TextField(
+                        controller: _description,
+                        minLines: 3,
+                        maxLines: 6,
+                        decoration: const InputDecoration(
+                          labelText: 'Observations',
+                          hintText: 'Remarques, réserves, particularités…',
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (_) => _scheduleSave(),
+                      ),
+                      const SizedBox(height: 40),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -235,7 +354,379 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
   }
 }
 
-/// Les deux clichés obligatoires, puis les complémentaires.
+/// Enregistre le choix fait dans une liste déroulante.
+///
+/// [rangProduit] n'a de sens que pour [SettingKind.product] : il désigne l'un
+/// des cinq emplacements « Produit utilisé », à partir de zéro.
+typedef ChoixOption = Future<void> Function({
+  required SettingKind kind,
+  required String? optionId,
+  int rangProduit,
+});
+
+// =============================================================================
+// Identification
+// =============================================================================
+
+class _Identification extends ConsumerWidget {
+  const _Identification({
+    required this.point,
+    required this.purchaseOrder,
+    required this.building,
+    required this.onEdit,
+    required this.onDate,
+    required this.onFloor,
+  });
+
+  final Point point;
+  final TextEditingController purchaseOrder;
+  final TextEditingController building;
+  final VoidCallback onEdit;
+  final VoidCallback onDate;
+  final ValueChanged<int?> onFloor;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final project = ref.watch(projectProvider(point.projectId)).valueOrNull;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ChampDate(valeur: point.capturedAt, onTap: onDate),
+        const SizedBox(height: Fs.md),
+
+        // Le numéro de la traversée, et son caractère provisoire.
+        //
+        // Affiché et non saisissable : il est attribué par une séquence
+        // Postgres à la synchronisation. Tant qu'il est nul, le dire plutôt que
+        // d'inventer — il figurera dans un rapport de conformité.
+        _ChampLu(
+          libelle: 'Numéro du point',
+          valeur: point.refNumber?.toString() ??
+              'attribué à la prochaine synchronisation',
+          attenue: point.refNumber == null,
+        ),
+        const SizedBox(height: Fs.md),
+
+        // Repris du chantier, pas ressaisis : deux endroits où corriger un
+        // numéro de projet, c'est un rapport sur deux qui porte l'ancien.
+        _ChampLu(
+          libelle: 'Numéro projet',
+          valeur: project?.code ?? '—',
+          attenue: project?.code == null,
+        ),
+        const SizedBox(height: Fs.md),
+        _ChampLu(libelle: 'Intitulé projet', valeur: project?.name ?? '…'),
+        const SizedBox(height: Fs.md),
+
+        TextField(
+          controller: purchaseOrder,
+          decoration: const InputDecoration(
+            labelText: 'Purchase Order',
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (_) => onEdit(),
+        ),
+        const SizedBox(height: Fs.md),
+        TextField(
+          controller: building,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            labelText: 'Bâtiment(s) concerné(s)',
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (_) => onEdit(),
+        ),
+        const SizedBox(height: Fs.md),
+        DropdownButtonFormField<int?>(
+          initialValue: point.floorLevel,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'Étage',
+            border: OutlineInputBorder(),
+          ),
+          items: [
+            const DropdownMenuItem<int?>(child: Text('—')),
+            for (final niveau in floorRange)
+              DropdownMenuItem<int?>(
+                value: niveau,
+                child: Text(floorLabel(niveau)),
+              ),
+          ],
+          onChanged: onFloor,
+        ),
+      ],
+    );
+  }
+}
+
+/// Une valeur que l'écran affiche sans permettre de la modifier.
+///
+/// Présentée comme un champ et non comme une ligne de texte : elle occupe la
+/// même place dans le formulaire que sur la fiche imprimée, et un technicien
+/// qui la cherche la trouve là où il l'attend.
+class _ChampLu extends StatelessWidget {
+  const _ChampLu({
+    required this.libelle,
+    required this.valeur,
+    this.attenue = false,
+  });
+
+  final String libelle;
+  final String valeur;
+  final bool attenue;
+
+  @override
+  Widget build(BuildContext context) {
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: libelle,
+        border: const OutlineInputBorder(),
+        // Fond neutre plutôt que blanc : ce qui ne se touche pas ne doit pas
+        // ressembler à ce qui se touche.
+        fillColor: Fs.ground,
+      ),
+      child: Text(
+        valeur,
+        style: TextStyle(
+          fontSize: 16.5,
+          color: attenue ? Fs.inkMuted : Fs.ink,
+          fontStyle: attenue ? FontStyle.italic : FontStyle.normal,
+        ),
+      ),
+    );
+  }
+}
+
+class _ChampDate extends StatelessWidget {
+  const _ChampDate({required this.valeur, required this.onTap});
+
+  final DateTime valeur;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: Fs.radius,
+      child: InputDecorator(
+        decoration: const InputDecoration(
+          labelText: 'Date',
+          border: OutlineInputBorder(),
+          suffixIcon: Icon(Icons.calendar_today, size: 20),
+        ),
+        child: Text(
+          '${valeur.day.toString().padLeft(2, '0')}/'
+          '${valeur.month.toString().padLeft(2, '0')}/${valeur.year}',
+          style: const TextStyle(fontSize: 16.5),
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Caractéristiques
+// =============================================================================
+
+class _Caracteristiques extends StatelessWidget {
+  const _Caracteristiques({required this.point, required this.onChoisir});
+
+  final Point point;
+  final ChoixOption onChoisir;
+
+  @override
+  Widget build(BuildContext context) {
+    final produits = [
+      point.product1Id,
+      point.product2Id,
+      point.product3Id,
+      point.product4Id,
+      point.product5Id,
+    ];
+
+    return Column(
+      children: [
+        _ListeOptions(
+          kind: SettingKind.configuration,
+          libelle: 'Configuration',
+          selection: point.configurationId,
+          onChanged: (id) =>
+              onChoisir(kind: SettingKind.configuration, optionId: id),
+        ),
+        const SizedBox(height: Fs.md),
+        _ListeOptions(
+          kind: SettingKind.configurationDetail,
+          libelle: 'Configuration détaillée',
+          selection: point.configurationDetailId,
+          onChanged: (id) =>
+              onChoisir(kind: SettingKind.configurationDetail, optionId: id),
+        ),
+        const SizedBox(height: Fs.md),
+        _ListeOptions(
+          kind: SettingKind.eiLevel,
+          libelle: 'Niveau EI',
+          selection: point.eiLevelId,
+          onChanged: (id) =>
+              onChoisir(kind: SettingKind.eiLevel, optionId: id),
+        ),
+        const SizedBox(height: Fs.md),
+        _ListeOptions(
+          kind: SettingKind.supplier,
+          libelle: 'Fournisseur de produit utilisé',
+          selection: point.supplierId,
+          onChanged: (id) =>
+              onChoisir(kind: SettingKind.supplier, optionId: id),
+        ),
+        const SizedBox(height: Fs.md),
+        _ListeOptions(
+          kind: SettingKind.productType,
+          libelle: 'Type de produit utilisé',
+          selection: point.productTypeId,
+          onChanged: (id) =>
+              onChoisir(kind: SettingKind.productType, optionId: id),
+        ),
+
+        const SizedBox(height: Fs.lg),
+        // Les cinq emplacements sont tous affichés, même vides : leur numéro
+        // est celui du rapport, et un « Produit utilisé (3) » qui apparaîtrait
+        // seulement une fois le (2) rempli laisserait croire que l'ordre se
+        // tasse tout seul. Il ne se tasse pas — voir `PointDao.setProducts`.
+        for (var i = 0; i < 5; i++) ...[
+          if (i > 0) const SizedBox(height: Fs.md),
+          _ListeOptions(
+            kind: SettingKind.product,
+            libelle: 'Produit utilisé (${i + 1})',
+            selection: produits[i],
+            onChanged: (id) => onChoisir(
+              kind: SettingKind.product,
+              optionId: id,
+              rangProduit: i,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Liste déroulante alimentée par une table de paramètres.
+///
+/// Trois cas à traiter, et les deux derniers sont ceux qui font mal si on les
+/// oublie :
+///
+///  * la liste est vide — l'administrateur ne l'a pas encore remplie. On le dit,
+///    plutôt que d'offrir un champ qui ne s'ouvre sur rien ;
+///  * l'option choisie a été **retirée** du catalogue depuis. Elle ne figure
+///    plus dans les entrées, et `DropdownButtonFormField` exige que sa valeur
+///    corresponde à exactement une entrée : sans traitement, l'écran plante.
+///    Elle est donc réinjectée, signalée comme retirée ;
+///  * l'option choisie n'est **pas encore descendue** du serveur. Même symptôme,
+///    autre cause : la traversée vient d'un collègue et le catalogue local est
+///    en retard. Même traitement, libellé différent — dire « retiré » là où
+///    c'est « pas encore reçu » enverrait chercher au mauvais endroit.
+class _ListeOptions extends ConsumerWidget {
+  const _ListeOptions({
+    required this.kind,
+    required this.libelle,
+    required this.selection,
+    required this.onChanged,
+  });
+
+  final SettingKind kind;
+  final String libelle;
+  final String? selection;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final options =
+        ref.watch(settingOptionsProvider(kind)).valueOrNull;
+    final libelles =
+        ref.watch(settingOptionLabelsProvider).valueOrNull ??
+            const <String, String>{};
+
+    if (options == null) {
+      return InputDecorator(
+        decoration: InputDecoration(
+          labelText: libelle,
+          border: const OutlineInputBorder(),
+        ),
+        child: const LinearProgressIndicator(),
+      );
+    }
+
+    final courant = selection;
+    final orpheline = courant != null && !options.any((o) => o.id == courant);
+
+    return DropdownButtonFormField<String?>(
+      initialValue: courant,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: libelle,
+        border: const OutlineInputBorder(),
+        helperText: options.isEmpty
+            ? 'Liste vide — à remplir dans Paramètres.'
+            : null,
+      ),
+      items: [
+        const DropdownMenuItem<String?>(child: Text('—')),
+        for (final option in options)
+          DropdownMenuItem<String?>(
+            value: option.id,
+            child: Text(option.label, overflow: TextOverflow.ellipsis),
+          ),
+        if (orpheline)
+          DropdownMenuItem<String?>(
+            value: courant,
+            child: Text(
+              libelles.containsKey(courant)
+                  ? '${libelles[courant]} (retiré)'
+                  : 'Entrée pas encore synchronisée',
+              style: const TextStyle(color: Fs.signal),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+      ],
+      onChanged: onChanged,
+    );
+  }
+}
+
+// =============================================================================
+// Clichés
+// =============================================================================
+
+/// Les deux emplacements de la fiche, puis les clichés complémentaires.
+///
+/// Les deux premiers sont stockés sous `PhotoKind.before` et `PhotoKind.after`.
+/// Les noms de l'enum n'ont pas changé — c'est le contrat de synchronisation,
+/// et les valeurs `'before'` / `'after'` circulent jusque dans Postgres — mais
+/// la fiche AS BUILT ne distingue plus l'avant de l'après : elle offre deux
+/// cases, d'où « Photo 1 » et « Photo 2 » à l'écran.
+class _Photographies extends ConsumerWidget {
+  const _Photographies({required this.pointId, required this.onShoot});
+
+  final String pointId;
+  final Future<void> Function(PhotoKind kind, String title) onShoot;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final photos = ref.watch(pointPhotosProvider(pointId));
+
+    return photos.when(
+      loading: () => const LinearProgressIndicator(),
+      error: (e, _) => Text('Erreur : $e'),
+      data: (list) => _PhotoSlots(
+        photos: list,
+        captureDisponible: Plateforme.captureDisponible,
+        onShoot: onShoot,
+        onRetire: (id) => ref.read(photoCaptureServiceProvider).retire(id),
+      ),
+    );
+  }
+}
+
 class _PhotoSlots extends StatelessWidget {
   const _PhotoSlots({
     required this.photos,
@@ -273,22 +764,22 @@ class _PhotoSlots extends StatelessWidget {
           children: [
             Expanded(
               child: _Slot(
-                label: 'Avant',
-                hint: 'La traversée nue',
+                label: 'Photo 1',
+                hint: 'Premier cliché de la traversée',
                 photo: _of(PhotoKind.before),
                 onShoot: captureDisponible
-                    ? () => onShoot(PhotoKind.before, 'Avant calfeutrement')
+                    ? () => onShoot(PhotoKind.before, 'Photo 1')
                     : null,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _Slot(
-                label: 'Après',
-                hint: 'Le calfeutrement réalisé',
+                label: 'Photo 2',
+                hint: 'Second cliché de la traversée',
                 photo: _of(PhotoKind.after),
                 onShoot: captureDisponible
-                    ? () => onShoot(PhotoKind.after, 'Après calfeutrement')
+                    ? () => onShoot(PhotoKind.after, 'Photo 2')
                     : null,
               ),
             ),
@@ -324,7 +815,7 @@ class _PhotoSlots extends StatelessWidget {
         const SizedBox(height: Fs.md),
         if (captureDisponible)
           // Bouton discret et nommé plutôt qu'un grand carré vide : celui-ci se
-          // lisait comme un troisième emplacement réglementaire manquant, alors
+          // lisait comme un troisième emplacement obligatoire manquant, alors
           // qu'un cliché complémentaire est facultatif.
           Align(
             alignment: Alignment.centerLeft,
@@ -345,11 +836,7 @@ class _PhotoSlots extends StatelessWidget {
           // panne, et appellerait.
           const Text(
             'Les clichés se prennent depuis la tablette, sur le chantier.',
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.3,
-              color: Fs.inkMuted,
-            ),
+            style: TextStyle(fontSize: 13, height: 1.3, color: Fs.inkMuted),
           ),
       ],
     );
@@ -369,16 +856,15 @@ class _Slot extends StatelessWidget {
   final Photo? photo;
 
   /// `null` là où la plateforme n'a pas de capteur exploitable : l'emplacement
-  /// reste visible — il fait partie du dossier réglementaire, et son absence
-  /// doit continuer à se voir — mais il n'est plus tactile.
+  /// reste visible — il fait partie du dossier, et son absence doit continuer à
+  /// se voir — mais il n'est plus tactile.
   final VoidCallback? onShoot;
 
-  /// Emplacement réglementaire, vide ou rempli.
+  /// Emplacement de la fiche, vide ou rempli.
   ///
-  /// C'est le moment le plus caractéristique du métier : la paire avant/après
-  /// **est** la preuve. Les deux emplacements occupent donc toute la largeur,
-  /// à parts égales, et un emplacement vide s'annonce en rouge — il manque
-  /// quelque chose au dossier, ce n'est pas un espace décoratif.
+  /// Les deux occupent toute la largeur, à parts égales, et un emplacement vide
+  /// s'annonce en rouge : il manque quelque chose au dossier, ce n'est pas un
+  /// espace décoratif.
   @override
   Widget build(BuildContext context) {
     final current = photo;
@@ -453,61 +939,3 @@ class _Slot extends StatelessWidget {
     );
   }
 }
-
-/// Sélection dans le catalogue, sans saisie libre.
-///
-/// Une référence tapée à la main sur le terrain ne serait pas exploitable en
-/// audit de conformité : c'est le catalogue serveur qui fait foi.
-class _MaterialPicker extends ConsumerWidget {
-  const _MaterialPicker({required this.pointId});
-
-  final String pointId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final catalogue = ref.watch(materialsProvider);
-    final selected = ref.watch(pointMaterialsProvider(pointId));
-
-    return catalogue.when(
-      loading: () => const LinearProgressIndicator(),
-      error: (e, _) => Text('Erreur : $e'),
-      data: (materials) {
-        if (materials.isEmpty) {
-          return const Text(
-            'Catalogue vide — il descendra à la prochaine synchronisation.',
-          );
-        }
-
-        final chosen = {
-          for (final link in selected.valueOrNull ?? const <PointMaterial>[])
-            link.materialId,
-        };
-
-        return Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          children: [
-            for (final material in materials)
-              FilterChip(
-                label: Text(material.label),
-                selected: chosen.contains(material.id),
-                onSelected: (on) {
-                  final next = {...chosen};
-                  if (on) {
-                    next.add(material.id);
-                  } else {
-                    next.remove(material.id);
-                  }
-                  ref.read(pointDaoProvider).setMaterials(
-                        pointId,
-                        {for (final id in next) id: null},
-                      );
-                },
-              ),
-          ],
-        );
-      },
-    );
-  }
-}
-

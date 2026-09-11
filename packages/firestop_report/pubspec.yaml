@@ -16,5 +16,8 @@ dependencies:
   pdf: ^3.11.0
 
 dev_dependencies:
+  # Pour fabriquer de vrais PNG et JPEG dans les tests. Déjà tiré par `pdf`,
+  # qui s'en sert pour décoder tout ce qui n'est pas du JPEG.
+  image: ^4.0.0
   test: ^1.25.0
   lints: ^4.0.0

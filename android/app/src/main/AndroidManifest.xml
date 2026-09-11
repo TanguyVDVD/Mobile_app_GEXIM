@@ -28,10 +28,25 @@
     <uses-feature android:name="android.hardware.camera" tools:node="remove"/>
     <uses-feature android:name="android.hardware.camera.any" android:required="true"/>
 
+    <!-- Aucune sauvegarde des données de l'application, ni en ligne ni d'un
+         appareil à l'autre.
+
+         Par défaut Android copie les données privées dans le compte Google de
+         l'utilisateur : la base SQLite — fichier clients, relevés de chantier —
+         et le jeton de session Supabase seraient partis sur un Drive personnel.
+         Et la restauration serait pire encore : une base vieille de plusieurs
+         jours, avec son outbox, rejouée sur une tablette neuve.
+
+         `allowBackup` couvre la sauvegarde en ligne ; `dataExtractionRules`
+         ferme en plus le transfert d'appareil à appareil, que `allowBackup`
+         laisse passer depuis Android 12. -->
     <application
         android:label="FireStop Tracker"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules">
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -48,49 +48,23 @@ class Profiles extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-/// Mise en page du rapport PDF, propre à un client.
+/// Client donneur d'ordre.
 ///
-/// Descendu du serveur, jamais modifié depuis une tablette. Stocké localement
-/// pour que l'aperçu du rapport reste disponible hors-ligne.
-class ReportTemplates extends Table {
-  TextColumn get id => text()();
-  TextColumn get name => text()();
-
-  /// JSON brut, désérialisé par le package `firestop_report`.
-  ///
-  /// Volontairement non typé ici : la base locale n'a pas à connaître la forme
-  /// d'un template. Elle le transporte, le moteur de rendu l'interprète.
-  TextColumn get config => text()();
-
-  BoolColumn get isDefault => boolean().withDefault(const Constant(false))();
-
-  /// Papier à en-tête, dans le bucket `letterheads`. PDF ou image.
-  TextColumn get letterheadCoverPath => text().nullable()();
-
-  /// Fond des pages suivantes. `null` ⇒ la page de garde est réutilisée.
-  TextColumn get letterheadBodyPath => text().nullable()();
-
-  DateTimeColumn get updatedAt => dateTime()();
-
-  @override
-  Set<Column<Object>> get primaryKey => {id};
-}
-
-/// Client donneur d'ordre. Porte l'identité visuelle des rapports PDF.
+/// Son nom, son adresse et son logo figurent en tête de chaque fiche du
+/// rapport, sur le formulaire AS BUILT commun à tous. L'adresse et le logo sont
+/// donc **obligatoires**, ici comme en base distante : un rapport sans eux
+/// serait amputé de l'identification de son destinataire.
 class Clients extends Table {
   TextColumn get id => text()();
   TextColumn get name => text().withLength(min: 1, max: 200)();
   TextColumn get contactName => text().nullable()();
   TextColumn get contactEmail => text().nullable()();
   TextColumn get contactPhone => text().nullable()();
-  TextColumn get address => text().nullable()();
+  TextColumn get address => text().withLength(min: 1)();
 
-  /// Chemin du logo dans le bucket distant. Injecté dans l'en-tête du rapport.
-  TextColumn get logoPath => text().nullable()();
-
-  /// Template PDF appliqué à ce client. `null` ⇒ template par défaut.
-  TextColumn get templateId =>
-      text().nullable().customConstraint('REFERENCES report_templates(id)')();
+  /// Chemin du logo dans le bucket `client-logos`, posé dans la case « logo
+  /// client » de chaque fiche.
+  TextColumn get logoPath => text().withLength(min: 1)();
 
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
@@ -105,12 +79,21 @@ class Projects extends Table {
   TextColumn get id => text()();
   TextColumn get clientId =>
       text().customConstraint('NOT NULL REFERENCES clients(id)')();
+
+  /// Numéro de chantier du donneur d'ordre, reporté sur chaque fiche du
+  /// rapport (ligne « Numéro Projet » du gabarit).
+  ///
+  /// Texte et non entier : les numéros de chantier portent presque toujours un
+  /// préfixe ou un millésime (« 2026-118 », « BE/447 »). Nullable, parce qu'un
+  /// chantier se crée sur le terrain avant que l'administratif ne suive.
+  TextColumn get code => text().nullable()();
+
   TextColumn get name => text().withLength(min: 1, max: 200)();
   TextColumn get description => text().nullable()();
   DateTimeColumn get startedOn => dateTime().nullable()();
   DateTimeColumn get endedOn => dateTime().nullable()();
   TextColumn get status =>
-      textEnum<ProjectStatus>().withDefault(const Constant('draft'))();
+      textEnum<ProjectStatus>().withDefault(const Constant('inProgress'))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
   DateTimeColumn get deletedAt => dateTime().nullable()();
@@ -138,6 +121,40 @@ class ProjectMembers extends Table {
   Set<Column<Object>> get primaryKey => {projectId, userId};
 }
 
+/// Valeur d'une des listes déroulantes de la fiche de traversée.
+///
+/// Une seule table pour toutes les listes — configurations, configurations
+/// détaillées, niveaux EI, fournisseurs, types de produit, produits —
+/// discriminées par [kind]. Voir [SettingKind] pour le raisonnement.
+///
+/// **Administrée, jamais saisie librement.** Une référence tapée à la main sur
+/// le terrain ne serait pas exploitable en audit de conformité : deux
+/// orthographes du même produit deviennent deux produits. Les points s'y
+/// rattachent par cle etrangere, ce qui rend la faute impossible.
+///
+/// D'où aussi la suppression **logique** : une option retirée du catalogue
+/// reste référencée par les fiches déjà produites, et un rapport régénéré deux
+/// ans plus tard doit rendre le même document.
+@DataClassName('SettingOption')
+class SettingOptions extends Table {
+  TextColumn get id => text()();
+  TextColumn get kind => textEnum<SettingKind>()();
+  TextColumn get label => text().withLength(min: 1, max: 120)();
+
+  /// Rang d'affichage dans la liste déroulante.
+  ///
+  /// Explicite plutôt qu'alphabétique : « EI30, EI60, EI90, EI120 » est un
+  /// ordre croissant que l'alphabet casserait — EI120 passerait avant EI30 —
+  /// et les configurations ont un ordre métier que l'administrateur connaît.
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  DateTimeColumn get updatedAt => dateTime()();
+  DateTimeColumn get deletedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 /// Point / traversée : le cœur métier. Un trou dans une paroi, son calfeutrement
 /// et les preuves photographiques associées.
 class Points extends Table {
@@ -154,13 +171,67 @@ class Points extends Table {
   /// Aucune colonne supplémentaire n'est donc nécessaire.
   IntColumn get refNumber => integer().nullable()();
 
-  TextColumn get floor => text().nullable()();
+  /// Bon de commande du client. Terme anglais conservé : c'est celui qui figure
+  /// sur les pièces contractuelles comme sur le gabarit du rapport.
+  TextColumn get purchaseOrder => text().nullable()();
+
+  /// Bâtiment(s) concerné(s). Champ libre : aucune nomenclature ne s'impose
+  /// d'un site à l'autre.
+  TextColumn get building => text().nullable()();
+
+  /// Étage, de -3 à 5 (voir [floorRange]).
+  ///
+  /// Entier et non texte : l'étage est un axe ordonné, et c'est ce qui permet
+  /// de lire un relevé du sous-sol au dernier niveau.
+  IntColumn get floorLevel => integer().nullable()();
+
+  /// Local. Hors gabarit du rapport, conservé comme repère de terrain.
   TextColumn get room => text().nullable()();
+
+  /// Observations libres. Hors gabarit du rapport, lui aussi.
   TextColumn get description => text().nullable()();
+
+  // ---------------------------------------------------------------------------
+  // Caractéristiques choisies dans les listes administrées
+  // ---------------------------------------------------------------------------
+  //
+  // Toutes nullable : une traversée se photographie d'abord et se qualifie
+  // ensuite, souvent de retour au bureau. Exiger les six listes à la création
+  // reviendrait à faire remplir un formulaire devant un trou dans un mur.
+
+  TextColumn get configurationId =>
+      text().nullable().customConstraint('REFERENCES setting_options(id)')();
+  TextColumn get configurationDetailId =>
+      text().nullable().customConstraint('REFERENCES setting_options(id)')();
+  TextColumn get eiLevelId =>
+      text().nullable().customConstraint('REFERENCES setting_options(id)')();
+  TextColumn get supplierId =>
+      text().nullable().customConstraint('REFERENCES setting_options(id)')();
+  TextColumn get productTypeId =>
+      text().nullable().customConstraint('REFERENCES setting_options(id)')();
+
+  // Cinq colonnes plutôt qu'une table d'association, et c'est délibéré.
+  //
+  // Le gabarit du rapport porte cinq lignes numérotées, « Produit utilisé (1) »
+  // à « (5) » : l'arité est fixe et la position est signifiante. Une table N-N
+  // aurait exigé une colonne de rang pour dire exactement la même chose.
+  TextColumn get product1Id =>
+      text().nullable().customConstraint('REFERENCES setting_options(id)')();
+  TextColumn get product2Id =>
+      text().nullable().customConstraint('REFERENCES setting_options(id)')();
+  TextColumn get product3Id =>
+      text().nullable().customConstraint('REFERENCES setting_options(id)')();
+  TextColumn get product4Id =>
+      text().nullable().customConstraint('REFERENCES setting_options(id)')();
+  TextColumn get product5Id =>
+      text().nullable().customConstraint('REFERENCES setting_options(id)')();
 
   TextColumn get authorId =>
       text().customConstraint('NOT NULL REFERENCES profiles(id)')();
+
+  /// Date de la traversée — la « Date » du gabarit.
   DateTimeColumn get capturedAt => dateTime()();
+
   DateTimeColumn get updatedAt => dateTime()();
   DateTimeColumn get deletedAt => dateTime().nullable()();
 
@@ -168,41 +239,20 @@ class Points extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
-/// Catalogue des matériaux de calfeutrement.
+/// Étages proposés, du troisième sous-sol au cinquième niveau.
 ///
-/// `clientId` nul ⇒ entrée du catalogue global. Renseigné ⇒ référence propre à
-/// un client (produits imposés par son cahier des charges).
-///
-/// Renommée en `MaterialItem` : `Material` entrerait en collision avec le widget
-/// du même nom dans tout fichier important `package:flutter/material.dart`.
-@DataClassName('MaterialItem')
-class Materials extends Table {
-  TextColumn get id => text()();
-  TextColumn get label => text()();
-  TextColumn get manufacturer => text().nullable()();
-  TextColumn get reference => text().nullable()();
-  TextColumn get clientId =>
-      text().nullable().customConstraint('REFERENCES clients(id)')();
-  DateTimeColumn get updatedAt => dateTime()();
-  DateTimeColumn get deletedAt => dateTime().nullable()();
+/// Borné plutôt que libre : au-delà c'est une tour, et le relevé s'y ferait de
+/// toute façon bâtiment par bâtiment. La liste vit ici et non dans l'écran de
+/// saisie, pour que la contrainte SQL du schéma (`points_floor_level_range`)
+/// et la liste déroulante restent démontrablement la même chose.
+const List<int> floorRange = [-3, -2, -1, 0, 1, 2, 3, 4, 5];
 
-  @override
-  Set<Column<Object>> get primaryKey => {id};
-}
-
-/// Association N-N point ↔ matériau, avec la quantité mise en œuvre.
-class PointMaterials extends Table {
-  TextColumn get pointId =>
-      text().customConstraint('NOT NULL REFERENCES points(id)')();
-  TextColumn get materialId =>
-      text().customConstraint('NOT NULL REFERENCES materials(id)')();
-  RealColumn get quantity => real().nullable()();
-  DateTimeColumn get updatedAt => dateTime()();
-  DateTimeColumn get deletedAt => dateTime().nullable()();
-
-  @override
-  Set<Column<Object>> get primaryKey => {pointId, materialId};
-}
+/// Libellé d'un étage. Le rez-de-chaussée se nomme, il ne se numérote pas.
+String floorLabel(int level) => switch (level) {
+      0 => 'Rez-de-chaussée',
+      < 0 => '$level (sous-sol)',
+      _ => 'Étage $level',
+    };
 
 /// Photo rattachée à un point.
 ///
@@ -264,7 +314,8 @@ class AppSettings extends Table {
 /// Contient le `synced_at` **serveur** le plus récent appliqué localement. Pas
 /// l'`updated_at` : celui-ci vient des tablettes et une horloge déréglée
 /// suffirait à propulser le curseur dans le futur, coupant définitivement la
-/// descente des données. Voir la migration `20260904090300_sync_cursor.sql`.
+/// descente des données. Voir `touch_synced_at` dans
+/// `supabase/migrations/20260913100000_schema.sql`.
 class SyncCursors extends Table {
   TextColumn get entity => text()();
   DateTimeColumn get syncedAt => dateTime()();

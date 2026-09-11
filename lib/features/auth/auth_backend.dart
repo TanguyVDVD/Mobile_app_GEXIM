@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Ce dont l'application a réellement besoin d'un fournisseur d'identité.
@@ -28,6 +26,8 @@ abstract interface class AuthBackend {
     required String fullName,
   });
 
+  /// Ferme la session **sur cet appareil**. Ne doit pas échouer faute de
+  /// réseau : voir [SupabaseAuthBackend.signOut].
   Future<void> signOut();
 }
 
@@ -68,25 +68,22 @@ class SupabaseAuthBackend implements AuthBackend {
   }) async {
     try {
       await _auth.signInWithPassword(email: email.trim(), password: password);
+    } on AuthRetryableFetchException catch (e) {
+      throw _transport(
+        e,
+        horsLigne: 'Aucune connexion. La première ouverture de session doit '
+            'se faire avec du réseau ; ensuite l\'application fonctionne hors '
+            'ligne.',
+      );
     } on AuthException catch (e) {
       throw AuthFailure(
-        // Volontairement identique pour un compte inconnu et un mot de passe
-        // faux : distinguer les deux révélerait quels comptes existent.
-        e.statusCode == '400'
-            ? 'Identifiants incorrects.'
-            : 'Connexion refusée : ${e.message}',
-      );
-    } on SocketException {
-      throw const AuthFailure(
-        'Aucune connexion. La première ouverture de session doit se faire '
-        'avec du réseau ; ensuite l\'application fonctionne hors ligne.',
-        isNetwork: true,
-      );
-    } on HandshakeException {
-      throw const AuthFailure(
-        'Connexion sécurisée impossible. Vérifiez la date et l\'heure de '
-        'l\'appareil.',
-        isNetwork: true,
+        _motif(e) ??
+            // Volontairement identique pour un compte inconnu et un mot de
+            // passe faux : distinguer les deux révélerait quels comptes
+            // existent. Un ancien serveur répond 400 sans autre précision.
+            (e.statusCode == '400'
+                ? 'Identifiants incorrects.'
+                : 'Connexion refusée : ${e.message}'),
       );
     }
   }
@@ -107,20 +104,116 @@ class SupabaseAuthBackend implements AuthBackend {
         data: {'full_name': fullName.trim()},
       );
       return response.session != null;
+    } on AuthRetryableFetchException catch (e) {
+      throw _transport(
+        e,
+        horsLigne:
+            'Aucune connexion. La création d\'un compte nécessite du réseau.',
+      );
     } on AuthException catch (e) {
       throw AuthFailure(
-        e.message.contains('already registered')
-            ? 'Un compte existe déjà pour cette adresse.'
-            : 'Inscription refusée : ${e.message}',
-      );
-    } on SocketException {
-      throw const AuthFailure(
-        'Aucune connexion. La création d\'un compte nécessite du réseau.',
-        isNetwork: true,
+        _motif(e) ??
+            (e.message.contains('already registered')
+                ? 'Un compte existe déjà pour cette adresse.'
+                : 'Inscription refusée : ${e.message}'),
       );
     }
   }
 
+  /// Message pour les refus que le serveur **nomme**.
+  ///
+  /// `gotrue` expose le code d'erreur stable du serveur (`error_code`) dans
+  /// [AuthException.code]. On s'y fie plutôt qu'au texte, qui est en anglais
+  /// et change d'une version du serveur à l'autre.
+  ///
+  /// Le cas qui a motivé cette table : une adresse **non confirmée** répond,
+  /// elle aussi, en HTTP 400. Elle s'affichait donc « Identifiants
+  /// incorrects », et le technicien ressaisissait indéfiniment un mot de passe
+  /// juste au lieu d'aller cliquer le lien reçu par courriel.
+  ///
+  /// Rend `null` pour un code inconnu : l'appelant garde alors son repli.
+  static String? _motif(AuthException e) {
+    const tropDeTentatives =
+        'Trop de tentatives. Patientez quelques minutes avant de réessayer.';
+    const motDePasseFaible = 'Mot de passe trop faible. Choisissez-en un plus '
+        'long, mêlant lettres, chiffres et symboles.';
+
+    // Levée sans code par certaines versions de `gotrue`.
+    if (e is AuthWeakPasswordException) return motDePasseFaible;
+
+    final parCode = switch (e.code) {
+      'invalid_credentials' => 'Identifiants incorrects.',
+      'email_not_confirmed' => 'Adresse e-mail pas encore confirmée. Ouvrez '
+          'le lien reçu par courriel, puis reconnectez-vous.',
+      'user_already_exists' ||
+      'email_exists' =>
+        'Un compte existe déjà pour cette adresse.',
+      'weak_password' => motDePasseFaible,
+      'email_address_invalid' || 'validation_failed' => 'Adresse e-mail '
+          'invalide.',
+      'over_request_rate_limit' ||
+      'over_email_send_rate_limit' =>
+        tropDeTentatives,
+      'signup_disabled' || 'email_provider_disabled' => 'La création de '
+          'compte est désactivée. Demandez un accès à un administrateur.',
+      'user_banned' => 'Ce compte est suspendu. Contactez un administrateur.',
+      _ => null,
+    };
+    if (parCode != null) return parCode;
+
+    // Serveur plus ancien, sans code : le statut suffit à reconnaître la
+    // limitation de débit.
+    if (e.statusCode == '429') return tropDeTentatives;
+    return null;
+  }
+
+  /// Traduit un échec de transport.
+  ///
+  /// `gotrue` ne laisse jamais passer une `SocketException` : il attrape toute
+  /// erreur du client HTTP et la relance en [AuthRetryableFetchException] — une
+  /// sous-classe d'[AuthException], dont le message est le `toString()` de
+  /// l'erreur d'origine. Des branches `on SocketException` placées après
+  /// `on AuthException` ne sont donc jamais atteintes, et c'est ce qui
+  /// affichait « Connexion refusée : ClientException with SocketException:
+  /// Failed host lookup » à un technicien simplement privé de réseau.
+  ///
+  /// Sans code HTTP, la requête n'a pas abouti. Avec un code (5xx), le serveur
+  /// a répondu, mais mal : ressaisir ne servirait à rien.
+  static AuthFailure _transport(
+    AuthRetryableFetchException e, {
+    required String horsLigne,
+  }) {
+    if (e.statusCode != null) {
+      return AuthFailure(
+        'Le service d\'authentification ne répond pas correctement '
+        '(${e.statusCode}). Réessayez dans un instant.',
+      );
+    }
+    // L'exception d'origine est perdue : seul son texte subsiste.
+    if (e.message.contains('HandshakeException')) {
+      return const AuthFailure(
+        'Connexion sécurisée impossible. Vérifiez la date et l\'heure de '
+        'l\'appareil.',
+        isNetwork: true,
+      );
+    }
+    return AuthFailure(horsLigne, isNetwork: true);
+  }
+
+  /// Ferme la session sur l'appareil, réseau ou pas.
+  ///
+  /// `gotrue` efface la session locale **avant** de prévenir le serveur (voir
+  /// `GoTrueClient._signOut`), puis relance l'échec de cet appel. Hors réseau,
+  /// la déconnexion avait donc bien lieu — l'écran de connexion s'affichait —
+  /// mais l'appelant recevait une exception que personne n'attrapait. Le jeton
+  /// côté serveur expirera de lui-même : rien ne justifie de signaler un échec
+  /// pour un geste qui a réussi.
   @override
-  Future<void> signOut() => _auth.signOut();
+  Future<void> signOut() async {
+    try {
+      await _auth.signOut();
+    } on AuthException {
+      // Session locale déjà effacée : voir ci-dessus.
+    }
+  }
 }

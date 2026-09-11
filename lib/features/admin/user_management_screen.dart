@@ -31,7 +31,8 @@ class UserManagementScreen extends ConsumerWidget {
           Expanded(
             child: profiles.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Erreur : $e')),
+              error: (e, _) =>
+                  Center(child: Text('Lecture des comptes impossible : $e')),
               data: (list) => list.isEmpty
                   ? const _Empty()
                   : ListView.separated(
@@ -133,7 +134,7 @@ class _UserTile extends ConsumerWidget {
               ? 'Un administrateur voit et modifie tous les chantiers, tous '
                   'les clients, et peut clôturer un dossier de conformité.'
               : '$name perdra l\'accès à l\'administration et ne verra plus '
-                  'que les chantiers auxquels il est affecté.',
+                  'que les chantiers qui lui sont affectés.',
         ),
         actions: [
           TextButton(
@@ -164,7 +165,7 @@ class _UserTile extends ConsumerWidget {
                 ? 'Changement de rôle impossible sans réseau. Un droit '
                     'd\'administration ne se met pas en file d\'attente : il '
                     's\'appliquerait des heures plus tard, peut-être après que '
-                    'vous ayez changé d\'avis.'
+                    'vous avez changé d\'avis.'
                 : 'Refusé : ${e.message}',
           ),
           duration: const Duration(seconds: 7),

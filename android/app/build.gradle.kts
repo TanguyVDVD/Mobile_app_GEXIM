@@ -1,8 +1,27 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// -----------------------------------------------------------------------------
+// Clé de signature
+// -----------------------------------------------------------------------------
+//
+// Lue depuis `android/key.properties`, hors du dépôt (`.gitignore`) — le
+// keystore et ses mots de passe ne sont pas du code source.
+//
+// Le fichier est **facultatif** : absent, la compilation debug et `flutter run`
+// continuent de fonctionner normalement. Seule une compilation release y perd
+// sa signature, et le garde-fou en fin de fichier l'arrête alors avec un
+// message explicite plutôt que de retomber en silence sur la clé de débogage.
+val proprietesCle = Properties().apply {
+    val fichier = rootProject.file("key.properties")
+    if (fichier.exists()) fichier.inputStream().use { load(it) }
+}
+val cleDisponible = proprietesCle.getProperty("storeFile") != null
 
 android {
     namespace = "be.gexim.firestop_tracker"
@@ -15,7 +34,6 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "be.gexim.firestop_tracker"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
@@ -25,11 +43,28 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            if (cleDisponible) {
+                storeFile = file(proprietesCle.getProperty("storeFile"))
+                storePassword = proprietesCle.getProperty("storePassword")
+                keyAlias = proprietesCle.getProperty("keyAlias")
+                keyPassword = proprietesCle.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Jamais la clé de débogage — voir le garde-fou en fin de fichier.
+            //
+            // Sans keystore, on laisse `null` plutôt que de retomber sur la clé
+            // de débogage : un APK signé debug s'installe, se lance et paraît
+            // sain, mais sa clé est propre à la machine qui l'a produit. Aucune
+            // mise à jour ne pourra jamais s'installer par-dessus sur les
+            // tablettes — il faudrait désinstaller, donc perdre la base locale
+            // et tout relevé non synchronisé.
+            signingConfig = if (cleDisponible) signingConfigs.getByName("release") else null
         }
     }
 }
@@ -73,3 +108,25 @@ flutter {
 // relèverait son défaut à 26 ou 28 couperait sinon des tablettes en service,
 // sans que personne ne s'en aperçoive avant le chantier.
 android.defaultConfig.minSdk = 24
+
+// -----------------------------------------------------------------------------
+// Garde-fou de signature
+// -----------------------------------------------------------------------------
+//
+// À l'exécution du graphe de tâches, pas à la configuration. Le bloc
+// `buildTypes` ci-dessus est évalué à **chaque** invocation de Gradle, y
+// compris pour un `flutter run` en debug : une vérification posée dedans
+// casserait le développement quotidien sur un poste sans keystore.
+//
+// Sans ce garde-fou, une release non signée ne produirait pas d'erreur claire —
+// l'AGP sortirait un `app-release-unsigned.apk` et l'outil Flutter se
+// plaindrait seulement de ne pas trouver l'APK attendu.
+gradle.taskGraph.whenReady {
+    if (allTasks.any { it.name.contains("Release") } && !cleDisponible) {
+        throw GradleException(
+            "Compilation release demandée sans clé de signature. " +
+            "Créer android/key.properties (voir android/key.properties.example) " +
+            "et le keystore qu'il désigne."
+        )
+    }
+}

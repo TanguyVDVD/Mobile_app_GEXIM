@@ -6,7 +6,7 @@ import '../database/tables/enums.dart';
 import '../features/admin/admin_home_screen.dart';
 import '../features/admin/client_editor_screen.dart';
 import '../features/admin/project_editor_screen.dart';
-import '../features/admin/template_editor_screen.dart';
+import '../features/admin/settings_screen.dart';
 import '../features/admin/user_management_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/signup_screen.dart';
@@ -19,6 +19,7 @@ import 'providers.dart';
 /// Chemins réservés aux administrateurs.
 const _adminOnly = <String>{
   '/users',
+  '/parametres',
   '/clients/new',
   '/projects/new',
 };
@@ -26,7 +27,6 @@ const _adminOnly = <String>{
 bool _isAdminPath(String path) {
   if (_adminOnly.contains(path)) return true;
   if (path.startsWith('/clients/')) return true;
-  if (path.endsWith('/template')) return true;
   // /projects/<id>/settings et /projects/<id>/report
   return path.endsWith('/settings') || path.endsWith('/report');
 }
@@ -73,6 +73,12 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       GoRoute(path: '/users', builder: (_, __) => const UserManagementScreen()),
 
+      // Les six listes déroulantes de la fiche de traversée. Sous `/parametres`
+      // et non `/settings` : le reste des chemins visibles est en français, et
+      // `/projects/:id/settings` désigne déjà tout autre chose — la
+      // configuration d'un chantier.
+      GoRoute(path: '/parametres', builder: (_, __) => const SettingsScreen()),
+
       GoRoute(
         path: '/clients/new',
         builder: (_, __) => const ClientEditorScreen(),
@@ -82,14 +88,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => ClientEditorScreen(
           clientId: state.pathParameters['clientId'],
         ),
-        routes: [
-          GoRoute(
-            path: 'template',
-            builder: (_, state) => TemplateEditorScreen(
-              clientId: state.pathParameters['clientId']!,
-            ),
-          ),
-        ],
       ),
 
       // `new` avant `:projectId`, sinon il serait capturé comme identifiant.

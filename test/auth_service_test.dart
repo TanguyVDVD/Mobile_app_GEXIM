@@ -81,7 +81,14 @@ void main() {
   Future<void> seedWork({bool pending = true}) async {
     final now = DateTime(2026, 7, 1);
     await db.into(db.clients).insert(
-          Client(id: 'c1', name: 'Client', createdAt: now, updatedAt: now),
+          Client(
+            id: 'c1',
+            name: 'Client',
+            address: 'Rue du Test 1, 4000 Liège',
+            logoPath: 'c1/logo.png',
+            createdAt: now,
+            updatedAt: now,
+          ),
         );
     await db.into(db.projects).insert(
           Project(
@@ -101,6 +108,19 @@ void main() {
       // Tout est parti : la file est vide.
       await db.delete(db.outboxEntries).go();
     }
+  }
+
+  /// Une écriture que le serveur a refusée pour de bon — un chantier clôturé
+  /// entre-temps, une affectation retirée. Elle attend qu'un administrateur
+  /// lève la cause, et n'existe que sur cette tablette.
+  Future<void> refuserUnEnvoi() async {
+    await db.outboxDao.enqueue(
+      entityType: OutboxEntity.point,
+      entityId: 'pt-refuse',
+      payload: {'id': 'pt-refuse'},
+    );
+    final entry = await db.outboxDao.claimNext();
+    await db.outboxDao.markFailed(entry!, 'RLS : refus');
   }
 
   group('profil local', () {
@@ -232,6 +252,21 @@ void main() {
       await auth.signOut();
       expect(backend.signOutCalls, 1);
     });
+
+    test('refusee aussi quand le serveur a refuse un envoi', () async {
+      await signInAs(alice);
+      await seedWork(pending: false);
+      await refuserUnEnvoi();
+
+      await expectLater(
+        auth.signOut(),
+        throwsA(
+          isA<PendingWorkBlocked>()
+              .having((e) => e.message, 'message', contains('refusé')),
+        ),
+      );
+      expect(backend.signOutCalls, 0);
+    });
   });
 
   group('changement de compte', () {
@@ -275,6 +310,53 @@ void main() {
         reason: 'la tablette doit revenir au compte capable de faire partir '
             'ces releves',
       );
+    });
+
+    test('refuse aussi quand un envoi a ete refuse par le serveur', () async {
+      // Le cas qui passait : rien « en attente », tout « refusé ». Le compteur
+      // ne voyait que l'attente, laissait l'autre compte se connecter, et la
+      // purge emportait un relevé qui n'existait nulle part ailleurs.
+      await signInAs(alice);
+      await seedWork(pending: false);
+      await refuserUnEnvoi();
+
+      backend.userId = bob;
+      await expectLater(
+        auth.signIn(email: 'bob@gexim.be', password: 'x'),
+        throwsA(isA<PendingWorkBlocked>()),
+      );
+      expect(
+        await db.select(db.points).get(),
+        isNotEmpty,
+        reason: 'le releve refuse attend un administrateur : la purge l\'aurait '
+            'detruit',
+      );
+    });
+
+    test('refuse aussi quand un cliche a ete refuse', () async {
+      await signInAs(alice);
+      await seedWork(pending: false);
+      final point = await db.select(db.points).getSingle();
+      await db.into(db.photos).insert(
+            Photo(
+              id: 'ph-refuse',
+              pointId: point.id,
+              kind: PhotoKind.before,
+              localPath: '${tmp.path}/ph-refuse.jpg',
+              sortOrder: 0,
+              takenAt: DateTime(2026, 7, 1),
+              uploadState: PhotoUploadState.failed,
+              uploadAttempts: 5,
+              updatedAt: DateTime(2026, 7, 1),
+            ),
+          );
+
+      backend.userId = bob;
+      await expectLater(
+        auth.signIn(email: 'bob@gexim.be', password: 'x'),
+        throwsA(isA<PendingWorkBlocked>()),
+      );
+      expect(await db.select(db.photos).get(), isNotEmpty);
     });
 
     test('se reconnecter avec le meme compte conserve tout', () async {

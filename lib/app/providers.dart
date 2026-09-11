@@ -3,9 +3,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../database/daos/point_dao.dart';
 import '../database/daos/project_dao.dart';
+import '../database/daos/settings_dao.dart';
 import '../database/database.dart';
 import '../database/tables/enums.dart';
-import '../features/admin/template_admin_service.dart';
 import '../features/admin/user_admin_service.dart';
 import '../features/auth/auth_backend.dart';
 import '../features/auth/auth_service.dart';
@@ -14,7 +14,6 @@ import '../features/capture/photo_capture_service.dart';
 import '../features/capture/photo_repository.dart';
 import '../features/capture/photo_storage.dart';
 import '../features/capture/reduction_jpeg.dart';
-import '../features/reports/letterhead_service.dart';
 import '../features/reports/report_exporter.dart';
 import '../features/reports/report_service.dart';
 import '../sync/remote_gateway.dart';
@@ -42,6 +41,9 @@ final projectDaoProvider =
 final pointDaoProvider =
     Provider<PointDao>((ref) => ref.watch(databaseProvider).pointDao);
 
+final settingsDaoProvider =
+    Provider<SettingsDao>((ref) => ref.watch(databaseProvider).settingsDao);
+
 // -----------------------------------------------------------------------------
 // Capture
 // -----------------------------------------------------------------------------
@@ -64,24 +66,6 @@ final photoCaptureServiceProvider = Provider<PhotoCaptureService>(
   ),
 );
 
-final templateAdminServiceProvider = Provider<TemplateAdminService>(
-  (ref) => TemplateAdminService(
-    ref.watch(databaseProvider),
-    ref.watch(remoteGatewayProvider),
-  ),
-);
-
-/// Gabarit appliqué à un client : le sien, sinon celui par défaut.
-final templateForClientProvider =
-    StreamProvider.family<ReportTemplate?, String>(
-  (ref, clientId) =>
-      ref.watch(templateAdminServiceProvider).watchForClient(clientId),
-);
-
-final letterheadServiceProvider = Provider<LetterheadService>(
-  (ref) => LetterheadService(ref.watch(remoteGatewayProvider)),
-);
-
 /// Réduction des clichés : codec natif sur mobile, repli Dart sur Windows.
 /// Voir `ReductionJpeg` — sans ce repli, un rapport généré sur PC sortirait
 /// sans aucune photo, et sans le moindre message.
@@ -100,7 +84,6 @@ final reportServiceProvider = Provider<ReportService>(
     db: ref.watch(databaseProvider),
     photos: ref.watch(photoRepositoryProvider),
     gateway: ref.watch(remoteGatewayProvider),
-    letterheads: ref.watch(letterheadServiceProvider),
     reduction: ref.watch(reductionJpegProvider),
   ),
 );
@@ -231,21 +214,29 @@ final pointPhotosProvider = StreamProvider.family<List<Photo>, String>(
   (ref, pointId) => ref.watch(pointDaoProvider).watchPhotos(pointId),
 );
 
-final materialsProvider = StreamProvider<List<MaterialItem>>(
-  (ref) => ref.watch(pointDaoProvider).watchMaterials(),
+/// Valeurs d'une liste déroulante administrée.
+///
+/// `family` sur [SettingKind] : toutes les listes partagent une table, un DAO
+/// et ce provider. La sixième, « type de produit », n'a rien coûté ici.
+final settingOptionsProvider =
+    StreamProvider.family<List<SettingOption>, SettingKind>(
+  (ref, kind) => ref.watch(settingsDaoProvider).watchKind(kind),
 );
 
-final pointMaterialsProvider =
-    StreamProvider.family<List<PointMaterial>, String>(
-  (ref, pointId) => ref.watch(pointDaoProvider).watchPointMaterials(pointId),
+/// Libellé de **toutes** les options, y compris celles retirées du catalogue.
+///
+/// Indispensable aux listes déroulantes : une traversée relevée l'an dernier
+/// peut désigner un produit qu'on ne propose plus.
+final settingOptionLabelsProvider = StreamProvider<Map<String, String>>(
+  (ref) => ref.watch(settingsDaoProvider).watchLabels(),
 );
 
 // -----------------------------------------------------------------------------
 // Synchronisation
 // -----------------------------------------------------------------------------
 
-/// Surchargé en test par un faux gateway — l'interface [RemoteGateway] n'a que
-/// deux méthodes, le double est trivial à écrire.
+/// Surchargé en test par un faux gateway : l'interface [RemoteGateway] est
+/// étroite, et un double n'implémente que ce que le test exerce.
 final remoteGatewayProvider = Provider<RemoteGateway>(
   (ref) => SupabaseRemoteGateway(Supabase.instance.client),
 );

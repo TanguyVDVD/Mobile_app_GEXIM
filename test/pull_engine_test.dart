@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:firestop_tracker/database/database.dart';
 import 'package:firestop_tracker/database/tables/enums.dart';
@@ -9,8 +10,8 @@ import 'package:firestop_tracker/sync/pull_engine.dart';
 import 'package:firestop_tracker/sync/remote_gateway.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Gateway en mémoire. L'interface n'ayant que trois méthodes, le double tient
-/// en quelques lignes — c'était l'intérêt de la garder étroite.
+/// Gateway en mémoire. Seule la descente (`fetchSince`) sert ici ; le reste de
+/// l'interface est inerte.
 class _FakeGateway implements RemoteGateway {
   final Map<PullEntity, List<Map<String, dynamic>>> tables = {};
 
@@ -68,29 +69,19 @@ class _FakeGateway implements RemoteGateway {
   Future<void> setUserRole(String userId, UserRole role) async {}
 
   @override
-  Future<void> uploadLetterhead({
+  Future<void> uploadAsset({
     required String remotePath,
     required Uint8List bytes,
     required String contentType,
-    String bucket = 'letterheads',
+    required String bucket,
   }) async {}
 
   @override
-  Future<Uint8List> downloadLetterhead(
+  Future<Uint8List> downloadAsset(
     String remotePath, {
-    String bucket = 'letterheads',
+    required String bucket,
   }) async =>
       Uint8List(0);
-
-  @override
-  Future<void> upsertTemplate(Map<String, Object?> payload) async {}
-
-  @override
-  Future<void> attachTemplateToClient({
-    required String clientId,
-    required String templateId,
-    String? logoPath,
-  }) async {}
 }
 
 String _iso(DateTime d) => d.toUtc().toIso8601String();
@@ -116,15 +107,18 @@ void main() {
         'synced_at': _iso(at),
       };
 
-  Map<String, dynamic> clientRow({required DateTime at}) => {
-        'id': 'c1',
+  Map<String, dynamic> clientRow({
+    required DateTime at,
+    String id = 'c1',
+  }) =>
+      {
+        'id': id,
         'name': 'Client Test',
         'contact_name': null,
         'contact_email': null,
         'contact_phone': null,
-        'address': null,
-        'logo_path': null,
-        'template_id': null,
+        'address': 'Rue du Test 1, 4000 Liège',
+        'logo_path': '$id/logo.png',
         'created_at': _iso(at),
         'updated_at': _iso(at),
         'deleted_at': null,
@@ -133,13 +127,15 @@ void main() {
 
   Map<String, dynamic> projectRow({
     required DateTime at,
+    String id = 'p1',
+    String clientId = 'c1',
     String name = 'Chantier A',
     String status = 'in_progress',
     DateTime? syncedAt,
   }) =>
       {
-        'id': 'p1',
-        'client_id': 'c1',
+        'id': id,
+        'client_id': clientId,
         'name': name,
         'description': null,
         'started_on': null,
@@ -151,6 +147,21 @@ void main() {
         'synced_at': _iso(syncedAt ?? at),
       };
 
+  Map<String, dynamic> memberRow({
+    required DateTime at,
+    String projectId = 'p1',
+    String userId = 'u1',
+    DateTime? deletedAt,
+  }) =>
+      {
+        'project_id': projectId,
+        'user_id': userId,
+        'added_at': _iso(at),
+        'updated_at': _iso(at),
+        'deleted_at': deletedAt == null ? null : _iso(deletedAt),
+        'synced_at': _iso(at),
+      };
+
   Map<String, dynamic> pointRow({
     required DateTime at,
     String? description,
@@ -160,9 +171,20 @@ void main() {
         'id': 'pt1',
         'project_id': 'p1',
         'ref_number': refNumber,
-        'floor': 'R+2',
+        'purchase_order': 'PO-2026-118',
+        'building': 'Bloc A',
+        'floor_level': 2,
         'room': 'Local technique',
         'description': description,
+        'configuration_id': null,
+        'configuration_detail_id': null,
+        'ei_level_id': null,
+        'supplier_id': null,
+        'product1_id': null,
+        'product2_id': null,
+        'product3_id': null,
+        'product4_id': null,
+        'product5_id': null,
         'author_id': 'u1',
         'captured_at': _iso(t0),
         'updated_at': _iso(at),
@@ -210,6 +232,128 @@ void main() {
     });
   });
 
+  group('affectation posterieure a la derniere synchro', () {
+    // Le scenario du terrain : une tablette a deja synchronise, donc son
+    // curseur est en avance. L'admin affecte ensuite le technicien a un
+    // chantier **qui existait deja**.
+    //
+    // La ligne d'affectation est neuve : elle descend. Le chantier, lui, n'a pas
+    // bouge — son `synced_at` est plus ancien que le curseur, et la descente
+    // incrementale l'enjambe. L'operateur recoit une affectation vers un
+    // chantier dont il n'a jamais entendu parler.
+    //
+    // C'est exactement ce qui a ete observe : le chantier n'apparaissait pas sur
+    // l'accueil du technicien.
+    // Le curseur du technicien est **en avance** : il travaille deja sur un
+    // chantier, donc sa derniere descente l'a fait monter a cette date-la.
+    final ancien = t0;
+    final recent = t0.add(const Duration(hours: 2));
+    final affectation = t0.add(const Duration(hours: 5));
+
+    /// Etat initial : le technicien est affecte au chantier « recent ».
+    Future<void> dejaSurUnChantier() async {
+      gateway
+        ..put(PullEntity.profile, profileRow('u1', at: recent))
+        ..put(PullEntity.client, clientRow(at: recent, id: 'c-recent'))
+        ..put(
+          PullEntity.project,
+          projectRow(at: recent, id: 'p-recent', clientId: 'c-recent'),
+        )
+        ..put(
+          PullEntity.projectMember,
+          memberRow(at: recent, projectId: 'p-recent'),
+        );
+      await PullEngine(db, gateway).drain();
+    }
+
+    // La cause racine est **cote serveur** : un chantier qui devient visible doit
+    // porter un `synced_at` neuf, sinon la descente incrementale l'enjambe. Le
+    // trigger `refresh_project_visibility` s'en charge, et c'est le banc d'essai
+    // SQL qui le prouve — test 18 de `docker/rls_tests.sql`. Une passerelle
+    // simulee ne peut pas le demontrer : ici, c'est elle, le serveur.
+    //
+    // Ce que ce test-ci verrouille, c'est le contrat cote client : **quand** le
+    // serveur reestampille, le chantier arrive avec son client et son
+    // affectation. Il tomberait si l'ordre de `PullEntity` changeait — les cles
+    // etrangeres etant actives localement, une affectation appliquee avant son
+    // chantier echouerait.
+    test('un chantier reestampille arrive avec tout ce qui le rend utilisable',
+        () async {
+      await dejaSurUnChantier();
+
+      // Le chantier date d'`ancien` — c'est `updated_at` qui le dit — mais le
+      // serveur vient de le reestampiller au moment de l'affectation.
+      gateway
+        ..put(
+          PullEntity.client,
+          clientRow(at: ancien, id: 'c-ancien')
+            ..['synced_at'] = _iso(affectation),
+        )
+        ..put(
+          PullEntity.project,
+          projectRow(
+            at: ancien,
+            id: 'p-ancien',
+            clientId: 'c-ancien',
+            syncedAt: affectation,
+          ),
+        )
+        ..put(
+          PullEntity.projectMember,
+          memberRow(at: affectation, projectId: 'p-ancien'),
+        );
+
+      await PullEngine(db, gateway).drain();
+
+      expect(
+        [for (final p in await db.select(db.projects).get()) p.id],
+        contains('p-ancien'),
+      );
+      expect(
+        [for (final m in await db.select(db.projectMembers).get()) m.projectId],
+        contains('p-ancien'),
+        reason: "sans l'affectation, le chantier n'apparait pas sur l'accueil "
+            'du technicien',
+      );
+    });
+
+    test('la descente ne casse pas quand le parent manque encore', () async {
+      await dejaSurUnChantier();
+      // Le meme scenario, vu comme un probleme d'integrite. `project_members`
+      // reference `projects` par cle etrangere **jusque dans la base locale** :
+      // appliquer l'affectation sans son chantier leve une SqliteException, qui
+      // n'est ni une SyncException ni rattrapee par `SyncEngine._runCycle`.
+      //
+      // Elle remonte donc jusqu'a un `unawaited(syncNow())` : plus aucune
+      // descente n'aboutit, le bandeau reste sur « synchronisation », et rien
+      // n'est journalise. Une panne totale et muette.
+      gateway.put(
+        PullEntity.projectMember,
+        memberRow(at: affectation, projectId: 'p-inconnu'),
+      );
+
+      await expectLater(
+        PullEngine(db, gateway).drain(),
+        completes,
+        reason: 'une ligne orpheline doit etre differee, pas faire tout tomber',
+      );
+
+      // Et surtout : elle ne doit pas etre perdue. Le curseur ne doit pas avoir
+      // enjambe la ligne differee, sinon elle ne redescendrait jamais.
+      gateway.put(
+        PullEntity.project,
+        projectRow(at: affectation, id: 'p-inconnu', clientId: 'c-recent'),
+      );
+      await PullEngine(db, gateway).drain();
+
+      expect(
+        [for (final m in await db.select(db.projectMembers).get()) m.projectId],
+        contains('p-inconnu'),
+        reason: 'l\'affectation differee doit revenir au cycle suivant',
+      );
+    });
+  });
+
   group('last-write-wins', () {
     test('une version serveur plus ancienne n\'ecrase pas la saisie locale',
         () async {
@@ -218,7 +362,10 @@ void main() {
       await PullEngine(db, gateway).drain();
 
       // L'operateur retouche le point ; l'envoi n'est pas encore parti.
-      await db.pointDao.updatePoint('pt1', description: 'saisie locale');
+      await db.pointDao.updatePoint(
+        'pt1',
+        description: const Value('saisie locale'),
+      );
 
       // Le serveur renvoie sa version, plus ancienne, lors d'une redescente
       // provoquee par le recouvrement du curseur.

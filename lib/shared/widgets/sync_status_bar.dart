@@ -27,8 +27,12 @@ class SyncStatusBar extends ConsumerWidget {
     final waiting = pending > 0 || state == SyncState.offline;
 
     final label = switch (state) {
+      // « bloquée » et non « envoi refusé » : l'alerte couvre aussi une
+      // descente interrompue, et un technicien à qui l'on parle d'envoi
+      // chercherait ce qu'il a mal saisi.
       SyncState.needsAttention =>
-        'Envoi refusé — prévenez un administrateur, puis touchez pour réessayer',
+        'Synchronisation bloquée — prévenez un administrateur, puis touchez '
+            'pour réessayer',
       SyncState.syncing => 'Envoi en cours',
       SyncState.offline when pending > 0 =>
         'Hors ligne — $pending relevé${pending > 1 ? 's' : ''} en attente',

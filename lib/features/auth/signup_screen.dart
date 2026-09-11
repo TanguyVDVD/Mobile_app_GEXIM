@@ -76,6 +76,12 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       if (mounted) setState(() => _error = e.message);
     } on PendingWorkBlocked catch (e) {
       if (mounted) setState(() => _error = e.message);
+    } on Object catch (e) {
+      // Même filet qu'à la connexion : aucune issue ne doit rester muette.
+      if (mounted) {
+        setState(() => _error = 'Inscription interrompue par une erreur '
+            'inattendue : $e');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

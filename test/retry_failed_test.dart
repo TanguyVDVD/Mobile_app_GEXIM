@@ -41,7 +41,14 @@ void main() {
           ),
         );
     await db.into(db.clients).insert(
-          Client(id: 'c1', name: 'Client', createdAt: now, updatedAt: now),
+          Client(
+            id: 'c1',
+            name: 'Client',
+            address: 'Rue du Test 1, 4000 Liège',
+            logoPath: 'c1/logo.png',
+            createdAt: now,
+            updatedAt: now,
+          ),
         );
     await db.into(db.projects).insert(
           Project(

@@ -26,7 +26,15 @@ class AdminHomeScreen extends ConsumerWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Accueil'),
-          actions: const [AccountMenu(), SizedBox(width: Fs.xs)],
+          actions: [
+            IconButton(
+              tooltip: 'Paramètres',
+              icon: const Icon(Icons.tune),
+              onPressed: () => context.push('/parametres'),
+            ),
+            const AccountMenu(),
+            const SizedBox(width: Fs.xs),
+          ],
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Chantiers', height: 44),
@@ -152,7 +160,7 @@ class _ProjectPlate extends ConsumerWidget {
 
 /// Statut, en texte discret plutôt qu'en pastille colorée.
 ///
-/// Trois puces de couleur dans une liste attireraient l'œil sur le statut, qui
+/// Des puces de couleur dans une liste attireraient l'œil sur le statut, qui
 /// n'est pas ce qu'on vient y chercher.
 class _StatusMark extends StatelessWidget {
   const _StatusMark(this.status);
@@ -162,7 +170,6 @@ class _StatusMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = switch (status) {
-      ProjectStatus.draft => 'Brouillon',
       ProjectStatus.inProgress => 'En cours',
       ProjectStatus.completed => 'Clôturé',
     };
@@ -202,8 +209,9 @@ class _ClientsTab extends ConsumerWidget {
         data: (list) => list.isEmpty
             ? const EmptyState(
                 title: 'Aucun client',
-                body: 'Un client porte son logo et sa mise en page de rapport. '
-                    'C\'est le point de départ de tout chantier.',
+                body: 'Un client porte son adresse et son logo, qui figurent '
+                    'en tête de chaque fiche du rapport. C\'est le point de '
+                    'départ de tout chantier.',
                 icon: Icons.business_outlined,
               )
             : ReadableWidth(
@@ -213,6 +221,7 @@ class _ClientsTab extends ConsumerWidget {
                   separatorBuilder: (_, __) => const SizedBox(height: Fs.sm),
                   itemBuilder: (context, i) {
                     final client = list[i];
+
                     return Plate(
                       onTap: () => context.push('/clients/${client.id}'),
                       child: Row(

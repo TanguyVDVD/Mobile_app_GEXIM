@@ -25,7 +25,7 @@ typedef PointSummary = ({
 /// deux (kill Android, batterie vide) laisserait sinon une modification visible
 /// à l'écran mais jamais synchronisée — la pire des pannes, parce que
 /// silencieuse : l'opérateur croit son relevé enregistré.
-@DriftAccessor(tables: [Points, Photos, PointMaterials, Materials])
+@DriftAccessor(tables: [Points, Photos])
 class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
   PointDao(super.attachedDatabase);
 
@@ -115,33 +115,27 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
       ]);
   }
 
-  /// Catalogue des matériaux sélectionnables.
-  ///
-  /// Administré côté serveur : un opérateur choisit dans la liste, il ne
-  /// l'étend pas. Une référence saisie librement sur le terrain ne serait pas
-  /// traçable en audit de conformité.
-  Stream<List<MaterialItem>> watchMaterials() {
-    return (select(materials)
-          ..where((t) => t.deletedAt.isNull())
-          ..orderBy([(t) => OrderingTerm.asc(t.label)]))
-        .watch();
-  }
-
-  Stream<List<PointMaterial>> watchPointMaterials(String pointId) {
-    return (select(pointMaterials)
-          ..where((t) => t.pointId.equals(pointId) & t.deletedAt.isNull()))
-        .watch();
-  }
-
   // ---------------------------------------------------------------------------
   // Écriture
   // ---------------------------------------------------------------------------
 
   /// Crée un point. Rend la main immédiatement, réseau ou pas.
+  ///
+  /// Seuls le chantier et l'auteur sont exigés : une traversée se photographie
+  /// devant le mur et se caractérise ensuite, souvent de retour au bureau.
+  /// Réclamer les six listes déroulantes avant de pouvoir déclencher l'appareil
+  /// inverserait l'ordre réel du travail.
+  ///
+  /// [capturedAt] est la « Date » de la fiche. Paramétrable parce qu'un relevé
+  /// se saisit parfois le lendemain, et que la date qui figurera au rapport de
+  /// conformité est celle de l'intervention, pas celle de la frappe.
   Future<String> createPoint({
     required String projectId,
     required String authorId,
-    String? floor,
+    DateTime? capturedAt,
+    String? purchaseOrder,
+    String? building,
+    int? floorLevel,
     String? room,
     String? description,
   }) async {
@@ -150,11 +144,13 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
       id: newId(),
       projectId: projectId,
       refNumber: null, // attribué par le serveur à la synchro
-      floor: floor,
+      purchaseOrder: purchaseOrder,
+      building: building,
+      floorLevel: floorLevel,
       room: room,
       description: description,
       authorId: authorId,
-      capturedAt: now,
+      capturedAt: capturedAt ?? now,
       updatedAt: now,
       deletedAt: null,
     );
@@ -162,22 +158,82 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
     return row.id;
   }
 
+  /// Modifie une fiche, champ par champ.
+  ///
+  /// Chaque paramètre est un `Value` **optionnel**, et la distinction est
+  /// essentielle sur un formulaire où presque tout est facultatif :
+  ///
+  ///  * absent (`null`) ⇒ le champ n'est pas touché ;
+  ///  * `Value(null)`   ⇒ le champ est **effacé**.
+  ///
+  /// L'ancienne signature prenait des `String?` et appliquait `valeur ?? valeur
+  /// actuelle` : désélectionner une liste déroulante était alors impossible,
+  /// l'effacement se lisant comme « ne rien changer ». Sur une fiche qui en
+  /// compte neuf, l'erreur se serait vue à la première correction.
   Future<void> updatePoint(
     String pointId, {
-    String? floor,
-    String? room,
-    String? description,
+    Value<DateTime>? capturedAt,
+    Value<String?>? purchaseOrder,
+    Value<String?>? building,
+    Value<int?>? floorLevel,
+    Value<String?>? room,
+    Value<String?>? description,
+    Value<String?>? configurationId,
+    Value<String?>? configurationDetailId,
+    Value<String?>? eiLevelId,
+    Value<String?>? supplierId,
+    Value<String?>? productTypeId,
+    Value<String?>? product1Id,
+    Value<String?>? product2Id,
+    Value<String?>? product3Id,
+    Value<String?>? product4Id,
+    Value<String?>? product5Id,
   }) async {
     final current =
         await (select(points)..where((t) => t.id.equals(pointId))).getSingle();
 
     await _persistPoint(
       current.copyWith(
-        floor: Value(floor ?? current.floor),
-        room: Value(room ?? current.room),
-        description: Value(description ?? current.description),
+        capturedAt: capturedAt?.value,
+        purchaseOrder: purchaseOrder ?? Value(current.purchaseOrder),
+        building: building ?? Value(current.building),
+        floorLevel: floorLevel ?? Value(current.floorLevel),
+        room: room ?? Value(current.room),
+        description: description ?? Value(current.description),
+        configurationId: configurationId ?? Value(current.configurationId),
+        configurationDetailId:
+            configurationDetailId ?? Value(current.configurationDetailId),
+        eiLevelId: eiLevelId ?? Value(current.eiLevelId),
+        supplierId: supplierId ?? Value(current.supplierId),
+        productTypeId: productTypeId ?? Value(current.productTypeId),
+        product1Id: product1Id ?? Value(current.product1Id),
+        product2Id: product2Id ?? Value(current.product2Id),
+        product3Id: product3Id ?? Value(current.product3Id),
+        product4Id: product4Id ?? Value(current.product4Id),
+        product5Id: product5Id ?? Value(current.product5Id),
         updatedAt: DateTime.now(),
       ),
+    );
+  }
+
+  /// Remplace les cinq emplacements « Produit utilisé » d'un coup.
+  ///
+  /// [productIds] est **positionnel** : son premier élément devient « Produit
+  /// utilisé (1) ». Les emplacements au-delà de sa longueur sont vidés — sans
+  /// quoi retirer un produit du milieu de la liste en laisserait un fantôme
+  /// dans la dernière case, et le rapport de conformité mentionnerait un
+  /// produit qui n'a pas été posé.
+  Future<void> setProducts(String pointId, List<String?> productIds) {
+    String? at(int index) =>
+        index < productIds.length ? productIds[index] : null;
+
+    return updatePoint(
+      pointId,
+      product1Id: Value(at(0)),
+      product2Id: Value(at(1)),
+      product3Id: Value(at(2)),
+      product4Id: Value(at(3)),
+      product5Id: Value(at(4)),
     );
   }
 
@@ -309,45 +365,6 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
     return null;
   }
 
-  /// Remplace la liste des matériaux d'un point.
-  ///
-  /// Les associations retirées sont marquées supprimées plutôt qu'effacées :
-  /// la table est synchronisée comme les autres, et une ligne disparue
-  /// localement serait invisible pour le serveur.
-  Future<void> setMaterials(
-    String pointId,
-    Map<String, double?> quantitiesByMaterialId,
-  ) async {
-    final now = DateTime.now();
-
-    await transaction(() async {
-      final existing = await (select(pointMaterials)
-            ..where((t) => t.pointId.equals(pointId)))
-          .get();
-
-      final desired = quantitiesByMaterialId.keys.toSet();
-
-      for (final row in existing.where((r) => !desired.contains(r.materialId))) {
-        if (row.deletedAt != null) continue;
-        await _persistPointMaterial(
-          row.copyWith(deletedAt: Value(now), updatedAt: now),
-        );
-      }
-
-      for (final entry in quantitiesByMaterialId.entries) {
-        await _persistPointMaterial(
-          PointMaterial(
-            pointId: pointId,
-            materialId: entry.key,
-            quantity: entry.value,
-            updatedAt: now,
-            deletedAt: null,
-          ),
-        );
-      }
-    });
-  }
-
   // ---------------------------------------------------------------------------
   // Persistance atomique : table métier + outbox
   // ---------------------------------------------------------------------------
@@ -362,18 +379,6 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
         entityType: OutboxEntity.point,
         entityId: row.id,
         payload: pointPayload(row),
-      );
-    });
-  }
-
-  Future<void> _persistPointMaterial(PointMaterial row) {
-    return transaction(() async {
-      await into(pointMaterials).insertOnConflictUpdate(row.toCompanion(false));
-      await attachedDatabase.outboxDao.enqueue(
-        entityType: OutboxEntity.pointMaterial,
-        // Clé composite : l'identité d'une association est la paire.
-        entityId: '${row.pointId}:${row.materialId}',
-        payload: pointMaterialPayload(row),
       );
     });
   }

@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:drift/drift.dart' show Variable;
@@ -7,10 +6,10 @@ import 'package:flutter/services.dart' show rootBundle;
 
 import '../../database/database.dart';
 import '../../database/tables/enums.dart' as app;
+import '../../database/tables/tables.dart' show floorLabel;
 import '../../sync/remote_gateway.dart';
 import '../capture/photo_repository.dart';
 import '../capture/reduction_jpeg.dart';
-import 'letterhead_service.dart';
 
 /// Étape en cours de la génération.
 ///
@@ -33,25 +32,26 @@ typedef ReportProgress = void Function(ReportPhase phase, int done, int total);
 /// Assemble les données d'un chantier et produit son rapport PDF.
 ///
 /// Toute la mise en page vit dans `firestop_report`, package Dart pur. Ce
-/// service ne fait que le nourrir : lire la base locale, rapatrier les clichés,
-/// choisir le gabarit du client.
+/// service ne fait que le nourrir : lire la base locale, résoudre les
+/// caractéristiques en libellés, rapatrier les clichés.
+///
+/// Le document produit est la **fiche AS BUILT**, composée par-dessus un
+/// formulaire fixe et commun à tous les clients. Il n'y a rien à configurer :
+/// ni gabarit, ni marges, ni papier à en-tête.
 class ReportService {
   const ReportService({
     required AppDatabase db,
     required PhotoRepository photos,
     required RemoteGateway gateway,
-    required LetterheadService letterheads,
     required ReductionJpeg reduction,
   })  : _db = db,
         _photos = photos,
         _gateway = gateway,
-        _letterheads = letterheads,
         _reduction = reduction;
 
   final AppDatabase _db;
   final PhotoRepository _photos;
   final RemoteGateway _gateway;
-  final LetterheadService _letterheads;
 
   /// Injectée plutôt qu'appelée en dur : le greffon de compression n'existe pas
   /// sur Windows, où la génération du rapport est pourtant l'usage principal.
@@ -81,67 +81,71 @@ class ReportService {
   static const Duration _downloadTimeout = Duration(seconds: 20);
 
   /// Produit le rapport. Rend les octets du PDF.
+  ///
+  /// Le document est la **fiche AS BUILT** : une page neuve par traversée,
+  /// composée par-dessus le formulaire `template_rapport.png`.
+  ///
+  /// Le seul habillage est le logo du client : le fond de page *est* le
+  /// formulaire.
   Future<Uint8List> build(
     String projectId, {
     ReportProgress? onProgress,
   }) async {
     final data = await _collect(projectId, onProgress);
-    final template = await _templateRowFor(data.$2);
-    final config = _configOf(template);
 
     onProgress?.call(ReportPhase.rendering, 0, 0);
 
-    // Habillage : logo du client et papier à en-tête. Chargés en dernier, une
-    // fois les clichés prêts — ce sont des accessoires, et leur absence ne doit
-    // jamais empêcher la sortie du document.
-    final habillage = await _habillage(data.$2, template);
+    // Chargés en dernier, une fois les clichés prêts : ce sont des accessoires,
+    // et leur absence ne doit jamais empêcher la sortie du document.
+    final logo = await _logoDuClient(data.$2);
+    final formulaire = await _formulaire();
     final fonts = await _loadFonts();
-    final builder = ReportBuilder(
-      regularFont: fonts?.$1,
-      boldFont: fonts?.$2,
-    );
 
     final collecte = data.$1;
-    return builder.build(
+    return AsBuiltBuilder(
+      regularFont: fonts?.$1,
+      boldFont: fonts?.$2,
+    ).build(
       ReportData(
         client: collecte.client,
         project: collecte.project,
         points: collecte.points,
         generatedAt: collecte.generatedAt,
-        clientLogo: habillage.logo,
-        letterheadCover: habillage.couverture,
-        letterheadBody: habillage.suite,
+        clientLogo: logo,
+        formBackground: formulaire,
       ),
-      config,
     );
   }
 
-  /// Logo du client et fonds de page, tous facultatifs.
+  /// Le formulaire vierge, depuis les assets de l'application.
   ///
-  /// Chaque chargement échoue en silence : un rapport sans habillage vaut
-  /// infiniment mieux qu'aucun rapport, et ces fichiers vivent sur le réseau.
-  Future<({Uint8List? logo, Uint8List? couverture, Uint8List? suite})>
-      _habillage(Client client, ReportTemplate? template) async {
-    Uint8List? logo;
-    final chemin = client.logoPath;
-    if (chemin != null && chemin.isNotEmpty) {
-      try {
-        logo = await _gateway
-            .downloadLetterhead(chemin, bucket: 'client-logos')
-            .timeout(_downloadTimeout);
-      } on Object {
-        logo = null;
-      }
+  /// Échoue en silence, comme tout le reste de l'habillage : sans lui les
+  /// valeurs se posent sur une page nue, aux mêmes emplacements. Un document
+  /// sans cadre reste lisible et transmissible ; pas de document du tout, non.
+  Future<Uint8List?> _formulaire() async {
+    try {
+      final data = await rootBundle.load('template_rapport.png');
+      return data.buffer.asUint8List();
+    } on Object {
+      return null;
     }
+  }
 
-    final couverture = await _letterheads.rasterise(
-      await _letterheads.download(template?.letterheadCoverPath),
-    );
-    final suite = await _letterheads.rasterise(
-      await _letterheads.download(template?.letterheadBodyPath),
-    );
-
-    return (logo: logo, couverture: couverture, suite: suite);
+  /// Logo du client, rapatrié du bucket.
+  ///
+  /// Échoue en silence : un rapport sans logo vaut infiniment mieux qu'aucun
+  /// rapport, et ce fichier vit sur le réseau. Le moteur PDF pose alors le nom
+  /// du client dans la case. Le délai de garde est le même que pour les
+  /// clichés — un serveur qui accepte la connexion sans jamais répondre
+  /// suspendrait sinon la génération entière pour un accessoire.
+  Future<Uint8List?> _logoDuClient(Client client) async {
+    try {
+      return await _gateway
+          .downloadAsset(client.logoPath, bucket: 'client-logos')
+          .timeout(_downloadTimeout);
+    } on Object {
+      return null;
+    }
   }
 
   /// Dépose le rapport sur le serveur. Nécessite du réseau.
@@ -177,8 +181,17 @@ class ReportService {
     // cycle de synchronisation écrit dans les mêmes tables expose à attendre
     // sans fin un événement déjà passé.
     final summaries = await _db.pointDao.pointSummaries(projectId);
-    final authors = await _authorNames();
-    final materials = await _materialsByPoint(projectId);
+
+    // Les caractéristiques sont stockées par identifiant ; le rapport les veut
+    // en clair. Une seule lecture de toute la table plutôt qu'une jointure par
+    // point : il y a quelques dizaines d'options, et le rapport en relit les
+    // mêmes à chaque fiche.
+    //
+    // `labels()` inclut délibérément les options retirées du catalogue. Les
+    // écarter ferait sortir une ligne « Produit utilisé (1) » vide pour une
+    // traversée pourtant renseignée — une lacune fabriquée par l'outil, sur le
+    // document même qui atteste de la conformité.
+    final options = await _db.settingsDao.labels();
 
     final total = await _photoCount(projectId);
     var done = 0;
@@ -188,23 +201,43 @@ class ReportService {
     for (final summary in summaries) {
       final photos = <ReportPhoto>[];
 
-      for (final photo in await _db.pointDao.photosOf(summary.point.id)) {
+      for (final photo in _ordonner(await _db.pointDao.photosOf(summary.point.id))) {
         final bytes = await _photoBytes(photo);
-        if (bytes != null) {
-          photos.add(ReportPhoto(kind: _kind(photo.kind), bytes: bytes));
-        }
+        if (bytes != null) photos.add(ReportPhoto(bytes: bytes));
         onProgress?.call(ReportPhase.photos, ++done, total);
       }
 
+      final point = summary.point;
       points.add(
         ReportPoint(
           label: summary.label,
-          capturedAt: summary.point.capturedAt,
-          floor: summary.point.floor,
-          room: summary.point.room,
-          description: summary.point.description,
-          authorName: authors[summary.point.authorId],
-          materials: materials[summary.point.id] ?? const [],
+          capturedAt: point.capturedAt,
+          purchaseOrder: point.purchaseOrder,
+          building: point.building,
+          // Mis en forme ici et non dans le package : la règle de nommage des
+          // étages appartient à l'application, et la dupliquer ferait que
+          // l'écran de saisie et le document remis au client finiraient par ne
+          // plus dire la même chose.
+          floor: point.floorLevel == null ? null : floorLabel(point.floorLevel!),
+          configuration: options[point.configurationId],
+          configurationDetail: options[point.configurationDetailId],
+          eiLevel: options[point.eiLevelId],
+          supplier: options[point.supplierId],
+          productType: options[point.productTypeId],
+          products: [
+            for (final id in [
+              point.product1Id,
+              point.product2Id,
+              point.product3Id,
+              point.product4Id,
+              point.product5Id,
+            ])
+              // La chaîne vide, et non un saut : les cinq emplacements de la
+              // fiche sont positionnels. Retirer le deuxième produit ferait
+              // sinon remonter le troisième à sa place, sur un document déjà
+              // remis au client sous l'autre numérotation.
+              options[id] ?? '',
+          ],
           photos: photos,
         ),
       );
@@ -212,19 +245,8 @@ class ReportService {
 
     return (
       ReportData(
-        client: ReportClient(
-          name: client.name,
-          address: client.address,
-          contactName: client.contactName,
-          contactEmail: client.contactEmail,
-          contactPhone: client.contactPhone,
-        ),
-        project: ReportProject(
-          name: project.name,
-          description: project.description,
-          startedOn: project.startedOn,
-          endedOn: project.endedOn,
-        ),
+        client: ReportClient(name: client.name, address: client.address),
+        project: ReportProject(name: project.name, code: project.code),
         points: points,
         generatedAt: DateTime.now(),
       ),
@@ -255,39 +277,6 @@ class ReportService {
     }
   }
 
-  Future<Map<String, String>> _authorNames() async {
-    final rows = await _db.select(_db.profiles).get();
-    return {
-      for (final row in rows)
-        row.id: row.fullName.isEmpty ? row.email : row.fullName,
-    };
-  }
-
-  Future<Map<String, List<String>>> _materialsByPoint(String projectId) async {
-    final rows = await _db.customSelect(
-      '''
-      SELECT pm.point_id AS point_id, m.label AS label
-        FROM point_materials pm
-        JOIN materials m ON m.id = pm.material_id
-        JOIN points p    ON p.id = pm.point_id
-       WHERE p.project_id = ?1
-         AND pm.deleted_at IS NULL
-         AND m.deleted_at IS NULL
-       ORDER BY m.label ASC
-      ''',
-      variables: [Variable<String>(projectId)],
-      readsFrom: {_db.pointMaterials, _db.materials, _db.points},
-    ).get();
-
-    final result = <String, List<String>>{};
-    for (final row in rows) {
-      result
-          .putIfAbsent(row.read<String>('point_id'), () => [])
-          .add(row.read<String>('label'));
-    }
-    return result;
-  }
-
   Future<int> _photoCount(String projectId) async {
     final row = await _db.customSelect(
       '''
@@ -304,46 +293,26 @@ class ReportService {
     return row.read<int>('total');
   }
 
-  static ReportPhotoKind _kind(app.PhotoKind kind) => switch (kind) {
-        app.PhotoKind.before => ReportPhotoKind.before,
-        app.PhotoKind.after => ReportPhotoKind.after,
-        app.PhotoKind.extra => ReportPhotoKind.extra,
-      };
-
-  // ---------------------------------------------------------------------------
-  // Gabarit et polices
-  // ---------------------------------------------------------------------------
-
-  /// Gabarit du client, ou celui par défaut.
+  /// Range les clichés : l'avant, l'après, puis les compléments.
   ///
-  /// Un JSON illisible ne bloque pas la génération : `TemplateConfig` lit avec
-  /// tolérance, et une erreur de saisie retombe sur les valeurs par défaut.
-  /// Refuser de produire un document contractuel pour une virgule mal placée
-  /// serait un mauvais arbitrage.
-  Future<ReportTemplate?> _templateRowFor(Client client) {
-    final templateId = client.templateId;
+  /// La fiche ne distingue plus « avant » et « après » — elle offre deux cases,
+  /// puis autant qu'il en faut. Mais la paire réglementaire reste la preuve du
+  /// dossier, et c'est elle qui doit occuper les deux cases imprimées : c'est
+  /// là que le regard d'un contrôleur se pose. Un cliché complémentaire qui
+  /// s'intercalerait devant elle repousserait l'« après » en seconde rangée.
+  static List<Photo> _ordonner(List<Photo> photos) {
+    int rang(app.PhotoKind kind) => switch (kind) {
+          app.PhotoKind.before => 0,
+          app.PhotoKind.after => 1,
+          app.PhotoKind.extra => 2,
+        };
 
-    return (_db.select(_db.reportTemplates)
-          ..where(
-            (t) => templateId == null
-                ? t.isDefault.equals(true)
-                : t.id.equals(templateId),
-          )
-          ..limit(1))
-        .getSingleOrNull();
+    return [...photos]..sort((a, b) => rang(a.kind).compareTo(rang(b.kind)));
   }
 
-  TemplateConfig _configOf(ReportTemplate? row) {
-    if (row == null) return TemplateConfig.fallback;
-    try {
-      final json = jsonDecode(row.config);
-      return json is Map<String, dynamic>
-          ? TemplateConfig.fromJson(json)
-          : TemplateConfig.fallback;
-    } on FormatException {
-      return TemplateConfig.fallback;
-    }
-  }
+  // ---------------------------------------------------------------------------
+  // Polices
+  // ---------------------------------------------------------------------------
 
   /// Polices Unicode, si elles ont été déposées dans `assets/fonts/`.
   ///

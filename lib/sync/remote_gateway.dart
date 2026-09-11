@@ -7,13 +7,18 @@ import '../database/tables/enums.dart';
 import 'backoff.dart';
 import 'payloads.dart' show UserRoleWire;
 
-/// Contrat minimal vers le backend.
+/// Contrat vers le backend : pousser et recevoir des lignes, déposer et
+/// rapatrier des fichiers, et deux gestes d'administration en ligne.
 ///
-/// Volontairement réduit à deux opérations : pousser une ligne, pousser un
-/// fichier. Tout le reste (rejeu, ordre, temporisation) appartient au moteur de
-/// synchro. Cette frontière étroite rend le remplacement du fournisseur ou le
-/// passage en self-host Docker sans effet sur le reste du code — et permet un
-/// faux gateway trivial en test.
+/// Rien de la politique de rejeu n'y vit — ordre, temporisation, abandon
+/// appartiennent au moteur de synchro. Cette frontière rend le remplacement du
+/// fournisseur ou le passage en self-host Docker sans effet sur le reste du
+/// code, et permet en test un faux gateway qui n'implémente que ce qu'il
+/// exerce.
+///
+/// Toute implémentation doit **borner ses appels dans le temps** et traduire
+/// le dépassement en [SyncException] transitoire — voir
+/// [SupabaseRemoteGateway.delaiRequete] pour ce qui arrive sinon.
 abstract interface class RemoteGateway {
   Future<void> upsert(OutboxEntity entity, Map<String, Object?> payload);
 
@@ -29,32 +34,20 @@ abstract interface class RemoteGateway {
   /// tablette pour des clichés que personne ne regardera.
   Future<Uint8List> downloadPhoto(String remotePath);
 
-  /// Dépose un papier à en-tête, ou un logo client.
+  /// Dépose un fichier d'habillage — aujourd'hui le logo d'un client.
   ///
-  /// Hors file d'attente : ce sont des gestes d'administration faits au bureau,
-  /// et un fichier de plusieurs mégaoctets n'a rien à faire dans une file
-  /// destinée aux relevés de terrain.
-  Future<void> uploadLetterhead({
+  /// Hors file d'attente : c'est un geste d'administration fait au bureau, et
+  /// un fichier de plusieurs mégaoctets n'a rien à faire dans une file destinée
+  /// aux relevés de terrain. Le chemin, lui, repasse par la file comme le reste
+  /// de la fiche client.
+  Future<void> uploadAsset({
     required String remotePath,
     required Uint8List bytes,
     required String contentType,
-    String bucket,
+    required String bucket,
   });
 
-  Future<Uint8List> downloadLetterhead(String remotePath, {String bucket});
-
-  /// Enregistre une mise en page. **Exige du réseau.**
-  ///
-  /// `report_templates` est une table purement descendante : elle n'a pas de
-  /// place dans la file d'attente, qui sert les relevés de terrain.
-  Future<void> upsertTemplate(Map<String, Object?> payload);
-
-  /// Rattache une mise en page à un client, et enregistre son logo.
-  Future<void> attachTemplateToClient({
-    required String clientId,
-    required String templateId,
-    String? logoPath,
-  });
+  Future<Uint8List> downloadAsset(String remotePath, {required String bucket});
 
   /// Change le rôle d'un utilisateur. **Exige du réseau.**
   ///
@@ -92,18 +85,53 @@ abstract interface class RemoteGateway {
 }
 
 class SupabaseRemoteGateway implements RemoteGateway {
-  const SupabaseRemoteGateway(this._client);
+  const SupabaseRemoteGateway(
+    this._client, {
+    this.delaiRequete = const Duration(seconds: 30),
+    this.delaiTransfert = const Duration(minutes: 5),
+  });
 
   final SupabaseClient _client;
 
+  /// Délai de garde d'une requête ordinaire : une ligne, une page de descente.
+  ///
+  /// Le client Supabase n'en impose **aucun**. Sur un réseau qui accepte la
+  /// connexion sans jamais répondre — portail captif, Wi-Fi de chantier
+  /// saturé — un appel restait suspendu indéfiniment. Et comme
+  /// `SyncEngine.syncNow` rend le cycle déjà en cours plutôt que d'en lancer un
+  /// second, **toute la synchronisation se figeait** jusqu'au redémarrage de
+  /// l'application : bandeau sur « Envoi en cours », relevés sur la tablette.
+  ///
+  /// Le dépassement devient une [SyncException] transitoire : le cycle
+  /// s'interrompt proprement, et le suivant réessaiera. Abandonner l'attente ne
+  /// coûte rien — chaque écriture est un upsert idempotent.
+  final Duration delaiRequete;
+
+  /// Délai de garde d'un transfert de fichier : cliché, logo.
+  ///
+  /// Bien plus large : quelques centaines de kilo-octets sur la 4G d'un
+  /// sous-sol peuvent légitimement prendre une minute. Un rapport, qui pèse
+  /// des dizaines de mégaoctets, en reçoit le triple.
+  final Duration delaiTransfert;
+
   static const String bucket = 'point-photos';
+
+  /// Borne [appel] à [delai], et fait du dépassement une coupure réseau.
+  static Future<T> _borne<T>(Future<T> Function() appel, Duration delai) {
+    return appel().timeout(
+      delai,
+      onTimeout: () => throw SyncException.network(
+        'Le serveur ne répond pas (aucune réponse en ${delai.inSeconds} s).',
+      ),
+    );
+  }
 
   static String _tableFor(OutboxEntity entity) => switch (entity) {
         OutboxEntity.client => 'clients',
         OutboxEntity.project => 'projects',
         OutboxEntity.projectMember => 'project_members',
+        OutboxEntity.settingOption => 'setting_options',
         OutboxEntity.point => 'points',
-        OutboxEntity.pointMaterial => 'point_materials',
         OutboxEntity.photo => 'photos',
       };
 
@@ -113,7 +141,10 @@ class SupabaseRemoteGateway implements RemoteGateway {
       // `upsert` et non `insert` : la clé primaire venant du client, rejouer un
       // envoi dont l'accusé de réception s'est perdu réécrit simplement la même
       // ligne. C'est ce qui rend le rejeu sûr sans table de déduplication.
-      await _client.from(_tableFor(entity)).upsert(payload);
+      await _borne(
+        () => _client.from(_tableFor(entity)).upsert(payload),
+        delaiRequete,
+      );
     } on PostgrestException catch (e) {
       throw _classify(e);
     } on SocketException catch (e) {
@@ -129,21 +160,21 @@ class SupabaseRemoteGateway implements RemoteGateway {
     required File file,
   }) async {
     try {
-      await _client.storage.from(bucket).upload(
-            remotePath,
-            file,
-            fileOptions: const FileOptions(
-              contentType: 'image/jpeg',
-              // Idempotence : une reprise après coupure en fin de transfert
-              // réécrit l'objet au lieu d'échouer sur « déjà existant ».
-              upsert: true,
+      await _borne(
+        () => _client.storage.from(bucket).upload(
+              remotePath,
+              file,
+              fileOptions: const FileOptions(
+                contentType: 'image/jpeg',
+                // Idempotence : une reprise après coupure en fin de transfert
+                // réécrit l'objet au lieu d'échouer sur « déjà existant ».
+                upsert: true,
+              ),
             ),
-          );
+        delaiTransfert,
+      );
     } on StorageException catch (e) {
-      final status = int.tryParse(e.statusCode ?? '');
-      throw status == null
-          ? SyncException(e.message, isTransient: false)
-          : SyncException.fromStatus(status, e.message);
+      throw _classifyStorage(e);
     } on SocketException catch (e) {
       throw SyncException.network(e.message);
     } on HandshakeException catch (e) {
@@ -154,12 +185,12 @@ class SupabaseRemoteGateway implements RemoteGateway {
   @override
   Future<Uint8List> downloadPhoto(String remotePath) async {
     try {
-      return await _client.storage.from(bucket).download(remotePath);
+      return await _borne(
+        () => _client.storage.from(bucket).download(remotePath),
+        delaiTransfert,
+      );
     } on StorageException catch (e) {
-      final status = int.tryParse(e.statusCode ?? '');
-      throw status == null
-          ? SyncException(e.message, isTransient: false)
-          : SyncException.fromStatus(status, e.message);
+      throw _classifyStorage(e);
     } on SocketException catch (e) {
       throw SyncException.network(e.message);
     } on HandshakeException catch (e) {
@@ -168,23 +199,23 @@ class SupabaseRemoteGateway implements RemoteGateway {
   }
 
   @override
-  Future<void> uploadLetterhead({
+  Future<void> uploadAsset({
     required String remotePath,
     required Uint8List bytes,
     required String contentType,
-    String bucket = 'letterheads',
+    required String bucket,
   }) async {
     try {
-      await _client.storage.from(bucket).uploadBinary(
-            remotePath,
-            bytes,
-            fileOptions: FileOptions(contentType: contentType, upsert: true),
-          );
+      await _borne(
+        () => _client.storage.from(bucket).uploadBinary(
+              remotePath,
+              bytes,
+              fileOptions: FileOptions(contentType: contentType, upsert: true),
+            ),
+        delaiTransfert,
+      );
     } on StorageException catch (e) {
-      final status = int.tryParse(e.statusCode ?? '');
-      throw status == null
-          ? SyncException(e.message, isTransient: false)
-          : SyncException.fromStatus(status, e.message);
+      throw _classifyStorage(e);
     } on SocketException catch (e) {
       throw SyncException.network(e.message);
     } on HandshakeException catch (e) {
@@ -193,66 +224,17 @@ class SupabaseRemoteGateway implements RemoteGateway {
   }
 
   @override
-  Future<Uint8List> downloadLetterhead(
+  Future<Uint8List> downloadAsset(
     String remotePath, {
-    String bucket = 'letterheads',
+    required String bucket,
   }) async {
     try {
-      return await _client.storage.from(bucket).download(remotePath);
+      return await _borne(
+        () => _client.storage.from(bucket).download(remotePath),
+        delaiTransfert,
+      );
     } on StorageException catch (e) {
-      final status = int.tryParse(e.statusCode ?? '');
-      throw status == null
-          ? SyncException(e.message, isTransient: false)
-          : SyncException.fromStatus(status, e.message);
-    } on SocketException catch (e) {
-      throw SyncException.network(e.message);
-    } on HandshakeException catch (e) {
-      throw SyncException.network(e.message);
-    }
-  }
-
-  @override
-  Future<void> upsertTemplate(Map<String, Object?> payload) async {
-    try {
-      await _client.from('report_templates').upsert(payload);
-    } on PostgrestException catch (e) {
-      throw _classify(e);
-    } on SocketException catch (e) {
-      throw SyncException.network(e.message);
-    } on HandshakeException catch (e) {
-      throw SyncException.network(e.message);
-    }
-  }
-
-  @override
-  Future<void> attachTemplateToClient({
-    required String clientId,
-    required String templateId,
-    String? logoPath,
-  }) async {
-    try {
-      // `.select()` : un UPDATE écarté par RLS renvoie 200 avec zéro ligne.
-      // Sans ce contrôle, l'interface annoncerait un enregistrement qui n'a pas
-      // eu lieu — voir la note sur `setUserRole`.
-      final rows = await _client
-          .from('clients')
-          .update({
-            'template_id': templateId,
-            'logo_path': logoPath,
-            'updated_at': DateTime.now().toUtc().toIso8601String(),
-          })
-          .eq('id', clientId)
-          .select();
-
-      if (rows.isEmpty) {
-        throw const SyncException(
-          'Le serveur a refusé la modification du client. Vérifiez que vous '
-          'êtes toujours administrateur.',
-          isTransient: false,
-        );
-      }
-    } on PostgrestException catch (e) {
-      throw _classify(e);
+      throw _classifyStorage(e);
     } on SocketException catch (e) {
       throw SyncException.network(e.message);
     } on HandshakeException catch (e) {
@@ -271,14 +253,17 @@ class SupabaseRemoteGateway implements RemoteGateway {
       //
       // Le cas se produit dès qu'un compte a perdu ses droits entre l'affichage
       // de l'écran et le clic — exactement le moment où se tromper coûte cher.
-      final rows = await _client
-          .from('profiles')
-          .update({
-            'role': role.wire,
-            'updated_at': DateTime.now().toUtc().toIso8601String(),
-          })
-          .eq('id', userId)
-          .select();
+      final rows = await _borne(
+        () => _client
+            .from('profiles')
+            .update({
+              'role': role.wire,
+              'updated_at': DateTime.now().toUtc().toIso8601String(),
+            })
+            .eq('id', userId)
+            .select(),
+        delaiRequete,
+      );
 
       if (rows.isEmpty) {
         throw const SyncException(
@@ -303,27 +288,30 @@ class SupabaseRemoteGateway implements RemoteGateway {
     required Uint8List bytes,
   }) async {
     try {
-      await _client.storage.from('reports').uploadBinary(
-            remotePath,
-            bytes,
-            fileOptions: const FileOptions(
-              contentType: 'application/pdf',
-              // Regénérer écrase : le chemin est déterministe par rapport.
-              upsert: true,
+      await _borne(
+        () => _client.storage.from('reports').uploadBinary(
+              remotePath,
+              bytes,
+              fileOptions: const FileOptions(
+                contentType: 'application/pdf',
+                // Regénérer écrase : le chemin est déterministe par rapport.
+                upsert: true,
+              ),
             ),
-          );
+        delaiTransfert * 3,
+      );
 
       // La ligne n'est écrite qu'après le dépôt : jamais de rapport référencé
       // sans son fichier.
-      await _client.from('reports').insert({
-        'project_id': projectId,
-        'storage_path': remotePath,
-      });
+      await _borne(
+        () => _client.from('reports').insert({
+          'project_id': projectId,
+          'storage_path': remotePath,
+        }),
+        delaiRequete,
+      );
     } on StorageException catch (e) {
-      final status = int.tryParse(e.statusCode ?? '');
-      throw status == null
-          ? SyncException(e.message, isTransient: false)
-          : SyncException.fromStatus(status, e.message);
+      throw _classifyStorage(e);
     } on PostgrestException catch (e) {
       throw _classify(e);
     } on SocketException catch (e) {
@@ -335,13 +323,11 @@ class SupabaseRemoteGateway implements RemoteGateway {
 
   static String _pullTableFor(PullEntity entity) => switch (entity) {
         PullEntity.profile => 'profiles',
-        PullEntity.reportTemplate => 'report_templates',
+        PullEntity.settingOption => 'setting_options',
         PullEntity.client => 'clients',
         PullEntity.project => 'projects',
         PullEntity.projectMember => 'project_members',
         PullEntity.point => 'points',
-        PullEntity.material => 'materials',
-        PullEntity.pointMaterial => 'point_materials',
         PullEntity.photo => 'photos',
       };
 
@@ -350,10 +336,9 @@ class SupabaseRemoteGateway implements RemoteGateway {
   /// Indispensable : la pagination se fait par `range`, donc par décalage. Sans
   /// tri totalement déterministe, deux lignes partageant le même `synced_at`
   /// peuvent permuter entre deux pages — l'une servie deux fois, l'autre
-  /// jamais. `point_materials` n'ayant pas de colonne `id`, sa clé composite
+  /// jamais. `project_members` n'ayant pas de colonne `id`, sa clé composite
   /// joue ce rôle.
   static List<String> _orderKeys(PullEntity entity) => switch (entity) {
-        PullEntity.pointMaterial => const ['point_id', 'material_id'],
         PullEntity.projectMember => const ['project_id', 'user_id'],
         _ => const ['id'],
       };
@@ -378,7 +363,11 @@ class SupabaseRemoteGateway implements RemoteGateway {
         query = query.order(key, ascending: true);
       }
 
-      final rows = await query.range(offset, offset + limit - 1);
+      final page = query;
+      final rows = await _borne(
+        () => page.range(offset, offset + limit - 1),
+        delaiRequete,
+      );
       return [for (final row in rows) Map<String, dynamic>.from(row)];
     } on PostgrestException catch (e) {
       throw _classify(e);
@@ -387,6 +376,14 @@ class SupabaseRemoteGateway implements RemoteGateway {
     } on HandshakeException catch (e) {
       throw SyncException.network(e.message);
     }
+  }
+
+  /// Qualifie une erreur de stockage d'après son code HTTP.
+  static SyncException _classifyStorage(StorageException e) {
+    final status = int.tryParse(e.statusCode ?? '');
+    return status == null
+        ? SyncException(e.message, isTransient: false)
+        : SyncException.fromStatus(status, e.message);
   }
 
   /// Qualifie une erreur Postgrest en « à retenter » ou « définitive ».

@@ -60,6 +60,8 @@ void main() {
           Client(
             id: 'c1',
             name: 'Client',
+            address: 'Rue du Test 1, 4000 Liège',
+            logoPath: 'c1/logo.png',
             createdAt: now,
             updatedAt: now,
           ),

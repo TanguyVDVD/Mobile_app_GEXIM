@@ -1,44 +1,43 @@
 -- =============================================================================
--- FireStop Tracker — buckets et policies de stockage
+-- FireStop Tracker — stockage des fichiers
 -- =============================================================================
-
--- -----------------------------------------------------------------------------
--- Buckets
--- -----------------------------------------------------------------------------
+--
+-- Trois buckets, tous privés. Le premier segment d'un chemin porte le droit
+-- d'accès : c'est l'identifiant du chantier (clichés, rapports) ou du client
+-- (logos).
+-- =============================================================================
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values
-  -- Photos de traversées. Privé : un rapport de conformité incendie identifie
+  -- Clichés de traversée. Privé : un rapport de conformité incendie identifie
   -- des vulnérabilités structurelles d'un bâtiment réel.
   --
-  -- Plafond à 5 Mo alors qu'un cliché compressé pèse ~400 Ko : ce n'est pas une
-  -- marge, c'est un disjoncteur. Si une régression court-circuitait
-  -- `ImageCompressor`, les originaux de 4 Mo passeraient inaperçus jusqu'à la
-  -- facture. À 5 Mo, ils passent encore — mais l'écart devient visible dans les
-  -- métriques du bucket avant d'être coûteux.
+  -- Plafond à 5 Mo alors qu'un cliché compressé pèse quelques centaines de
+  -- kilo-octets : ce n'est pas une marge, c'est un disjoncteur. Si une
+  -- régression court-circuitait la compression, les originaux passeraient
+  -- encore — mais l'écart deviendrait visible avant d'être coûteux.
   ('point-photos', 'point-photos', false, 5242880, array['image/jpeg']),
 
-  -- Logos clients, injectés dans l'en-tête des rapports.
+  -- Logos clients, posés en tête de chaque fiche. PNG ou JPEG : ce sont les
+  -- deux formats que l'écran client propose et que le moteur PDF sait rendre.
   ('client-logos', 'client-logos', false, 2097152,
-   array['image/png', 'image/jpeg', 'image/svg+xml']),
+   array['image/png', 'image/jpeg']),
 
-  -- Rapports PDF générés à la clôture.
+  -- Rapports PDF déposés par l'administrateur.
   ('reports', 'reports', false, 104857600, array['application/pdf'])
 on conflict (id) do nothing;
 
 -- -----------------------------------------------------------------------------
--- point-photos
+-- point-photos — chemin {project_id}/{point_id}/{photo_id}.jpg
 -- -----------------------------------------------------------------------------
 --
--- Chemin : {project_id}/{point_id}/{photo_id}.jpg
--- Le premier segment porte donc le droit d'accès.
+-- Le dépôt utilise `upsert: true` pour rester idempotent après une coupure, ce
+-- que Supabase Storage traduit en UPDATE quand l'objet existe déjà. Sans la
+-- policy UPDATE, seule la **reprise** d'un transfert échouerait — et seulement
+-- sur réseau instable, donc jamais au bureau.
 --
--- Le transfert utilise `upsert: true` pour rester idempotent après une coupure
--- réseau. Côté Supabase Storage cela se traduit par un UPDATE quand l'objet
--- existe déjà : sans la policy UPDATE ci-dessous, toute **reprise** de
--- transfert échouerait en 403 — précisément le cas que l'idempotence est censée
--- couvrir, et seulement sur réseau instable. Le genre de bug qui ne se
--- manifeste jamais au bureau.
+-- Aucune policy DELETE : un cliché versé est une pièce justificative. Le
+-- retirer du rapport, c'est marquer `photos.deleted_at`.
 
 create policy point_photos_select on storage.objects
   for select to authenticated
@@ -68,13 +67,13 @@ create policy point_photos_update on storage.objects
     and public.can_write_project(((storage.foldername(name))[1])::uuid)
   );
 
--- Aucune policy DELETE : une photo versée est une pièce justificative. La
--- retirer du rapport se fait en marquant la ligne `photos.deleted_at`, ce qui
--- laisse la preuve en place.
-
 -- -----------------------------------------------------------------------------
--- client-logos
+-- client-logos — chemin {client_id}/{uuid}.{png|jpg}
 -- -----------------------------------------------------------------------------
+--
+-- Lecture ouverte à tout compte authentifié : un technicien peut générer le
+-- rapport de son chantier, et le logo y figure. Écriture réservée à
+-- l'administrateur — `for all`, qui couvre l'UPDATE de l'upsert.
 
 create policy client_logos_select on storage.objects
   for select to authenticated
@@ -86,12 +85,11 @@ create policy client_logos_write on storage.objects
   with check (bucket_id = 'client-logos' and public.is_admin());
 
 -- -----------------------------------------------------------------------------
--- reports
+-- reports — chemin {project_id}/rapport.pdf
 -- -----------------------------------------------------------------------------
 --
--- Chemin : {project_id}/{report_id}.pdf
--- Écriture réservée au worker Docker, qui se présente en `service_role` et
--- échappe donc à RLS. Aucune policy d'écriture pour `authenticated`.
+-- Regénérer un rapport écrase le précédent au même chemin : le PDF est une
+-- donnée dérivée, et c'est la table `reports` qui date chaque dépôt.
 
 create policy reports_select on storage.objects
   for select to authenticated
@@ -102,3 +100,12 @@ create policy reports_select on storage.objects
       or public.is_project_member(((storage.foldername(name))[1])::uuid)
     )
   );
+
+create policy reports_insert_admin on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'reports' and public.is_admin());
+
+create policy reports_update_admin on storage.objects
+  for update to authenticated
+  using (bucket_id = 'reports' and public.is_admin())
+  with check (bucket_id = 'reports' and public.is_admin());

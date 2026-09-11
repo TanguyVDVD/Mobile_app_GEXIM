@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:sqlite3/common.dart' show SqliteException;
 
 import '../database/database.dart';
 import '../database/tables/enums.dart';
@@ -65,12 +66,27 @@ class PullEngine {
       );
       if (rows.isEmpty) break;
 
+      var appliquees = 0;
+      var differe = false;
+
       // Une page = une transaction. Les écrans, branchés sur des streams Drift,
       // ne voient donc jamais un lot à moitié appliqué.
       await _db.transaction(() async {
         for (final row in rows) {
-          await _apply(entity, row);
+          try {
+            await _apply(entity, row);
+          } on SqliteException catch (e) {
+            if (!_parentManquant(e)) rethrow;
+            // La ligne est **différée**, pas abandonnée : on quitte la boucle
+            // sans toucher au curseur, ce qui la fera redescendre au cycle
+            // suivant. Sortir de la fermeture valide au passage tout ce qui
+            // précède — une transaction avortée reperdrait une page entière
+            // pour une seule ligne en avance sur son parent.
+            differe = true;
+            return;
+          }
 
+          appliquees++;
           final stamp = syncedAtOf(row);
           final current = highWater;
           if (current == null || stamp.isAfter(current)) {
@@ -79,7 +95,8 @@ class PullEngine {
         }
       });
 
-      received += rows.length;
+      received += appliquees;
+      if (differe) break;
       if (rows.length < _pageSize) break;
       offset += rows.length;
     }
@@ -95,19 +112,34 @@ class PullEngine {
     return received;
   }
 
+  /// La ligne reçue désigne-t-elle un parent que la base locale n'a pas ?
+  ///
+  /// Le cas normal, et il n'a rien d'exceptionnel : une affectation de chantier
+  /// peut arriver avant le chantier lui-même, si l'admin l'a créée pendant que
+  /// la tablette parcourait déjà les entités suivantes.
+  ///
+  /// Avant ce garde-fou, l'insertion levait une `SqliteException` — ni une
+  /// `SyncException`, ni rattrapée par `SyncEngine._runCycle`. Elle remontait
+  /// donc jusqu'à un `unawaited(syncNow())` et disparaissait : **plus aucune
+  /// descente n'aboutissait**, sur aucune entité, sans le moindre message. Le
+  /// technicien voyait simplement son chantier ne jamais arriver.
+  static bool _parentManquant(SqliteException e) {
+    // 787 = SQLITE_CONSTRAINT_FOREIGNKEY. Le message sert de repli : les
+    // exécuteurs ne remontent pas tous le code étendu.
+    return e.extendedResultCode == 787 ||
+        e.message.toUpperCase().contains('FOREIGN KEY');
+  }
+
   Future<void> _apply(PullEntity entity, Map<String, dynamic> row) {
     return switch (entity) {
       PullEntity.profile => _upsert(_db.profiles, profileFromRemote(row)),
-      PullEntity.reportTemplate =>
-        _upsert(_db.reportTemplates, reportTemplateFromRemote(row)),
+      PullEntity.settingOption =>
+        _upsert(_db.settingOptions, settingOptionFromRemote(row)),
       PullEntity.client => _upsert(_db.clients, clientFromRemote(row)),
       PullEntity.project => _upsert(_db.projects, projectFromRemote(row)),
       PullEntity.projectMember =>
         _upsert(_db.projectMembers, projectMemberFromRemote(row)),
       PullEntity.point => _upsert(_db.points, pointFromRemote(row)),
-      PullEntity.material => _upsert(_db.materials, materialFromRemote(row)),
-      PullEntity.pointMaterial =>
-        _upsert(_db.pointMaterials, pointMaterialFromRemote(row)),
       PullEntity.photo => _upsert(_db.photos, photoFromRemote(row)),
     };
   }

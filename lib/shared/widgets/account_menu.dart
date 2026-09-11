@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../app/theme.dart';
+import '../../database/tables/enums.dart';
 import '../../features/auth/auth_service.dart';
 
 /// Identité de la session et déconnexion.
@@ -43,7 +44,7 @@ class AccountMenu extends ConsumerWidget {
                 ),
               ),
               Text(
-                profile?.role.name == 'admin' ? 'Administrateur' : 'Technicien',
+                profile?.role == UserRole.admin ? 'Administrateur' : 'Technicien',
                 style: const TextStyle(fontSize: 14, color: Fs.inkMuted),
               ),
             ],
@@ -80,6 +81,13 @@ class AccountMenu extends ConsumerWidget {
             onPressed: () => ref.read(syncEngineProvider).syncNow(),
           ),
         ),
+      );
+    } on Object catch (e) {
+      // Le réseau n'y est pour rien — `AuthBackend.signOut` tient hors ligne.
+      // Reste une base locale illisible : le dire plutôt que de laisser un menu
+      // qui se referme sans effet.
+      messenger.showSnackBar(
+        SnackBar(content: Text('Déconnexion impossible : $e')),
       );
     }
   }

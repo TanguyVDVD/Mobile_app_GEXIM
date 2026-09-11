@@ -28,7 +28,11 @@ void main() {
           );
     }
 
-    final clientId = await db.projectDao.createClient(name: 'Client');
+    final clientId = await db.projectDao.createClient(
+      name: 'Client',
+      address: 'Rue du Test 1, 4000 Liège',
+      logoPath: 'client/logo.png',
+    );
     projectId = await db.projectDao.createProject(
       clientId: clientId,
       name: 'Chantier',

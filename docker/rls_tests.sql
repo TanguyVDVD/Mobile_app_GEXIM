@@ -36,8 +36,11 @@ insert into auth.users (id, email, raw_user_meta_data) values
 update public.profiles set role = 'admin'
  where id = '11111111-1111-4111-8111-111111111111';
 
-insert into public.clients (id, name, created_at, updated_at) values
-  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Client Test', now(), now());
+insert into public.clients
+  (id, name, address, logo_path, created_at, updated_at) values
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Client Test',
+   'Rue de l''Industrie 12, 4000 Liege',
+   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/logo.png', now(), now());
 
 insert into public.projects
   (id, client_id, name, status, created_at, updated_at) values
@@ -531,34 +534,497 @@ $$;
 rollback;
 
 \echo ''
-\echo '=== Catalogue materiaux ==='
+\echo '=== Listes de parametres ==='
 
 -- -----------------------------------------------------------------------------
--- 14. Catalogue global lisible par tous, catalogue client cloisonne
+-- 14. Un operateur ne peut pas modifier les listes de la fiche
 -- -----------------------------------------------------------------------------
+--
+-- Ces listes decident du vocabulaire de tous les rapports de l'entreprise. Un
+-- technicien qui pourrait y ajouter « Promastop-FX » d'un doigt maladroit
+-- polluerait le catalogue de tout le monde, et l'entree se retrouverait sur le
+-- document d'un autre chantier.
+--
+-- Comme partout ici, le refus se prouve en comptant les lignes : `insert`
+-- ecarte par `with check` leve bien, mais un `update` ecarte par `using` rend
+-- 200 avec zero ligne. On verifie donc l'effet, pas l'exception.
 
 begin;
 
-insert into public.materials (id, label, client_id) values
-  ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'Produit impose ErnestCorp',
-   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+insert into public.setting_options (id, kind, label, sort_order, updated_at)
+values ('f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1', 'product', 'Reference Test',
+        0, now());
+
+select set_config('request.jwt.claims',
+  '{"sub":"22222222-2222-4222-8222-222222222222"}', true);
+set local role authenticated;
+
+do $$
+declare libelle text; ajoutees integer;
+begin
+  begin
+    update public.setting_options set label = 'DETOURNE'
+     where id = 'f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1';
+  exception when others then
+    null;
+  end;
+
+  select label into libelle from public.setting_options
+   where id = 'f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1';
+  assert libelle = 'Reference Test',
+    'FAILLE: un operateur a renomme une entree de catalogue';
+
+  begin
+    insert into public.setting_options (id, kind, label, sort_order, updated_at)
+    values ('f2f2f2f2-f2f2-4f2f-8f2f-f2f2f2f2f2f2', 'product', 'INTRUS',
+            1, now());
+  exception when others then
+    null;
+  end;
+
+  select count(*) into ajoutees from public.setting_options
+   where label = 'INTRUS';
+  assert ajoutees = 0,
+    'FAILLE: un operateur a ajoute une entree de catalogue';
+
+  raise notice 'OK   listes de parametres en lecture seule pour un operateur';
+end
+$$;
+rollback;
+
+-- -----------------------------------------------------------------------------
+-- 15. ... mais il doit pouvoir les LIRE
+-- -----------------------------------------------------------------------------
+--
+-- Le pendant du test precedent, et il compte tout autant. `points` reference
+-- ces lignes par cle etrangere **jusque dans la base locale des tablettes** :
+-- une option invisible ferait echouer la descente du point qui la designe, et
+-- le technicien verrait simplement une traversee ne jamais arriver. C'est le
+-- piege que `can_see_client` et `can_see_profile` evitent pour `clients` et
+-- `profiles`.
+
+begin;
+
+insert into public.setting_options (id, kind, label, sort_order, updated_at)
+values ('f3f3f3f3-f3f3-4f3f-8f3f-f3f3f3f3f3f3', 'ei_level', 'EI240', 9, now());
 
 select set_config('request.jwt.claims',
   '{"sub":"33333333-3333-4333-8333-333333333333"}', true);
 set local role authenticated;
 
 do $$
-declare vus integer;
+declare vues integer;
 begin
-  select count(*) into vus from public.materials
-   where client_id is not null;
-  assert vus = 0,
-    format('FUITE: %s materiau(x) client visible(s) par un inscrit non affecte',
-           vus);
-  raise notice 'OK   catalogue client invisible hors affectation';
+  select count(*) into vues from public.setting_options
+   where id = 'f3f3f3f3-f3f3-4f3f-8f3f-f3f3f3f3f3f3';
+  assert vues = 1,
+    'REGRESSION: les listes de parametres ne sont plus lisibles, la descente '
+    'des points qui les referencent echouera';
+  raise notice 'OK   listes lisibles par tout compte authentifie';
 end
 $$;
 rollback;
+
+-- -----------------------------------------------------------------------------
+-- 16. `synced_at` est pose par le serveur sur setting_options aussi
+-- -----------------------------------------------------------------------------
+--
+-- Chaque table repliquee doit porter son trigger `_touch_synced`. L'oubli serait
+-- silencieux : le curseur de descente n'avancerait jamais pour cette entite, et
+-- les nouvelles options n'arriveraient sur aucune tablette.
+
+begin;
+
+do $$
+declare pose timestamptz;
+begin
+  insert into public.setting_options (id, kind, label, sort_order, updated_at)
+  values ('f4f4f4f4-f4f4-4f4f-8f4f-f4f4f4f4f4f4', 'supplier', 'Fabricant Test',
+          0, '2020-01-01'::timestamptz);
+
+  select synced_at into pose from public.setting_options
+   where id = 'f4f4f4f4-f4f4-4f4f-8f4f-f4f4f4f4f4f4';
+
+  assert pose > now() - interval '1 minute',
+    format('REGRESSION: synced_at vaut %s, le trigger ne tourne pas', pose);
+  raise notice 'OK   synced_at pose par le serveur sur setting_options';
+end
+$$;
+rollback;
+
+-- -----------------------------------------------------------------------------
+-- 17. L'etage est borne en base, pas seulement dans la liste deroulante
+-- -----------------------------------------------------------------------------
+
+begin;
+
+do $$
+declare refuse boolean := false;
+begin
+  begin
+    insert into public.points
+      (id, project_id, author_id, floor_level, captured_at, updated_at)
+    values
+      (gen_random_uuid(), 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+       '22222222-2222-4222-8222-222222222222', 42, now(), now());
+  exception when check_violation then
+    refuse := true;
+  end;
+
+  assert refuse,
+    'REGRESSION: un etage hors plage a ete accepte par la base';
+  raise notice 'OK   floor_level borne a -3..5 cote serveur';
+end
+$$;
+rollback;
+
+\echo ''
+\echo '=== Affectation et descente incrementale ==='
+
+-- -----------------------------------------------------------------------------
+-- 18. Affecter quelqu'un rend son chantier telechargeable
+-- -----------------------------------------------------------------------------
+--
+-- La panne observee sur tablette. Une affectation ne modifie pas le chantier,
+-- seulement ce que RLS laisse voir. Sans reestampillage, un chantier plus
+-- ancien que le curseur du technicien devenait visible et n'etait jamais
+-- envoye : il n'apparaissait pas sur son accueil.
+--
+-- Le test mesure donc `synced_at`, pas la visibilite : la visibilite, elle,
+-- etait deja correcte — c'est precisement ce qui rendait la panne difficile a
+-- lire. Un chantier parfaitement visible que personne ne recevait.
+
+begin;
+
+do $$
+declare
+  avant_projet   timestamptz;
+  avant_point    timestamptz;
+  avant_client   timestamptz;
+  apres_projet   timestamptz;
+  apres_point    timestamptz;
+  apres_client   timestamptz;
+begin
+  -- Un chantier « ancien », avec une traversee, auquel l'externe n'est pas
+  -- affecte. On force des horodatages serveur anciens.
+  insert into public.points
+    (id, project_id, author_id, captured_at, updated_at)
+  values
+    ('caca1111-1111-4111-8111-111111111111',
+     'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+     '22222222-2222-4222-8222-222222222222', now(), now());
+
+  update public.projects set synced_at = now() - interval '30 days'
+   where id = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+  update public.points   set synced_at = now() - interval '30 days'
+   where project_id = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+  update public.clients  set synced_at = now() - interval '30 days'
+   where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+  select synced_at into avant_projet from public.projects
+   where id = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+  select synced_at into avant_point  from public.points
+   where id = 'caca1111-1111-4111-8111-111111111111';
+  select synced_at into avant_client from public.clients
+   where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+  -- L'admin affecte l'externe.
+  insert into public.project_members (project_id, user_id) values
+    ('dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+     '33333333-3333-4333-8333-333333333333');
+
+  select synced_at into apres_projet from public.projects
+   where id = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+  select synced_at into apres_point  from public.points
+   where id = 'caca1111-1111-4111-8111-111111111111';
+  select synced_at into apres_client from public.clients
+   where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+  assert apres_projet > avant_projet,
+    'REGRESSION: le chantier n''a pas ete reestampille, il n''apparaitra pas '
+    'sur l''accueil du technicien';
+  assert apres_point > avant_point,
+    'REGRESSION: les traversees n''ont pas ete reestampillees, le technicien '
+    'verrait un chantier vide';
+  assert apres_client > avant_client,
+    'REGRESSION: le client n''a pas ete reestampille, la cle etrangere locale '
+    'projects.client_id echouerait';
+
+  raise notice 'OK   affectation : chantier, traversees et client reestampilles';
+end
+$$;
+rollback;
+
+-- -----------------------------------------------------------------------------
+-- 19. Une revocation ne reestampille rien
+-- -----------------------------------------------------------------------------
+--
+-- Le pendant du test precedent. Retirer quelqu'un n'ouvre aucun acces : c'est
+-- le tombstone de `project_members` qui redescend et ferme la porte. Si le
+-- trigger reestampillait la, chaque revocation ferait re-telecharger le
+-- chantier entier a tous les autres membres, pour rien.
+
+begin;
+
+do $$
+declare avant timestamptz; apres timestamptz;
+begin
+  select synced_at into avant from public.projects
+   where id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
+  update public.project_members set deleted_at = now(), updated_at = now()
+   where project_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+     and user_id = '22222222-2222-4222-8222-222222222222';
+
+  select synced_at into apres from public.projects
+   where id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
+  assert apres = avant,
+    'REGRESSION: une revocation reestampille le chantier, ce qui le fait '
+    're-descendre sur toutes les tablettes sans raison';
+  raise notice 'OK   revocation : aucun reestampillage inutile';
+end
+$$;
+rollback;
+
+-- -----------------------------------------------------------------------------
+-- 20. Une reaffectation apres retrait reestampille de nouveau
+-- -----------------------------------------------------------------------------
+--
+-- La resurrection d'une affectation retiree rouvre un acces : le technicien a
+-- pu purger sa base entre-temps, et son curseur, lui, n'a pas recule.
+
+begin;
+
+do $$
+declare avant timestamptz; apres timestamptz;
+begin
+  update public.project_members set deleted_at = now(), updated_at = now()
+   where project_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+     and user_id = '22222222-2222-4222-8222-222222222222';
+
+  update public.projects set synced_at = now() - interval '30 days'
+   where id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  select synced_at into avant from public.projects
+   where id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
+  update public.project_members set deleted_at = null, updated_at = now()
+   where project_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+     and user_id = '22222222-2222-4222-8222-222222222222';
+
+  select synced_at into apres from public.projects
+   where id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
+  assert apres > avant,
+    'REGRESSION: une reaffectation ne redonne pas acces au chantier';
+  raise notice 'OK   reaffectation : chantier reestampille';
+end
+$$;
+rollback;
+
+\echo ''
+\echo '=== Integrite des releves ==='
+
+-- -----------------------------------------------------------------------------
+-- 21. Un technicien ne cree pas de traversee au nom d'un autre
+-- -----------------------------------------------------------------------------
+--
+-- RLS ne voit que la ligne : l'operateur a le droit d'ecrire sur ce chantier,
+-- donc la ligne passait, quel que soit l'auteur qu'elle declarait.
+
+begin;
+select set_config('request.jwt.claims',
+  '{"sub":"22222222-2222-4222-8222-222222222222"}', true);
+set local role authenticated;
+
+do $$
+declare refuse boolean := false;
+begin
+  begin
+    insert into public.points
+      (id, project_id, author_id, captured_at, updated_at)
+    values
+      (gen_random_uuid(), 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+       '11111111-1111-4111-8111-111111111111', now(), now());
+  exception when insufficient_privilege then
+    refuse := true;
+  end;
+
+  assert refuse,
+    'REGRESSION: un technicien a cree une traversee au nom d''un autre';
+  raise notice 'OK   traversee creee au nom d''un autre : refusee';
+end
+$$;
+rollback;
+
+-- -----------------------------------------------------------------------------
+-- 22. Un collegue complete la fiche d'un autre, par upsert
+-- -----------------------------------------------------------------------------
+--
+-- Le cas qu'une garde naive aurait casse. PostgREST ecrit par
+-- INSERT ... ON CONFLICT, et Postgres declenche le trigger BEFORE INSERT
+-- **avant** de basculer en mise a jour : la requete du collegue arrive en
+-- insertion, avec l'author_id d'origine. Elle doit passer, et l'auteur rester.
+
+begin;
+insert into public.points
+  (id, project_id, author_id, captured_at, updated_at)
+values
+  ('cafe2222-2222-4222-8222-222222222222',
+   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+   '11111111-1111-4111-8111-111111111111', now(), now() - interval '1 hour');
+
+select set_config('request.jwt.claims',
+  '{"sub":"22222222-2222-4222-8222-222222222222"}', true);
+set local role authenticated;
+
+insert into public.points
+  (id, project_id, author_id, description, captured_at, updated_at)
+values
+  ('cafe2222-2222-4222-8222-222222222222',
+   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+   '11111111-1111-4111-8111-111111111111',
+   'Completee par un collegue', now(), now())
+on conflict (id) do update
+  set description = excluded.description,
+      updated_at  = excluded.updated_at;
+
+do $$
+begin
+  assert (select description from public.points
+           where id = 'cafe2222-2222-4222-8222-222222222222')
+         = 'Completee par un collegue',
+    'REGRESSION: un collegue ne peut plus completer une fiche';
+  assert (select author_id from public.points
+           where id = 'cafe2222-2222-4222-8222-222222222222')
+         = '11111111-1111-4111-8111-111111111111',
+    'REGRESSION: completer une fiche en a change l''auteur';
+  raise notice 'OK   collegue : fiche completee, auteur d''origine conserve';
+end
+$$;
+rollback;
+
+-- -----------------------------------------------------------------------------
+-- 23. L'auteur d'une traversee ne se reattribue pas
+-- -----------------------------------------------------------------------------
+
+begin;
+insert into public.points
+  (id, project_id, author_id, captured_at, updated_at)
+values
+  ('cafe3333-3333-4333-8333-333333333333',
+   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+   '22222222-2222-4222-8222-222222222222', now(), now() - interval '1 hour');
+
+select set_config('request.jwt.claims',
+  '{"sub":"22222222-2222-4222-8222-222222222222"}', true);
+set local role authenticated;
+
+do $$
+declare refuse boolean := false;
+begin
+  begin
+    update public.points
+       set author_id  = '11111111-1111-4111-8111-111111111111',
+           updated_at = now()
+     where id = 'cafe3333-3333-4333-8333-333333333333';
+  exception when insufficient_privilege then
+    refuse := true;
+  end;
+
+  assert refuse,
+    'REGRESSION: un technicien a reattribue une traversee';
+  raise notice 'OK   auteur d''une traversee : non modifiable';
+end
+$$;
+rollback;
+
+-- -----------------------------------------------------------------------------
+-- 24. L'administrateur peut reprendre un releve au nom d'un technicien
+-- -----------------------------------------------------------------------------
+
+begin;
+select set_config('request.jwt.claims',
+  '{"sub":"11111111-1111-4111-8111-111111111111"}', true);
+set local role authenticated;
+
+insert into public.points
+  (id, project_id, author_id, captured_at, updated_at)
+values
+  (gen_random_uuid(), 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+   '22222222-2222-4222-8222-222222222222', now(), now());
+
+\echo 'OK   admin : releve saisi au nom d''un technicien accepte'
+rollback;
+
+-- -----------------------------------------------------------------------------
+-- 25. Un cliche ne designe que l'objet de sa traversee
+-- -----------------------------------------------------------------------------
+--
+-- Sans cette garde, une ligne de cliche pouvait pointer vers le bucket d'un
+-- autre chantier. Le technicien ne l'aurait pas lue, mais l'administrateur, si
+-- — et la photo d'un autre batiment serait sortie sur le rapport.
+
+begin;
+insert into public.points
+  (id, project_id, author_id, captured_at, updated_at)
+values
+  ('cafe4444-4444-4444-8444-444444444444',
+   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+   '22222222-2222-4222-8222-222222222222', now(), now());
+
+select set_config('request.jwt.claims',
+  '{"sub":"22222222-2222-4222-8222-222222222222"}', true);
+set local role authenticated;
+
+do $$
+declare refuse boolean := false;
+begin
+  begin
+    insert into public.photos
+      (id, point_id, kind, storage_path, taken_at, updated_at)
+    values
+      ('fade5555-5555-4555-8555-555555555555',
+       'cafe4444-4444-4444-8444-444444444444', 'before',
+       'dddddddd-dddd-4ddd-8ddd-dddddddddddd/autre/cliche.jpg', now(), now());
+  exception when insufficient_privilege then
+    refuse := true;
+  end;
+
+  assert refuse,
+    'REGRESSION: un cliche a pu designer l''objet d''un autre chantier';
+
+  -- Le chemin que l'application construit, lui, passe.
+  insert into public.photos
+    (id, point_id, kind, storage_path, taken_at, updated_at)
+  values
+    ('fade5555-5555-4555-8555-555555555555',
+     'cafe4444-4444-4444-8444-444444444444', 'before',
+     'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/'
+     'cafe4444-4444-4444-8444-444444444444/'
+     'fade5555-5555-4555-8555-555555555555.jpg',
+     now(), now());
+
+  raise notice 'OK   chemin de cliche : borne a sa traversee';
+end
+$$;
+rollback;
+
+-- -----------------------------------------------------------------------------
+-- 26. Les logos clients sont en PNG ou en JPEG
+-- -----------------------------------------------------------------------------
+
+do $$
+begin
+  assert not exists (
+    select 1 from storage.buckets
+     where id = 'client-logos'
+       and 'image/svg+xml' = any (allowed_mime_types)
+  ),
+    'REGRESSION: le bucket des logos accepte encore le SVG';
+  raise notice 'OK   logos clients : PNG et JPEG uniquement';
+end
+$$;
 
 \echo ''
 \echo 'Tous les tests sont passes.'

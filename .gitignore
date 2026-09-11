@@ -52,12 +52,13 @@ app.*.map.json
 
 # Signature Android.
 #
-# Rien de tout cela n'existe encore — la compilation release utilise la cle de
-# debogage — mais le jour ou une vraie cle sera generee pour le Play Store,
-# elle atterrira ici sous ces noms. Un keystore pousse sur GitHub ne se
-# revoque pas : il faut republier l'application sous une nouvelle identite, et
-# tous les appareils installes perdent la mise a jour. On les exclut avant
-# qu'ils n'existent, pas apres.
+# La compilation release est signee par la cle designee dans key.properties ;
+# sans ce fichier, elle s'arrete (voir le garde-fou en fin de
+# android/app/build.gradle.kts) au lieu de retomber sur la cle de debogage.
+# Un keystore pousse sur GitHub ne se
+# revoque pas : en diffusion directe, il faut desinstaller l'app de chaque
+# tablette pour la reinstaller sous une nouvelle identite -- donc perdre la
+# base locale et tout releve non synchronise.
 *.jks
 *.keystore
 /android/key.properties
@@ -71,3 +72,4 @@ app.*.map.json
 # accueillir un jour une valeur qui, elle, est sensible.
 env.json
 CLAUDE.md
+template_rapport.png

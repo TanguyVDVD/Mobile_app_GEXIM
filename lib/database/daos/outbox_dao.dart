@@ -150,8 +150,10 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// Échec définitif : plus aucune tentative automatique.
   ///
   /// L'entrée est conservée, jamais supprimée : elle représente du travail réel
-  /// d'un opérateur sur le terrain. `watchFailed` la remonte à l'écran de
-  /// synchronisation pour arbitrage humain.
+  /// d'un opérateur sur le terrain. Le bandeau de synchronisation passe en
+  /// alerte, et son appui la réarme ([retryAllFailed]) une fois la cause levée
+  /// côté serveur. Tant qu'elle existe, elle interdit aussi la déconnexion et
+  /// le changement de compte — voir `AppDatabase.travailNonTransmis`.
   Future<void> markFailed(OutboxEntry entry, Object error) {
     return (update(outboxEntries)..where((t) => t.id.equals(entry.id))).write(
       OutboxEntriesCompanion(
@@ -177,8 +179,9 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
 
   /// Réarme **toutes** les entrées abandonnées, en une seule écriture.
   ///
-  /// Une variante en lot plutôt qu'une boucle sur `watchFailed()` : un flux
-  /// vivant n'est pas une lecture ponctuelle. Les écritures d'un cycle de
+  /// Une écriture en lot plutôt qu'une boucle sur les entrées abandonnées — et
+  /// surtout pas sur un flux vivant, qui n'est pas une lecture ponctuelle. Les
+  /// écritures d'un cycle de
   /// synchronisation invalident la requête sous les pieds de l'appelant, et la
   /// souscription peut attendre indéfiniment un événement déjà passé — c'est
   /// exactement le blocage qui figeait autrefois la génération du rapport.
@@ -195,25 +198,5 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
         lastError: const Value(null),
       ),
     );
-  }
-
-  /// Réarme manuellement une entrée abandonnée (bouton « Réessayer »).
-  Future<void> retryFailed(String id) {
-    return (update(outboxEntries)..where((t) => t.id.equals(id))).write(
-      OutboxEntriesCompanion(
-        status: const Value(OutboxStatus.pending),
-        attempts: const Value(0),
-        nextAttemptAt: Value(DateTime.now()),
-        lastError: const Value(null),
-      ),
-    );
-  }
-
-  /// Entrées nécessitant une intervention, pour l'écran de synchronisation.
-  Stream<List<OutboxEntry>> watchFailed() {
-    return (select(outboxEntries)
-          ..where((t) => t.status.equalsValue(OutboxStatus.failed))
-          ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
-        .watch();
   }
 }

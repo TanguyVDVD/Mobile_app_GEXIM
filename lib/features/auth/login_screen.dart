@@ -46,6 +46,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (mounted) setState(() => _error = e.message);
     } on PendingWorkBlocked catch (e) {
       if (mounted) setState(() => _error = e.message);
+    } on Object catch (e) {
+      // Tout le reste — une base locale qui refuse d'écrire le profil, par
+      // exemple. Sans ce filet, le bouton se réactivait sans un mot, et l'on
+      // ne savait ni si la connexion avait eu lieu, ni quoi faire.
+      if (mounted) {
+        setState(() => _error = 'Connexion interrompue par une erreur '
+            'inattendue : $e');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

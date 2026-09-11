@@ -21,6 +21,7 @@ class ProjectEditorScreen extends ConsumerStatefulWidget {
 
 class _ProjectEditorScreenState extends ConsumerState<ProjectEditorScreen> {
   final _name = TextEditingController();
+  final _code = TextEditingController();
   final _description = TextEditingController();
 
   String? _clientId;
@@ -33,6 +34,7 @@ class _ProjectEditorScreenState extends ConsumerState<ProjectEditorScreen> {
   @override
   void dispose() {
     _name.dispose();
+    _code.dispose();
     _description.dispose();
     super.dispose();
   }
@@ -52,25 +54,40 @@ class _ProjectEditorScreenState extends ConsumerState<ProjectEditorScreen> {
     final dao = ref.read(projectDaoProvider);
     final description =
         _description.text.trim().isEmpty ? null : _description.text.trim();
+    final code = _code.text.trim().isEmpty ? null : _code.text.trim();
 
-    if (_isNew) {
-      await dao.createProject(
-        clientId: clientId,
-        name: name,
-        description: description,
-        startedOn: _startedOn,
-      );
-    } else {
-      await dao.updateProject(
-        widget.projectId!,
-        name: name,
-        clientId: clientId,
-        description: description,
-        startedOn: _startedOn,
-      );
+    // `finally` et non une remise à zéro après coup : sans lui, une écriture
+    // qui échouait laissait « Enregistrer » grisé pour toujours, sans message —
+    // la saisie paraissait avalée.
+    try {
+      if (_isNew) {
+        await dao.createProject(
+          clientId: clientId,
+          name: name,
+          code: code,
+          description: description,
+          startedOn: _startedOn,
+        );
+      } else {
+        await dao.updateProject(
+          widget.projectId!,
+          name: name,
+          clientId: clientId,
+          code: code,
+          description: description,
+          startedOn: _startedOn,
+        );
+      }
+      if (mounted) Navigator.of(context).pop();
+    } on Object catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Enregistrement impossible : $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
-
-    if (mounted) Navigator.of(context).pop();
   }
 
   /// Clôture : gèle le chantier et ouvre la génération du rapport.
@@ -168,6 +185,7 @@ class _ProjectEditorScreenState extends ConsumerState<ProjectEditorScreen> {
 
     if (!_isNew && project != null && !_loaded) {
       _name.text = project.name;
+      _code.text = project.code ?? '';
       _description.text = project.description ?? '';
       _clientId = project.clientId;
       _startedOn = project.startedOn;
@@ -194,10 +212,23 @@ class _ProjectEditorScreenState extends ConsumerState<ProjectEditorScreen> {
             textCapitalization: TextCapitalization.sentences,
             decoration: const InputDecoration(
               labelText: 'Nom du chantier *',
+              helperText: 'Ligne « Intitulé Projet » du rapport.',
               border: OutlineInputBorder(),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 20),
+          // Saisi une fois ici, jamais sur les traversées : chaque fiche du
+          // rapport le reprend du chantier. Deux endroits où corriger un numéro
+          // de projet, c'est un rapport sur deux qui porte l'ancien.
+          TextField(
+            controller: _code,
+            decoration: const InputDecoration(
+              labelText: 'Numéro de projet',
+              helperText: 'Ligne « Numéro Projet », reportée sur chaque fiche.',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 20),
           DropdownButtonFormField<String>(
             initialValue: _clientId,
             decoration: const InputDecoration(
@@ -313,8 +344,9 @@ class _MemberPicker extends ConsumerWidget {
     }
     if (operators.isEmpty) {
       return Text(
-        'Aucun opérateur connu. Les comptes se créent dans Supabase ; leurs '
-        'profils redescendent à la synchronisation suivante.',
+        'Aucun technicien connu. Les comptes se créent par inscription depuis '
+        'l\'écran de connexion ; leurs profils redescendent à la '
+        'synchronisation suivante.',
         style: Theme.of(context).textTheme.bodySmall,
       );
     }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:drift/drift.dart';
@@ -22,7 +23,9 @@ enum SyncState {
   /// Pas de réseau exploitable — situation normale sur un chantier.
   offline,
 
-  /// Des écritures ont été définitivement refusées : un humain doit trancher.
+  /// Synchronisation bloquée : une écriture a été définitivement refusée, ou
+  /// la descente s'est interrompue sur une erreur inattendue. Un humain doit
+  /// trancher.
   needsAttention,
 }
 
@@ -144,6 +147,24 @@ class SyncEngine {
       // Remontée par la descente, qui n'a pas de file d'attente où consigner
       // l'échec : elle est sans état, la passe suivante repartira du curseur.
       _emit(e.isTransient ? SyncState.offline : SyncState.needsAttention);
+    } on Object catch (e, pile) {
+      // Tout ce qui n'est pas une `SyncException` : une ligne indécodable, une
+      // contrainte locale qui n'est pas un parent manquant… Ces erreurs
+      // remontaient jusqu'à un `unawaited(syncNow())` et y disparaissaient :
+      // la descente s'arrêtait sur toutes les entités qui suivent, et le
+      // bandeau restait sur « Envoi en cours ».
+      //
+      // Constaté le 11 septembre 2026 : un poste Windows compilé avant la liste
+      // `product_type` recevait ces options, levait une `FormatException`, et
+      // n'a plus rien reçu ensuite — ni client, ni logo. Ses rapports sortaient
+      // avec le nom du client à la place du logo, sans un mot.
+      developer.log(
+        'Cycle de synchronisation interrompu',
+        name: 'sync',
+        error: e,
+        stackTrace: pile,
+      );
+      _emit(SyncState.needsAttention);
     }
   }
 

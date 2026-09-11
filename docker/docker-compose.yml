@@ -33,15 +33,9 @@ services:
 
       # Les migrations réelles, montées telles quelles. Si elles divergeaient de
       # ce qui part en production, le banc d'essai ne prouverait plus rien.
-      - ../supabase/migrations/20260904090000_initial_schema.sql:/docker-entrypoint-initdb.d/10_schema.sql:ro
-      - ../supabase/migrations/20260904090100_rls.sql:/docker-entrypoint-initdb.d/20_rls.sql:ro
-      - ../supabase/migrations/20260904090200_storage.sql:/docker-entrypoint-initdb.d/30_storage.sql:ro
-      - ../supabase/migrations/20260904090300_sync_cursor.sql:/docker-entrypoint-initdb.d/40_sync_cursor.sql:ro
-      - ../supabase/migrations/20260904090400_project_members_sync.sql:/docker-entrypoint-initdb.d/50_project_members.sql:ro
-      - ../supabase/migrations/20260904090500_report_storage.sql:/docker-entrypoint-initdb.d/60_report_storage.sql:ro
-      - ../supabase/migrations/20260904090600_tighten_reads.sql:/docker-entrypoint-initdb.d/70_tighten_reads.sql:ro
-      - ../supabase/migrations/20260904090700_materials_scope.sql:/docker-entrypoint-initdb.d/80_materials_scope.sql:ro
-      - ../supabase/migrations/20260904090800_letterhead.sql:/docker-entrypoint-initdb.d/85_letterhead.sql:ro
+      - ../supabase/migrations/20260913100000_schema.sql:/docker-entrypoint-initdb.d/10_schema.sql:ro
+      - ../supabase/migrations/20260913100100_rls.sql:/docker-entrypoint-initdb.d/20_rls.sql:ro
+      - ../supabase/migrations/20260913100200_storage.sql:/docker-entrypoint-initdb.d/30_storage.sql:ro
 
       # Les GRANT que Supabase pose automatiquement, et qu'un Postgres nu ignore.
       - ./postgres/99_grants.sql:/docker-entrypoint-initdb.d/99_grants.sql:ro

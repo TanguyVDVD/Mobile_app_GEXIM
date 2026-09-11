@@ -310,424 +310,6 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
   }
 }
 
-class $ReportTemplatesTable extends ReportTemplates
-    with TableInfo<$ReportTemplatesTable, ReportTemplate> {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  $ReportTemplatesTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _idMeta = const VerificationMeta('id');
-  @override
-  late final GeneratedColumn<String> id = GeneratedColumn<String>(
-      'id', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _nameMeta = const VerificationMeta('name');
-  @override
-  late final GeneratedColumn<String> name = GeneratedColumn<String>(
-      'name', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _configMeta = const VerificationMeta('config');
-  @override
-  late final GeneratedColumn<String> config = GeneratedColumn<String>(
-      'config', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _isDefaultMeta =
-      const VerificationMeta('isDefault');
-  @override
-  late final GeneratedColumn<bool> isDefault = GeneratedColumn<bool>(
-      'is_default', aliasedName, false,
-      type: DriftSqlType.bool,
-      requiredDuringInsert: false,
-      defaultConstraints:
-          GeneratedColumn.constraintIsAlways('CHECK ("is_default" IN (0, 1))'),
-      defaultValue: const Constant(false));
-  static const VerificationMeta _letterheadCoverPathMeta =
-      const VerificationMeta('letterheadCoverPath');
-  @override
-  late final GeneratedColumn<String> letterheadCoverPath =
-      GeneratedColumn<String>('letterhead_cover_path', aliasedName, true,
-          type: DriftSqlType.string, requiredDuringInsert: false);
-  static const VerificationMeta _letterheadBodyPathMeta =
-      const VerificationMeta('letterheadBodyPath');
-  @override
-  late final GeneratedColumn<String> letterheadBodyPath =
-      GeneratedColumn<String>('letterhead_body_path', aliasedName, true,
-          type: DriftSqlType.string, requiredDuringInsert: false);
-  static const VerificationMeta _updatedAtMeta =
-      const VerificationMeta('updatedAt');
-  @override
-  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
-      'updated_at', aliasedName, false,
-      type: DriftSqlType.dateTime, requiredDuringInsert: true);
-  @override
-  List<GeneratedColumn> get $columns => [
-        id,
-        name,
-        config,
-        isDefault,
-        letterheadCoverPath,
-        letterheadBodyPath,
-        updatedAt
-      ];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'report_templates';
-  @override
-  VerificationContext validateIntegrity(Insertable<ReportTemplate> instance,
-      {bool isInserting = false}) {
-    final context = VerificationContext();
-    final data = instance.toColumns(true);
-    if (data.containsKey('id')) {
-      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
-    } else if (isInserting) {
-      context.missing(_idMeta);
-    }
-    if (data.containsKey('name')) {
-      context.handle(
-          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
-    } else if (isInserting) {
-      context.missing(_nameMeta);
-    }
-    if (data.containsKey('config')) {
-      context.handle(_configMeta,
-          config.isAcceptableOrUnknown(data['config']!, _configMeta));
-    } else if (isInserting) {
-      context.missing(_configMeta);
-    }
-    if (data.containsKey('is_default')) {
-      context.handle(_isDefaultMeta,
-          isDefault.isAcceptableOrUnknown(data['is_default']!, _isDefaultMeta));
-    }
-    if (data.containsKey('letterhead_cover_path')) {
-      context.handle(
-          _letterheadCoverPathMeta,
-          letterheadCoverPath.isAcceptableOrUnknown(
-              data['letterhead_cover_path']!, _letterheadCoverPathMeta));
-    }
-    if (data.containsKey('letterhead_body_path')) {
-      context.handle(
-          _letterheadBodyPathMeta,
-          letterheadBodyPath.isAcceptableOrUnknown(
-              data['letterhead_body_path']!, _letterheadBodyPathMeta));
-    }
-    if (data.containsKey('updated_at')) {
-      context.handle(_updatedAtMeta,
-          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
-    } else if (isInserting) {
-      context.missing(_updatedAtMeta);
-    }
-    return context;
-  }
-
-  @override
-  Set<GeneratedColumn> get $primaryKey => {id};
-  @override
-  ReportTemplate map(Map<String, dynamic> data, {String? tablePrefix}) {
-    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return ReportTemplate(
-      id: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
-      name: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
-      config: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}config'])!,
-      isDefault: attachedDatabase.typeMapping
-          .read(DriftSqlType.bool, data['${effectivePrefix}is_default'])!,
-      letterheadCoverPath: attachedDatabase.typeMapping.read(
-          DriftSqlType.string, data['${effectivePrefix}letterhead_cover_path']),
-      letterheadBodyPath: attachedDatabase.typeMapping.read(
-          DriftSqlType.string, data['${effectivePrefix}letterhead_body_path']),
-      updatedAt: attachedDatabase.typeMapping
-          .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
-    );
-  }
-
-  @override
-  $ReportTemplatesTable createAlias(String alias) {
-    return $ReportTemplatesTable(attachedDatabase, alias);
-  }
-}
-
-class ReportTemplate extends DataClass implements Insertable<ReportTemplate> {
-  final String id;
-  final String name;
-
-  /// JSON brut, désérialisé par le package `firestop_report`.
-  ///
-  /// Volontairement non typé ici : la base locale n'a pas à connaître la forme
-  /// d'un template. Elle le transporte, le moteur de rendu l'interprète.
-  final String config;
-  final bool isDefault;
-
-  /// Papier à en-tête, dans le bucket `letterheads`. PDF ou image.
-  final String? letterheadCoverPath;
-
-  /// Fond des pages suivantes. `null` ⇒ la page de garde est réutilisée.
-  final String? letterheadBodyPath;
-  final DateTime updatedAt;
-  const ReportTemplate(
-      {required this.id,
-      required this.name,
-      required this.config,
-      required this.isDefault,
-      this.letterheadCoverPath,
-      this.letterheadBodyPath,
-      required this.updatedAt});
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    map['id'] = Variable<String>(id);
-    map['name'] = Variable<String>(name);
-    map['config'] = Variable<String>(config);
-    map['is_default'] = Variable<bool>(isDefault);
-    if (!nullToAbsent || letterheadCoverPath != null) {
-      map['letterhead_cover_path'] = Variable<String>(letterheadCoverPath);
-    }
-    if (!nullToAbsent || letterheadBodyPath != null) {
-      map['letterhead_body_path'] = Variable<String>(letterheadBodyPath);
-    }
-    map['updated_at'] = Variable<DateTime>(updatedAt);
-    return map;
-  }
-
-  ReportTemplatesCompanion toCompanion(bool nullToAbsent) {
-    return ReportTemplatesCompanion(
-      id: Value(id),
-      name: Value(name),
-      config: Value(config),
-      isDefault: Value(isDefault),
-      letterheadCoverPath: letterheadCoverPath == null && nullToAbsent
-          ? const Value.absent()
-          : Value(letterheadCoverPath),
-      letterheadBodyPath: letterheadBodyPath == null && nullToAbsent
-          ? const Value.absent()
-          : Value(letterheadBodyPath),
-      updatedAt: Value(updatedAt),
-    );
-  }
-
-  factory ReportTemplate.fromJson(Map<String, dynamic> json,
-      {ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return ReportTemplate(
-      id: serializer.fromJson<String>(json['id']),
-      name: serializer.fromJson<String>(json['name']),
-      config: serializer.fromJson<String>(json['config']),
-      isDefault: serializer.fromJson<bool>(json['isDefault']),
-      letterheadCoverPath:
-          serializer.fromJson<String?>(json['letterheadCoverPath']),
-      letterheadBodyPath:
-          serializer.fromJson<String?>(json['letterheadBodyPath']),
-      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
-    );
-  }
-  @override
-  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return <String, dynamic>{
-      'id': serializer.toJson<String>(id),
-      'name': serializer.toJson<String>(name),
-      'config': serializer.toJson<String>(config),
-      'isDefault': serializer.toJson<bool>(isDefault),
-      'letterheadCoverPath': serializer.toJson<String?>(letterheadCoverPath),
-      'letterheadBodyPath': serializer.toJson<String?>(letterheadBodyPath),
-      'updatedAt': serializer.toJson<DateTime>(updatedAt),
-    };
-  }
-
-  ReportTemplate copyWith(
-          {String? id,
-          String? name,
-          String? config,
-          bool? isDefault,
-          Value<String?> letterheadCoverPath = const Value.absent(),
-          Value<String?> letterheadBodyPath = const Value.absent(),
-          DateTime? updatedAt}) =>
-      ReportTemplate(
-        id: id ?? this.id,
-        name: name ?? this.name,
-        config: config ?? this.config,
-        isDefault: isDefault ?? this.isDefault,
-        letterheadCoverPath: letterheadCoverPath.present
-            ? letterheadCoverPath.value
-            : this.letterheadCoverPath,
-        letterheadBodyPath: letterheadBodyPath.present
-            ? letterheadBodyPath.value
-            : this.letterheadBodyPath,
-        updatedAt: updatedAt ?? this.updatedAt,
-      );
-  ReportTemplate copyWithCompanion(ReportTemplatesCompanion data) {
-    return ReportTemplate(
-      id: data.id.present ? data.id.value : this.id,
-      name: data.name.present ? data.name.value : this.name,
-      config: data.config.present ? data.config.value : this.config,
-      isDefault: data.isDefault.present ? data.isDefault.value : this.isDefault,
-      letterheadCoverPath: data.letterheadCoverPath.present
-          ? data.letterheadCoverPath.value
-          : this.letterheadCoverPath,
-      letterheadBodyPath: data.letterheadBodyPath.present
-          ? data.letterheadBodyPath.value
-          : this.letterheadBodyPath,
-      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
-    );
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('ReportTemplate(')
-          ..write('id: $id, ')
-          ..write('name: $name, ')
-          ..write('config: $config, ')
-          ..write('isDefault: $isDefault, ')
-          ..write('letterheadCoverPath: $letterheadCoverPath, ')
-          ..write('letterheadBodyPath: $letterheadBodyPath, ')
-          ..write('updatedAt: $updatedAt')
-          ..write(')'))
-        .toString();
-  }
-
-  @override
-  int get hashCode => Object.hash(id, name, config, isDefault,
-      letterheadCoverPath, letterheadBodyPath, updatedAt);
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is ReportTemplate &&
-          other.id == this.id &&
-          other.name == this.name &&
-          other.config == this.config &&
-          other.isDefault == this.isDefault &&
-          other.letterheadCoverPath == this.letterheadCoverPath &&
-          other.letterheadBodyPath == this.letterheadBodyPath &&
-          other.updatedAt == this.updatedAt);
-}
-
-class ReportTemplatesCompanion extends UpdateCompanion<ReportTemplate> {
-  final Value<String> id;
-  final Value<String> name;
-  final Value<String> config;
-  final Value<bool> isDefault;
-  final Value<String?> letterheadCoverPath;
-  final Value<String?> letterheadBodyPath;
-  final Value<DateTime> updatedAt;
-  final Value<int> rowid;
-  const ReportTemplatesCompanion({
-    this.id = const Value.absent(),
-    this.name = const Value.absent(),
-    this.config = const Value.absent(),
-    this.isDefault = const Value.absent(),
-    this.letterheadCoverPath = const Value.absent(),
-    this.letterheadBodyPath = const Value.absent(),
-    this.updatedAt = const Value.absent(),
-    this.rowid = const Value.absent(),
-  });
-  ReportTemplatesCompanion.insert({
-    required String id,
-    required String name,
-    required String config,
-    this.isDefault = const Value.absent(),
-    this.letterheadCoverPath = const Value.absent(),
-    this.letterheadBodyPath = const Value.absent(),
-    required DateTime updatedAt,
-    this.rowid = const Value.absent(),
-  })  : id = Value(id),
-        name = Value(name),
-        config = Value(config),
-        updatedAt = Value(updatedAt);
-  static Insertable<ReportTemplate> custom({
-    Expression<String>? id,
-    Expression<String>? name,
-    Expression<String>? config,
-    Expression<bool>? isDefault,
-    Expression<String>? letterheadCoverPath,
-    Expression<String>? letterheadBodyPath,
-    Expression<DateTime>? updatedAt,
-    Expression<int>? rowid,
-  }) {
-    return RawValuesInsertable({
-      if (id != null) 'id': id,
-      if (name != null) 'name': name,
-      if (config != null) 'config': config,
-      if (isDefault != null) 'is_default': isDefault,
-      if (letterheadCoverPath != null)
-        'letterhead_cover_path': letterheadCoverPath,
-      if (letterheadBodyPath != null)
-        'letterhead_body_path': letterheadBodyPath,
-      if (updatedAt != null) 'updated_at': updatedAt,
-      if (rowid != null) 'rowid': rowid,
-    });
-  }
-
-  ReportTemplatesCompanion copyWith(
-      {Value<String>? id,
-      Value<String>? name,
-      Value<String>? config,
-      Value<bool>? isDefault,
-      Value<String?>? letterheadCoverPath,
-      Value<String?>? letterheadBodyPath,
-      Value<DateTime>? updatedAt,
-      Value<int>? rowid}) {
-    return ReportTemplatesCompanion(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      config: config ?? this.config,
-      isDefault: isDefault ?? this.isDefault,
-      letterheadCoverPath: letterheadCoverPath ?? this.letterheadCoverPath,
-      letterheadBodyPath: letterheadBodyPath ?? this.letterheadBodyPath,
-      updatedAt: updatedAt ?? this.updatedAt,
-      rowid: rowid ?? this.rowid,
-    );
-  }
-
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    if (id.present) {
-      map['id'] = Variable<String>(id.value);
-    }
-    if (name.present) {
-      map['name'] = Variable<String>(name.value);
-    }
-    if (config.present) {
-      map['config'] = Variable<String>(config.value);
-    }
-    if (isDefault.present) {
-      map['is_default'] = Variable<bool>(isDefault.value);
-    }
-    if (letterheadCoverPath.present) {
-      map['letterhead_cover_path'] =
-          Variable<String>(letterheadCoverPath.value);
-    }
-    if (letterheadBodyPath.present) {
-      map['letterhead_body_path'] = Variable<String>(letterheadBodyPath.value);
-    }
-    if (updatedAt.present) {
-      map['updated_at'] = Variable<DateTime>(updatedAt.value);
-    }
-    if (rowid.present) {
-      map['rowid'] = Variable<int>(rowid.value);
-    }
-    return map;
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('ReportTemplatesCompanion(')
-          ..write('id: $id, ')
-          ..write('name: $name, ')
-          ..write('config: $config, ')
-          ..write('isDefault: $isDefault, ')
-          ..write('letterheadCoverPath: $letterheadCoverPath, ')
-          ..write('letterheadBodyPath: $letterheadBodyPath, ')
-          ..write('updatedAt: $updatedAt, ')
-          ..write('rowid: $rowid')
-          ..write(')'))
-        .toString();
-  }
-}
-
 class $ClientsTable extends Clients with TableInfo<$ClientsTable, Client> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -767,23 +349,23 @@ class $ClientsTable extends Clients with TableInfo<$ClientsTable, Client> {
   static const VerificationMeta _addressMeta =
       const VerificationMeta('address');
   @override
-  late final GeneratedColumn<String> address = GeneratedColumn<String>(
-      'address', aliasedName, true,
-      type: DriftSqlType.string, requiredDuringInsert: false);
+  late final GeneratedColumn<String> address =
+      GeneratedColumn<String>('address', aliasedName, false,
+          additionalChecks: GeneratedColumn.checkTextLength(
+            minTextLength: 1,
+          ),
+          type: DriftSqlType.string,
+          requiredDuringInsert: true);
   static const VerificationMeta _logoPathMeta =
       const VerificationMeta('logoPath');
   @override
-  late final GeneratedColumn<String> logoPath = GeneratedColumn<String>(
-      'logo_path', aliasedName, true,
-      type: DriftSqlType.string, requiredDuringInsert: false);
-  static const VerificationMeta _templateIdMeta =
-      const VerificationMeta('templateId');
-  @override
-  late final GeneratedColumn<String> templateId = GeneratedColumn<String>(
-      'template_id', aliasedName, true,
-      type: DriftSqlType.string,
-      requiredDuringInsert: false,
-      $customConstraints: 'REFERENCES report_templates(id)');
+  late final GeneratedColumn<String> logoPath =
+      GeneratedColumn<String>('logo_path', aliasedName, false,
+          additionalChecks: GeneratedColumn.checkTextLength(
+            minTextLength: 1,
+          ),
+          type: DriftSqlType.string,
+          requiredDuringInsert: true);
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
   @override
@@ -811,7 +393,6 @@ class $ClientsTable extends Clients with TableInfo<$ClientsTable, Client> {
         contactPhone,
         address,
         logoPath,
-        templateId,
         createdAt,
         updatedAt,
         deletedAt
@@ -858,16 +439,14 @@ class $ClientsTable extends Clients with TableInfo<$ClientsTable, Client> {
     if (data.containsKey('address')) {
       context.handle(_addressMeta,
           address.isAcceptableOrUnknown(data['address']!, _addressMeta));
+    } else if (isInserting) {
+      context.missing(_addressMeta);
     }
     if (data.containsKey('logo_path')) {
       context.handle(_logoPathMeta,
           logoPath.isAcceptableOrUnknown(data['logo_path']!, _logoPathMeta));
-    }
-    if (data.containsKey('template_id')) {
-      context.handle(
-          _templateIdMeta,
-          templateId.isAcceptableOrUnknown(
-              data['template_id']!, _templateIdMeta));
+    } else if (isInserting) {
+      context.missing(_logoPathMeta);
     }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
@@ -905,11 +484,9 @@ class $ClientsTable extends Clients with TableInfo<$ClientsTable, Client> {
       contactPhone: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}contact_phone']),
       address: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}address']),
+          .read(DriftSqlType.string, data['${effectivePrefix}address'])!,
       logoPath: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}logo_path']),
-      templateId: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}template_id']),
+          .read(DriftSqlType.string, data['${effectivePrefix}logo_path'])!,
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
       updatedAt: attachedDatabase.typeMapping
@@ -931,13 +508,11 @@ class Client extends DataClass implements Insertable<Client> {
   final String? contactName;
   final String? contactEmail;
   final String? contactPhone;
-  final String? address;
+  final String address;
 
-  /// Chemin du logo dans le bucket distant. Injecté dans l'en-tête du rapport.
-  final String? logoPath;
-
-  /// Template PDF appliqué à ce client. `null` ⇒ template par défaut.
-  final String? templateId;
+  /// Chemin du logo dans le bucket `client-logos`, posé dans la case « logo
+  /// client » de chaque fiche.
+  final String logoPath;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt;
@@ -947,9 +522,8 @@ class Client extends DataClass implements Insertable<Client> {
       this.contactName,
       this.contactEmail,
       this.contactPhone,
-      this.address,
-      this.logoPath,
-      this.templateId,
+      required this.address,
+      required this.logoPath,
       required this.createdAt,
       required this.updatedAt,
       this.deletedAt});
@@ -967,15 +541,8 @@ class Client extends DataClass implements Insertable<Client> {
     if (!nullToAbsent || contactPhone != null) {
       map['contact_phone'] = Variable<String>(contactPhone);
     }
-    if (!nullToAbsent || address != null) {
-      map['address'] = Variable<String>(address);
-    }
-    if (!nullToAbsent || logoPath != null) {
-      map['logo_path'] = Variable<String>(logoPath);
-    }
-    if (!nullToAbsent || templateId != null) {
-      map['template_id'] = Variable<String>(templateId);
-    }
+    map['address'] = Variable<String>(address);
+    map['logo_path'] = Variable<String>(logoPath);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     if (!nullToAbsent || deletedAt != null) {
@@ -997,15 +564,8 @@ class Client extends DataClass implements Insertable<Client> {
       contactPhone: contactPhone == null && nullToAbsent
           ? const Value.absent()
           : Value(contactPhone),
-      address: address == null && nullToAbsent
-          ? const Value.absent()
-          : Value(address),
-      logoPath: logoPath == null && nullToAbsent
-          ? const Value.absent()
-          : Value(logoPath),
-      templateId: templateId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(templateId),
+      address: Value(address),
+      logoPath: Value(logoPath),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       deletedAt: deletedAt == null && nullToAbsent
@@ -1023,9 +583,8 @@ class Client extends DataClass implements Insertable<Client> {
       contactName: serializer.fromJson<String?>(json['contactName']),
       contactEmail: serializer.fromJson<String?>(json['contactEmail']),
       contactPhone: serializer.fromJson<String?>(json['contactPhone']),
-      address: serializer.fromJson<String?>(json['address']),
-      logoPath: serializer.fromJson<String?>(json['logoPath']),
-      templateId: serializer.fromJson<String?>(json['templateId']),
+      address: serializer.fromJson<String>(json['address']),
+      logoPath: serializer.fromJson<String>(json['logoPath']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
@@ -1040,9 +599,8 @@ class Client extends DataClass implements Insertable<Client> {
       'contactName': serializer.toJson<String?>(contactName),
       'contactEmail': serializer.toJson<String?>(contactEmail),
       'contactPhone': serializer.toJson<String?>(contactPhone),
-      'address': serializer.toJson<String?>(address),
-      'logoPath': serializer.toJson<String?>(logoPath),
-      'templateId': serializer.toJson<String?>(templateId),
+      'address': serializer.toJson<String>(address),
+      'logoPath': serializer.toJson<String>(logoPath),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
@@ -1055,9 +613,8 @@ class Client extends DataClass implements Insertable<Client> {
           Value<String?> contactName = const Value.absent(),
           Value<String?> contactEmail = const Value.absent(),
           Value<String?> contactPhone = const Value.absent(),
-          Value<String?> address = const Value.absent(),
-          Value<String?> logoPath = const Value.absent(),
-          Value<String?> templateId = const Value.absent(),
+          String? address,
+          String? logoPath,
           DateTime? createdAt,
           DateTime? updatedAt,
           Value<DateTime?> deletedAt = const Value.absent()}) =>
@@ -1069,9 +626,8 @@ class Client extends DataClass implements Insertable<Client> {
             contactEmail.present ? contactEmail.value : this.contactEmail,
         contactPhone:
             contactPhone.present ? contactPhone.value : this.contactPhone,
-        address: address.present ? address.value : this.address,
-        logoPath: logoPath.present ? logoPath.value : this.logoPath,
-        templateId: templateId.present ? templateId.value : this.templateId,
+        address: address ?? this.address,
+        logoPath: logoPath ?? this.logoPath,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
         deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
@@ -1090,8 +646,6 @@ class Client extends DataClass implements Insertable<Client> {
           : this.contactPhone,
       address: data.address.present ? data.address.value : this.address,
       logoPath: data.logoPath.present ? data.logoPath.value : this.logoPath,
-      templateId:
-          data.templateId.present ? data.templateId.value : this.templateId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
@@ -1108,7 +662,6 @@ class Client extends DataClass implements Insertable<Client> {
           ..write('contactPhone: $contactPhone, ')
           ..write('address: $address, ')
           ..write('logoPath: $logoPath, ')
-          ..write('templateId: $templateId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt')
@@ -1117,18 +670,8 @@ class Client extends DataClass implements Insertable<Client> {
   }
 
   @override
-  int get hashCode => Object.hash(
-      id,
-      name,
-      contactName,
-      contactEmail,
-      contactPhone,
-      address,
-      logoPath,
-      templateId,
-      createdAt,
-      updatedAt,
-      deletedAt);
+  int get hashCode => Object.hash(id, name, contactName, contactEmail,
+      contactPhone, address, logoPath, createdAt, updatedAt, deletedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1140,7 +683,6 @@ class Client extends DataClass implements Insertable<Client> {
           other.contactPhone == this.contactPhone &&
           other.address == this.address &&
           other.logoPath == this.logoPath &&
-          other.templateId == this.templateId &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt);
@@ -1152,9 +694,8 @@ class ClientsCompanion extends UpdateCompanion<Client> {
   final Value<String?> contactName;
   final Value<String?> contactEmail;
   final Value<String?> contactPhone;
-  final Value<String?> address;
-  final Value<String?> logoPath;
-  final Value<String?> templateId;
+  final Value<String> address;
+  final Value<String> logoPath;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> deletedAt;
@@ -1167,7 +708,6 @@ class ClientsCompanion extends UpdateCompanion<Client> {
     this.contactPhone = const Value.absent(),
     this.address = const Value.absent(),
     this.logoPath = const Value.absent(),
-    this.templateId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
@@ -1179,15 +719,16 @@ class ClientsCompanion extends UpdateCompanion<Client> {
     this.contactName = const Value.absent(),
     this.contactEmail = const Value.absent(),
     this.contactPhone = const Value.absent(),
-    this.address = const Value.absent(),
-    this.logoPath = const Value.absent(),
-    this.templateId = const Value.absent(),
+    required String address,
+    required String logoPath,
     required DateTime createdAt,
     required DateTime updatedAt,
     this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         name = Value(name),
+        address = Value(address),
+        logoPath = Value(logoPath),
         createdAt = Value(createdAt),
         updatedAt = Value(updatedAt);
   static Insertable<Client> custom({
@@ -1198,7 +739,6 @@ class ClientsCompanion extends UpdateCompanion<Client> {
     Expression<String>? contactPhone,
     Expression<String>? address,
     Expression<String>? logoPath,
-    Expression<String>? templateId,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? deletedAt,
@@ -1212,7 +752,6 @@ class ClientsCompanion extends UpdateCompanion<Client> {
       if (contactPhone != null) 'contact_phone': contactPhone,
       if (address != null) 'address': address,
       if (logoPath != null) 'logo_path': logoPath,
-      if (templateId != null) 'template_id': templateId,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
@@ -1226,9 +765,8 @@ class ClientsCompanion extends UpdateCompanion<Client> {
       Value<String?>? contactName,
       Value<String?>? contactEmail,
       Value<String?>? contactPhone,
-      Value<String?>? address,
-      Value<String?>? logoPath,
-      Value<String?>? templateId,
+      Value<String>? address,
+      Value<String>? logoPath,
       Value<DateTime>? createdAt,
       Value<DateTime>? updatedAt,
       Value<DateTime?>? deletedAt,
@@ -1241,7 +779,6 @@ class ClientsCompanion extends UpdateCompanion<Client> {
       contactPhone: contactPhone ?? this.contactPhone,
       address: address ?? this.address,
       logoPath: logoPath ?? this.logoPath,
-      templateId: templateId ?? this.templateId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
@@ -1273,9 +810,6 @@ class ClientsCompanion extends UpdateCompanion<Client> {
     if (logoPath.present) {
       map['logo_path'] = Variable<String>(logoPath.value);
     }
-    if (templateId.present) {
-      map['template_id'] = Variable<String>(templateId.value);
-    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -1301,7 +835,6 @@ class ClientsCompanion extends UpdateCompanion<Client> {
           ..write('contactPhone: $contactPhone, ')
           ..write('address: $address, ')
           ..write('logoPath: $logoPath, ')
-          ..write('templateId: $templateId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
@@ -1329,6 +862,11 @@ class $ProjectsTable extends Projects with TableInfo<$ProjectsTable, Project> {
       type: DriftSqlType.string,
       requiredDuringInsert: true,
       $customConstraints: 'NOT NULL REFERENCES clients(id)');
+  static const VerificationMeta _codeMeta = const VerificationMeta('code');
+  @override
+  late final GeneratedColumn<String> code = GeneratedColumn<String>(
+      'code', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _nameMeta = const VerificationMeta('name');
   @override
   late final GeneratedColumn<String> name = GeneratedColumn<String>(
@@ -1360,7 +898,7 @@ class $ProjectsTable extends Projects with TableInfo<$ProjectsTable, Project> {
       GeneratedColumn<String>('status', aliasedName, false,
               type: DriftSqlType.string,
               requiredDuringInsert: false,
-              defaultValue: const Constant('draft'))
+              defaultValue: const Constant('inProgress'))
           .withConverter<ProjectStatus>($ProjectsTable.$converterstatus);
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
@@ -1384,6 +922,7 @@ class $ProjectsTable extends Projects with TableInfo<$ProjectsTable, Project> {
   List<GeneratedColumn> get $columns => [
         id,
         clientId,
+        code,
         name,
         description,
         startedOn,
@@ -1413,6 +952,10 @@ class $ProjectsTable extends Projects with TableInfo<$ProjectsTable, Project> {
           clientId.isAcceptableOrUnknown(data['client_id']!, _clientIdMeta));
     } else if (isInserting) {
       context.missing(_clientIdMeta);
+    }
+    if (data.containsKey('code')) {
+      context.handle(
+          _codeMeta, code.isAcceptableOrUnknown(data['code']!, _codeMeta));
     }
     if (data.containsKey('name')) {
       context.handle(
@@ -1463,6 +1006,8 @@ class $ProjectsTable extends Projects with TableInfo<$ProjectsTable, Project> {
           .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
       clientId: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}client_id'])!,
+      code: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}code']),
       name: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
       description: attachedDatabase.typeMapping
@@ -1495,6 +1040,14 @@ class $ProjectsTable extends Projects with TableInfo<$ProjectsTable, Project> {
 class Project extends DataClass implements Insertable<Project> {
   final String id;
   final String clientId;
+
+  /// Numéro de chantier du donneur d'ordre, reporté sur chaque fiche du
+  /// rapport (ligne « Numéro Projet » du gabarit).
+  ///
+  /// Texte et non entier : les numéros de chantier portent presque toujours un
+  /// préfixe ou un millésime (« 2026-118 », « BE/447 »). Nullable, parce qu'un
+  /// chantier se crée sur le terrain avant que l'administratif ne suive.
+  final String? code;
   final String name;
   final String? description;
   final DateTime? startedOn;
@@ -1506,6 +1059,7 @@ class Project extends DataClass implements Insertable<Project> {
   const Project(
       {required this.id,
       required this.clientId,
+      this.code,
       required this.name,
       this.description,
       this.startedOn,
@@ -1519,6 +1073,9 @@ class Project extends DataClass implements Insertable<Project> {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['client_id'] = Variable<String>(clientId);
+    if (!nullToAbsent || code != null) {
+      map['code'] = Variable<String>(code);
+    }
     map['name'] = Variable<String>(name);
     if (!nullToAbsent || description != null) {
       map['description'] = Variable<String>(description);
@@ -1545,6 +1102,7 @@ class Project extends DataClass implements Insertable<Project> {
     return ProjectsCompanion(
       id: Value(id),
       clientId: Value(clientId),
+      code: code == null && nullToAbsent ? const Value.absent() : Value(code),
       name: Value(name),
       description: description == null && nullToAbsent
           ? const Value.absent()
@@ -1570,6 +1128,7 @@ class Project extends DataClass implements Insertable<Project> {
     return Project(
       id: serializer.fromJson<String>(json['id']),
       clientId: serializer.fromJson<String>(json['clientId']),
+      code: serializer.fromJson<String?>(json['code']),
       name: serializer.fromJson<String>(json['name']),
       description: serializer.fromJson<String?>(json['description']),
       startedOn: serializer.fromJson<DateTime?>(json['startedOn']),
@@ -1587,6 +1146,7 @@ class Project extends DataClass implements Insertable<Project> {
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'clientId': serializer.toJson<String>(clientId),
+      'code': serializer.toJson<String?>(code),
       'name': serializer.toJson<String>(name),
       'description': serializer.toJson<String?>(description),
       'startedOn': serializer.toJson<DateTime?>(startedOn),
@@ -1602,6 +1162,7 @@ class Project extends DataClass implements Insertable<Project> {
   Project copyWith(
           {String? id,
           String? clientId,
+          Value<String?> code = const Value.absent(),
           String? name,
           Value<String?> description = const Value.absent(),
           Value<DateTime?> startedOn = const Value.absent(),
@@ -1613,6 +1174,7 @@ class Project extends DataClass implements Insertable<Project> {
       Project(
         id: id ?? this.id,
         clientId: clientId ?? this.clientId,
+        code: code.present ? code.value : this.code,
         name: name ?? this.name,
         description: description.present ? description.value : this.description,
         startedOn: startedOn.present ? startedOn.value : this.startedOn,
@@ -1626,6 +1188,7 @@ class Project extends DataClass implements Insertable<Project> {
     return Project(
       id: data.id.present ? data.id.value : this.id,
       clientId: data.clientId.present ? data.clientId.value : this.clientId,
+      code: data.code.present ? data.code.value : this.code,
       name: data.name.present ? data.name.value : this.name,
       description:
           data.description.present ? data.description.value : this.description,
@@ -1643,6 +1206,7 @@ class Project extends DataClass implements Insertable<Project> {
     return (StringBuffer('Project(')
           ..write('id: $id, ')
           ..write('clientId: $clientId, ')
+          ..write('code: $code, ')
           ..write('name: $name, ')
           ..write('description: $description, ')
           ..write('startedOn: $startedOn, ')
@@ -1656,14 +1220,15 @@ class Project extends DataClass implements Insertable<Project> {
   }
 
   @override
-  int get hashCode => Object.hash(id, clientId, name, description, startedOn,
-      endedOn, status, createdAt, updatedAt, deletedAt);
+  int get hashCode => Object.hash(id, clientId, code, name, description,
+      startedOn, endedOn, status, createdAt, updatedAt, deletedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is Project &&
           other.id == this.id &&
           other.clientId == this.clientId &&
+          other.code == this.code &&
           other.name == this.name &&
           other.description == this.description &&
           other.startedOn == this.startedOn &&
@@ -1677,6 +1242,7 @@ class Project extends DataClass implements Insertable<Project> {
 class ProjectsCompanion extends UpdateCompanion<Project> {
   final Value<String> id;
   final Value<String> clientId;
+  final Value<String?> code;
   final Value<String> name;
   final Value<String?> description;
   final Value<DateTime?> startedOn;
@@ -1689,6 +1255,7 @@ class ProjectsCompanion extends UpdateCompanion<Project> {
   const ProjectsCompanion({
     this.id = const Value.absent(),
     this.clientId = const Value.absent(),
+    this.code = const Value.absent(),
     this.name = const Value.absent(),
     this.description = const Value.absent(),
     this.startedOn = const Value.absent(),
@@ -1702,6 +1269,7 @@ class ProjectsCompanion extends UpdateCompanion<Project> {
   ProjectsCompanion.insert({
     required String id,
     required String clientId,
+    this.code = const Value.absent(),
     required String name,
     this.description = const Value.absent(),
     this.startedOn = const Value.absent(),
@@ -1719,6 +1287,7 @@ class ProjectsCompanion extends UpdateCompanion<Project> {
   static Insertable<Project> custom({
     Expression<String>? id,
     Expression<String>? clientId,
+    Expression<String>? code,
     Expression<String>? name,
     Expression<String>? description,
     Expression<DateTime>? startedOn,
@@ -1732,6 +1301,7 @@ class ProjectsCompanion extends UpdateCompanion<Project> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (clientId != null) 'client_id': clientId,
+      if (code != null) 'code': code,
       if (name != null) 'name': name,
       if (description != null) 'description': description,
       if (startedOn != null) 'started_on': startedOn,
@@ -1747,6 +1317,7 @@ class ProjectsCompanion extends UpdateCompanion<Project> {
   ProjectsCompanion copyWith(
       {Value<String>? id,
       Value<String>? clientId,
+      Value<String?>? code,
       Value<String>? name,
       Value<String?>? description,
       Value<DateTime?>? startedOn,
@@ -1759,6 +1330,7 @@ class ProjectsCompanion extends UpdateCompanion<Project> {
     return ProjectsCompanion(
       id: id ?? this.id,
       clientId: clientId ?? this.clientId,
+      code: code ?? this.code,
       name: name ?? this.name,
       description: description ?? this.description,
       startedOn: startedOn ?? this.startedOn,
@@ -1779,6 +1351,9 @@ class ProjectsCompanion extends UpdateCompanion<Project> {
     }
     if (clientId.present) {
       map['client_id'] = Variable<String>(clientId.value);
+    }
+    if (code.present) {
+      map['code'] = Variable<String>(code.value);
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
@@ -1816,6 +1391,7 @@ class ProjectsCompanion extends UpdateCompanion<Project> {
     return (StringBuffer('ProjectsCompanion(')
           ..write('id: $id, ')
           ..write('clientId: $clientId, ')
+          ..write('code: $code, ')
           ..write('name: $name, ')
           ..write('description: $description, ')
           ..write('startedOn: $startedOn, ')
@@ -2146,6 +1722,364 @@ class ProjectMembersCompanion extends UpdateCompanion<ProjectMember> {
   }
 }
 
+class $SettingOptionsTable extends SettingOptions
+    with TableInfo<$SettingOptionsTable, SettingOption> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SettingOptionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+      'id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  late final GeneratedColumnWithTypeConverter<SettingKind, String> kind =
+      GeneratedColumn<String>('kind', aliasedName, false,
+              type: DriftSqlType.string, requiredDuringInsert: true)
+          .withConverter<SettingKind>($SettingOptionsTable.$converterkind);
+  static const VerificationMeta _labelMeta = const VerificationMeta('label');
+  @override
+  late final GeneratedColumn<String> label = GeneratedColumn<String>(
+      'label', aliasedName, false,
+      additionalChecks:
+          GeneratedColumn.checkTextLength(minTextLength: 1, maxTextLength: 120),
+      type: DriftSqlType.string,
+      requiredDuringInsert: true);
+  static const VerificationMeta _sortOrderMeta =
+      const VerificationMeta('sortOrder');
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+      'sort_order', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _deletedAtMeta =
+      const VerificationMeta('deletedAt');
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+      'deleted_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, kind, label, sortOrder, updatedAt, deletedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'setting_options';
+  @override
+  VerificationContext validateIntegrity(Insertable<SettingOption> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('label')) {
+      context.handle(
+          _labelMeta, label.isAcceptableOrUnknown(data['label']!, _labelMeta));
+    } else if (isInserting) {
+      context.missing(_labelMeta);
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(_sortOrderMeta,
+          sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta));
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(_deletedAtMeta,
+          deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SettingOption map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SettingOption(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      kind: $SettingOptionsTable.$converterkind.fromSql(attachedDatabase
+          .typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}kind'])!),
+      label: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}label'])!,
+      sortOrder: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}sort_order'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
+      deletedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}deleted_at']),
+    );
+  }
+
+  @override
+  $SettingOptionsTable createAlias(String alias) {
+    return $SettingOptionsTable(attachedDatabase, alias);
+  }
+
+  static JsonTypeConverter2<SettingKind, String, String> $converterkind =
+      const EnumNameConverter<SettingKind>(SettingKind.values);
+}
+
+class SettingOption extends DataClass implements Insertable<SettingOption> {
+  final String id;
+  final SettingKind kind;
+  final String label;
+
+  /// Rang d'affichage dans la liste déroulante.
+  ///
+  /// Explicite plutôt qu'alphabétique : « EI30, EI60, EI90, EI120 » est un
+  /// ordre croissant que l'alphabet casserait — EI120 passerait avant EI30 —
+  /// et les configurations ont un ordre métier que l'administrateur connaît.
+  final int sortOrder;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  const SettingOption(
+      {required this.id,
+      required this.kind,
+      required this.label,
+      required this.sortOrder,
+      required this.updatedAt,
+      this.deletedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    {
+      map['kind'] =
+          Variable<String>($SettingOptionsTable.$converterkind.toSql(kind));
+    }
+    map['label'] = Variable<String>(label);
+    map['sort_order'] = Variable<int>(sortOrder);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  SettingOptionsCompanion toCompanion(bool nullToAbsent) {
+    return SettingOptionsCompanion(
+      id: Value(id),
+      kind: Value(kind),
+      label: Value(label),
+      sortOrder: Value(sortOrder),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory SettingOption.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SettingOption(
+      id: serializer.fromJson<String>(json['id']),
+      kind: $SettingOptionsTable.$converterkind
+          .fromJson(serializer.fromJson<String>(json['kind'])),
+      label: serializer.fromJson<String>(json['label']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'kind': serializer
+          .toJson<String>($SettingOptionsTable.$converterkind.toJson(kind)),
+      'label': serializer.toJson<String>(label),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  SettingOption copyWith(
+          {String? id,
+          SettingKind? kind,
+          String? label,
+          int? sortOrder,
+          DateTime? updatedAt,
+          Value<DateTime?> deletedAt = const Value.absent()}) =>
+      SettingOption(
+        id: id ?? this.id,
+        kind: kind ?? this.kind,
+        label: label ?? this.label,
+        sortOrder: sortOrder ?? this.sortOrder,
+        updatedAt: updatedAt ?? this.updatedAt,
+        deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+      );
+  SettingOption copyWithCompanion(SettingOptionsCompanion data) {
+    return SettingOption(
+      id: data.id.present ? data.id.value : this.id,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      label: data.label.present ? data.label.value : this.label,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SettingOption(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('label: $label, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, kind, label, sortOrder, updatedAt, deletedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SettingOption &&
+          other.id == this.id &&
+          other.kind == this.kind &&
+          other.label == this.label &&
+          other.sortOrder == this.sortOrder &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class SettingOptionsCompanion extends UpdateCompanion<SettingOption> {
+  final Value<String> id;
+  final Value<SettingKind> kind;
+  final Value<String> label;
+  final Value<int> sortOrder;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const SettingOptionsCompanion({
+    this.id = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.label = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SettingOptionsCompanion.insert({
+    required String id,
+    required SettingKind kind,
+    required String label,
+    this.sortOrder = const Value.absent(),
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : id = Value(id),
+        kind = Value(kind),
+        label = Value(label),
+        updatedAt = Value(updatedAt);
+  static Insertable<SettingOption> custom({
+    Expression<String>? id,
+    Expression<String>? kind,
+    Expression<String>? label,
+    Expression<int>? sortOrder,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (kind != null) 'kind': kind,
+      if (label != null) 'label': label,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SettingOptionsCompanion copyWith(
+      {Value<String>? id,
+      Value<SettingKind>? kind,
+      Value<String>? label,
+      Value<int>? sortOrder,
+      Value<DateTime>? updatedAt,
+      Value<DateTime?>? deletedAt,
+      Value<int>? rowid}) {
+    return SettingOptionsCompanion(
+      id: id ?? this.id,
+      kind: kind ?? this.kind,
+      label: label ?? this.label,
+      sortOrder: sortOrder ?? this.sortOrder,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(
+          $SettingOptionsTable.$converterkind.toSql(kind.value));
+    }
+    if (label.present) {
+      map['label'] = Variable<String>(label.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SettingOptionsCompanion(')
+          ..write('id: $id, ')
+          ..write('kind: $kind, ')
+          ..write('label: $label, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $PointsTable extends Points with TableInfo<$PointsTable, Point> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -2170,11 +2104,24 @@ class $PointsTable extends Points with TableInfo<$PointsTable, Point> {
   late final GeneratedColumn<int> refNumber = GeneratedColumn<int>(
       'ref_number', aliasedName, true,
       type: DriftSqlType.int, requiredDuringInsert: false);
-  static const VerificationMeta _floorMeta = const VerificationMeta('floor');
+  static const VerificationMeta _purchaseOrderMeta =
+      const VerificationMeta('purchaseOrder');
   @override
-  late final GeneratedColumn<String> floor = GeneratedColumn<String>(
-      'floor', aliasedName, true,
+  late final GeneratedColumn<String> purchaseOrder = GeneratedColumn<String>(
+      'purchase_order', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _buildingMeta =
+      const VerificationMeta('building');
+  @override
+  late final GeneratedColumn<String> building = GeneratedColumn<String>(
+      'building', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _floorLevelMeta =
+      const VerificationMeta('floorLevel');
+  @override
+  late final GeneratedColumn<int> floorLevel = GeneratedColumn<int>(
+      'floor_level', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
   static const VerificationMeta _roomMeta = const VerificationMeta('room');
   @override
   late final GeneratedColumn<String> room = GeneratedColumn<String>(
@@ -2186,6 +2133,86 @@ class $PointsTable extends Points with TableInfo<$PointsTable, Point> {
   late final GeneratedColumn<String> description = GeneratedColumn<String>(
       'description', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _configurationIdMeta =
+      const VerificationMeta('configurationId');
+  @override
+  late final GeneratedColumn<String> configurationId = GeneratedColumn<String>(
+      'configuration_id', aliasedName, true,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      $customConstraints: 'REFERENCES setting_options(id)');
+  static const VerificationMeta _configurationDetailIdMeta =
+      const VerificationMeta('configurationDetailId');
+  @override
+  late final GeneratedColumn<String> configurationDetailId =
+      GeneratedColumn<String>('configuration_detail_id', aliasedName, true,
+          type: DriftSqlType.string,
+          requiredDuringInsert: false,
+          $customConstraints: 'REFERENCES setting_options(id)');
+  static const VerificationMeta _eiLevelIdMeta =
+      const VerificationMeta('eiLevelId');
+  @override
+  late final GeneratedColumn<String> eiLevelId = GeneratedColumn<String>(
+      'ei_level_id', aliasedName, true,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      $customConstraints: 'REFERENCES setting_options(id)');
+  static const VerificationMeta _supplierIdMeta =
+      const VerificationMeta('supplierId');
+  @override
+  late final GeneratedColumn<String> supplierId = GeneratedColumn<String>(
+      'supplier_id', aliasedName, true,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      $customConstraints: 'REFERENCES setting_options(id)');
+  static const VerificationMeta _productTypeIdMeta =
+      const VerificationMeta('productTypeId');
+  @override
+  late final GeneratedColumn<String> productTypeId = GeneratedColumn<String>(
+      'product_type_id', aliasedName, true,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      $customConstraints: 'REFERENCES setting_options(id)');
+  static const VerificationMeta _product1IdMeta =
+      const VerificationMeta('product1Id');
+  @override
+  late final GeneratedColumn<String> product1Id = GeneratedColumn<String>(
+      'product1_id', aliasedName, true,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      $customConstraints: 'REFERENCES setting_options(id)');
+  static const VerificationMeta _product2IdMeta =
+      const VerificationMeta('product2Id');
+  @override
+  late final GeneratedColumn<String> product2Id = GeneratedColumn<String>(
+      'product2_id', aliasedName, true,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      $customConstraints: 'REFERENCES setting_options(id)');
+  static const VerificationMeta _product3IdMeta =
+      const VerificationMeta('product3Id');
+  @override
+  late final GeneratedColumn<String> product3Id = GeneratedColumn<String>(
+      'product3_id', aliasedName, true,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      $customConstraints: 'REFERENCES setting_options(id)');
+  static const VerificationMeta _product4IdMeta =
+      const VerificationMeta('product4Id');
+  @override
+  late final GeneratedColumn<String> product4Id = GeneratedColumn<String>(
+      'product4_id', aliasedName, true,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      $customConstraints: 'REFERENCES setting_options(id)');
+  static const VerificationMeta _product5IdMeta =
+      const VerificationMeta('product5Id');
+  @override
+  late final GeneratedColumn<String> product5Id = GeneratedColumn<String>(
+      'product5_id', aliasedName, true,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      $customConstraints: 'REFERENCES setting_options(id)');
   static const VerificationMeta _authorIdMeta =
       const VerificationMeta('authorId');
   @override
@@ -2217,9 +2244,21 @@ class $PointsTable extends Points with TableInfo<$PointsTable, Point> {
         id,
         projectId,
         refNumber,
-        floor,
+        purchaseOrder,
+        building,
+        floorLevel,
         room,
         description,
+        configurationId,
+        configurationDetailId,
+        eiLevelId,
+        supplierId,
+        productTypeId,
+        product1Id,
+        product2Id,
+        product3Id,
+        product4Id,
+        product5Id,
         authorId,
         capturedAt,
         updatedAt,
@@ -2250,9 +2289,21 @@ class $PointsTable extends Points with TableInfo<$PointsTable, Point> {
       context.handle(_refNumberMeta,
           refNumber.isAcceptableOrUnknown(data['ref_number']!, _refNumberMeta));
     }
-    if (data.containsKey('floor')) {
+    if (data.containsKey('purchase_order')) {
       context.handle(
-          _floorMeta, floor.isAcceptableOrUnknown(data['floor']!, _floorMeta));
+          _purchaseOrderMeta,
+          purchaseOrder.isAcceptableOrUnknown(
+              data['purchase_order']!, _purchaseOrderMeta));
+    }
+    if (data.containsKey('building')) {
+      context.handle(_buildingMeta,
+          building.isAcceptableOrUnknown(data['building']!, _buildingMeta));
+    }
+    if (data.containsKey('floor_level')) {
+      context.handle(
+          _floorLevelMeta,
+          floorLevel.isAcceptableOrUnknown(
+              data['floor_level']!, _floorLevelMeta));
     }
     if (data.containsKey('room')) {
       context.handle(
@@ -2263,6 +2314,66 @@ class $PointsTable extends Points with TableInfo<$PointsTable, Point> {
           _descriptionMeta,
           description.isAcceptableOrUnknown(
               data['description']!, _descriptionMeta));
+    }
+    if (data.containsKey('configuration_id')) {
+      context.handle(
+          _configurationIdMeta,
+          configurationId.isAcceptableOrUnknown(
+              data['configuration_id']!, _configurationIdMeta));
+    }
+    if (data.containsKey('configuration_detail_id')) {
+      context.handle(
+          _configurationDetailIdMeta,
+          configurationDetailId.isAcceptableOrUnknown(
+              data['configuration_detail_id']!, _configurationDetailIdMeta));
+    }
+    if (data.containsKey('ei_level_id')) {
+      context.handle(
+          _eiLevelIdMeta,
+          eiLevelId.isAcceptableOrUnknown(
+              data['ei_level_id']!, _eiLevelIdMeta));
+    }
+    if (data.containsKey('supplier_id')) {
+      context.handle(
+          _supplierIdMeta,
+          supplierId.isAcceptableOrUnknown(
+              data['supplier_id']!, _supplierIdMeta));
+    }
+    if (data.containsKey('product_type_id')) {
+      context.handle(
+          _productTypeIdMeta,
+          productTypeId.isAcceptableOrUnknown(
+              data['product_type_id']!, _productTypeIdMeta));
+    }
+    if (data.containsKey('product1_id')) {
+      context.handle(
+          _product1IdMeta,
+          product1Id.isAcceptableOrUnknown(
+              data['product1_id']!, _product1IdMeta));
+    }
+    if (data.containsKey('product2_id')) {
+      context.handle(
+          _product2IdMeta,
+          product2Id.isAcceptableOrUnknown(
+              data['product2_id']!, _product2IdMeta));
+    }
+    if (data.containsKey('product3_id')) {
+      context.handle(
+          _product3IdMeta,
+          product3Id.isAcceptableOrUnknown(
+              data['product3_id']!, _product3IdMeta));
+    }
+    if (data.containsKey('product4_id')) {
+      context.handle(
+          _product4IdMeta,
+          product4Id.isAcceptableOrUnknown(
+              data['product4_id']!, _product4IdMeta));
+    }
+    if (data.containsKey('product5_id')) {
+      context.handle(
+          _product5IdMeta,
+          product5Id.isAcceptableOrUnknown(
+              data['product5_id']!, _product5IdMeta));
     }
     if (data.containsKey('author_id')) {
       context.handle(_authorIdMeta,
@@ -2303,12 +2414,37 @@ class $PointsTable extends Points with TableInfo<$PointsTable, Point> {
           .read(DriftSqlType.string, data['${effectivePrefix}project_id'])!,
       refNumber: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}ref_number']),
-      floor: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}floor']),
+      purchaseOrder: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}purchase_order']),
+      building: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}building']),
+      floorLevel: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}floor_level']),
       room: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}room']),
       description: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}description']),
+      configurationId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}configuration_id']),
+      configurationDetailId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}configuration_detail_id']),
+      eiLevelId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}ei_level_id']),
+      supplierId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}supplier_id']),
+      productTypeId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}product_type_id']),
+      product1Id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}product1_id']),
+      product2Id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}product2_id']),
+      product3Id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}product3_id']),
+      product4Id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}product4_id']),
+      product5Id: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}product5_id']),
       authorId: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}author_id'])!,
       capturedAt: attachedDatabase.typeMapping
@@ -2338,10 +2474,39 @@ class Point extends DataClass implements Insertable<Point> {
   /// le projet — l'ordre par `id` suffit, les UUID v7 étant chronologiques.
   /// Aucune colonne supplémentaire n'est donc nécessaire.
   final int? refNumber;
-  final String? floor;
+
+  /// Bon de commande du client. Terme anglais conservé : c'est celui qui figure
+  /// sur les pièces contractuelles comme sur le gabarit du rapport.
+  final String? purchaseOrder;
+
+  /// Bâtiment(s) concerné(s). Champ libre : aucune nomenclature ne s'impose
+  /// d'un site à l'autre.
+  final String? building;
+
+  /// Étage, de -3 à 5 (voir [floorRange]).
+  ///
+  /// Entier et non texte : l'étage est un axe ordonné, et c'est ce qui permet
+  /// de lire un relevé du sous-sol au dernier niveau.
+  final int? floorLevel;
+
+  /// Local. Hors gabarit du rapport, conservé comme repère de terrain.
   final String? room;
+
+  /// Observations libres. Hors gabarit du rapport, lui aussi.
   final String? description;
+  final String? configurationId;
+  final String? configurationDetailId;
+  final String? eiLevelId;
+  final String? supplierId;
+  final String? productTypeId;
+  final String? product1Id;
+  final String? product2Id;
+  final String? product3Id;
+  final String? product4Id;
+  final String? product5Id;
   final String authorId;
+
+  /// Date de la traversée — la « Date » du gabarit.
   final DateTime capturedAt;
   final DateTime updatedAt;
   final DateTime? deletedAt;
@@ -2349,9 +2514,21 @@ class Point extends DataClass implements Insertable<Point> {
       {required this.id,
       required this.projectId,
       this.refNumber,
-      this.floor,
+      this.purchaseOrder,
+      this.building,
+      this.floorLevel,
       this.room,
       this.description,
+      this.configurationId,
+      this.configurationDetailId,
+      this.eiLevelId,
+      this.supplierId,
+      this.productTypeId,
+      this.product1Id,
+      this.product2Id,
+      this.product3Id,
+      this.product4Id,
+      this.product5Id,
       required this.authorId,
       required this.capturedAt,
       required this.updatedAt,
@@ -2364,14 +2541,50 @@ class Point extends DataClass implements Insertable<Point> {
     if (!nullToAbsent || refNumber != null) {
       map['ref_number'] = Variable<int>(refNumber);
     }
-    if (!nullToAbsent || floor != null) {
-      map['floor'] = Variable<String>(floor);
+    if (!nullToAbsent || purchaseOrder != null) {
+      map['purchase_order'] = Variable<String>(purchaseOrder);
+    }
+    if (!nullToAbsent || building != null) {
+      map['building'] = Variable<String>(building);
+    }
+    if (!nullToAbsent || floorLevel != null) {
+      map['floor_level'] = Variable<int>(floorLevel);
     }
     if (!nullToAbsent || room != null) {
       map['room'] = Variable<String>(room);
     }
     if (!nullToAbsent || description != null) {
       map['description'] = Variable<String>(description);
+    }
+    if (!nullToAbsent || configurationId != null) {
+      map['configuration_id'] = Variable<String>(configurationId);
+    }
+    if (!nullToAbsent || configurationDetailId != null) {
+      map['configuration_detail_id'] = Variable<String>(configurationDetailId);
+    }
+    if (!nullToAbsent || eiLevelId != null) {
+      map['ei_level_id'] = Variable<String>(eiLevelId);
+    }
+    if (!nullToAbsent || supplierId != null) {
+      map['supplier_id'] = Variable<String>(supplierId);
+    }
+    if (!nullToAbsent || productTypeId != null) {
+      map['product_type_id'] = Variable<String>(productTypeId);
+    }
+    if (!nullToAbsent || product1Id != null) {
+      map['product1_id'] = Variable<String>(product1Id);
+    }
+    if (!nullToAbsent || product2Id != null) {
+      map['product2_id'] = Variable<String>(product2Id);
+    }
+    if (!nullToAbsent || product3Id != null) {
+      map['product3_id'] = Variable<String>(product3Id);
+    }
+    if (!nullToAbsent || product4Id != null) {
+      map['product4_id'] = Variable<String>(product4Id);
+    }
+    if (!nullToAbsent || product5Id != null) {
+      map['product5_id'] = Variable<String>(product5Id);
     }
     map['author_id'] = Variable<String>(authorId);
     map['captured_at'] = Variable<DateTime>(capturedAt);
@@ -2389,12 +2602,49 @@ class Point extends DataClass implements Insertable<Point> {
       refNumber: refNumber == null && nullToAbsent
           ? const Value.absent()
           : Value(refNumber),
-      floor:
-          floor == null && nullToAbsent ? const Value.absent() : Value(floor),
+      purchaseOrder: purchaseOrder == null && nullToAbsent
+          ? const Value.absent()
+          : Value(purchaseOrder),
+      building: building == null && nullToAbsent
+          ? const Value.absent()
+          : Value(building),
+      floorLevel: floorLevel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(floorLevel),
       room: room == null && nullToAbsent ? const Value.absent() : Value(room),
       description: description == null && nullToAbsent
           ? const Value.absent()
           : Value(description),
+      configurationId: configurationId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(configurationId),
+      configurationDetailId: configurationDetailId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(configurationDetailId),
+      eiLevelId: eiLevelId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(eiLevelId),
+      supplierId: supplierId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(supplierId),
+      productTypeId: productTypeId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(productTypeId),
+      product1Id: product1Id == null && nullToAbsent
+          ? const Value.absent()
+          : Value(product1Id),
+      product2Id: product2Id == null && nullToAbsent
+          ? const Value.absent()
+          : Value(product2Id),
+      product3Id: product3Id == null && nullToAbsent
+          ? const Value.absent()
+          : Value(product3Id),
+      product4Id: product4Id == null && nullToAbsent
+          ? const Value.absent()
+          : Value(product4Id),
+      product5Id: product5Id == null && nullToAbsent
+          ? const Value.absent()
+          : Value(product5Id),
       authorId: Value(authorId),
       capturedAt: Value(capturedAt),
       updatedAt: Value(updatedAt),
@@ -2411,9 +2661,22 @@ class Point extends DataClass implements Insertable<Point> {
       id: serializer.fromJson<String>(json['id']),
       projectId: serializer.fromJson<String>(json['projectId']),
       refNumber: serializer.fromJson<int?>(json['refNumber']),
-      floor: serializer.fromJson<String?>(json['floor']),
+      purchaseOrder: serializer.fromJson<String?>(json['purchaseOrder']),
+      building: serializer.fromJson<String?>(json['building']),
+      floorLevel: serializer.fromJson<int?>(json['floorLevel']),
       room: serializer.fromJson<String?>(json['room']),
       description: serializer.fromJson<String?>(json['description']),
+      configurationId: serializer.fromJson<String?>(json['configurationId']),
+      configurationDetailId:
+          serializer.fromJson<String?>(json['configurationDetailId']),
+      eiLevelId: serializer.fromJson<String?>(json['eiLevelId']),
+      supplierId: serializer.fromJson<String?>(json['supplierId']),
+      productTypeId: serializer.fromJson<String?>(json['productTypeId']),
+      product1Id: serializer.fromJson<String?>(json['product1Id']),
+      product2Id: serializer.fromJson<String?>(json['product2Id']),
+      product3Id: serializer.fromJson<String?>(json['product3Id']),
+      product4Id: serializer.fromJson<String?>(json['product4Id']),
+      product5Id: serializer.fromJson<String?>(json['product5Id']),
       authorId: serializer.fromJson<String>(json['authorId']),
       capturedAt: serializer.fromJson<DateTime>(json['capturedAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -2427,9 +2690,22 @@ class Point extends DataClass implements Insertable<Point> {
       'id': serializer.toJson<String>(id),
       'projectId': serializer.toJson<String>(projectId),
       'refNumber': serializer.toJson<int?>(refNumber),
-      'floor': serializer.toJson<String?>(floor),
+      'purchaseOrder': serializer.toJson<String?>(purchaseOrder),
+      'building': serializer.toJson<String?>(building),
+      'floorLevel': serializer.toJson<int?>(floorLevel),
       'room': serializer.toJson<String?>(room),
       'description': serializer.toJson<String?>(description),
+      'configurationId': serializer.toJson<String?>(configurationId),
+      'configurationDetailId':
+          serializer.toJson<String?>(configurationDetailId),
+      'eiLevelId': serializer.toJson<String?>(eiLevelId),
+      'supplierId': serializer.toJson<String?>(supplierId),
+      'productTypeId': serializer.toJson<String?>(productTypeId),
+      'product1Id': serializer.toJson<String?>(product1Id),
+      'product2Id': serializer.toJson<String?>(product2Id),
+      'product3Id': serializer.toJson<String?>(product3Id),
+      'product4Id': serializer.toJson<String?>(product4Id),
+      'product5Id': serializer.toJson<String?>(product5Id),
       'authorId': serializer.toJson<String>(authorId),
       'capturedAt': serializer.toJson<DateTime>(capturedAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -2441,9 +2717,21 @@ class Point extends DataClass implements Insertable<Point> {
           {String? id,
           String? projectId,
           Value<int?> refNumber = const Value.absent(),
-          Value<String?> floor = const Value.absent(),
+          Value<String?> purchaseOrder = const Value.absent(),
+          Value<String?> building = const Value.absent(),
+          Value<int?> floorLevel = const Value.absent(),
           Value<String?> room = const Value.absent(),
           Value<String?> description = const Value.absent(),
+          Value<String?> configurationId = const Value.absent(),
+          Value<String?> configurationDetailId = const Value.absent(),
+          Value<String?> eiLevelId = const Value.absent(),
+          Value<String?> supplierId = const Value.absent(),
+          Value<String?> productTypeId = const Value.absent(),
+          Value<String?> product1Id = const Value.absent(),
+          Value<String?> product2Id = const Value.absent(),
+          Value<String?> product3Id = const Value.absent(),
+          Value<String?> product4Id = const Value.absent(),
+          Value<String?> product5Id = const Value.absent(),
           String? authorId,
           DateTime? capturedAt,
           DateTime? updatedAt,
@@ -2452,9 +2740,27 @@ class Point extends DataClass implements Insertable<Point> {
         id: id ?? this.id,
         projectId: projectId ?? this.projectId,
         refNumber: refNumber.present ? refNumber.value : this.refNumber,
-        floor: floor.present ? floor.value : this.floor,
+        purchaseOrder:
+            purchaseOrder.present ? purchaseOrder.value : this.purchaseOrder,
+        building: building.present ? building.value : this.building,
+        floorLevel: floorLevel.present ? floorLevel.value : this.floorLevel,
         room: room.present ? room.value : this.room,
         description: description.present ? description.value : this.description,
+        configurationId: configurationId.present
+            ? configurationId.value
+            : this.configurationId,
+        configurationDetailId: configurationDetailId.present
+            ? configurationDetailId.value
+            : this.configurationDetailId,
+        eiLevelId: eiLevelId.present ? eiLevelId.value : this.eiLevelId,
+        supplierId: supplierId.present ? supplierId.value : this.supplierId,
+        productTypeId:
+            productTypeId.present ? productTypeId.value : this.productTypeId,
+        product1Id: product1Id.present ? product1Id.value : this.product1Id,
+        product2Id: product2Id.present ? product2Id.value : this.product2Id,
+        product3Id: product3Id.present ? product3Id.value : this.product3Id,
+        product4Id: product4Id.present ? product4Id.value : this.product4Id,
+        product5Id: product5Id.present ? product5Id.value : this.product5Id,
         authorId: authorId ?? this.authorId,
         capturedAt: capturedAt ?? this.capturedAt,
         updatedAt: updatedAt ?? this.updatedAt,
@@ -2465,10 +2771,37 @@ class Point extends DataClass implements Insertable<Point> {
       id: data.id.present ? data.id.value : this.id,
       projectId: data.projectId.present ? data.projectId.value : this.projectId,
       refNumber: data.refNumber.present ? data.refNumber.value : this.refNumber,
-      floor: data.floor.present ? data.floor.value : this.floor,
+      purchaseOrder: data.purchaseOrder.present
+          ? data.purchaseOrder.value
+          : this.purchaseOrder,
+      building: data.building.present ? data.building.value : this.building,
+      floorLevel:
+          data.floorLevel.present ? data.floorLevel.value : this.floorLevel,
       room: data.room.present ? data.room.value : this.room,
       description:
           data.description.present ? data.description.value : this.description,
+      configurationId: data.configurationId.present
+          ? data.configurationId.value
+          : this.configurationId,
+      configurationDetailId: data.configurationDetailId.present
+          ? data.configurationDetailId.value
+          : this.configurationDetailId,
+      eiLevelId: data.eiLevelId.present ? data.eiLevelId.value : this.eiLevelId,
+      supplierId:
+          data.supplierId.present ? data.supplierId.value : this.supplierId,
+      productTypeId: data.productTypeId.present
+          ? data.productTypeId.value
+          : this.productTypeId,
+      product1Id:
+          data.product1Id.present ? data.product1Id.value : this.product1Id,
+      product2Id:
+          data.product2Id.present ? data.product2Id.value : this.product2Id,
+      product3Id:
+          data.product3Id.present ? data.product3Id.value : this.product3Id,
+      product4Id:
+          data.product4Id.present ? data.product4Id.value : this.product4Id,
+      product5Id:
+          data.product5Id.present ? data.product5Id.value : this.product5Id,
       authorId: data.authorId.present ? data.authorId.value : this.authorId,
       capturedAt:
           data.capturedAt.present ? data.capturedAt.value : this.capturedAt,
@@ -2483,9 +2816,21 @@ class Point extends DataClass implements Insertable<Point> {
           ..write('id: $id, ')
           ..write('projectId: $projectId, ')
           ..write('refNumber: $refNumber, ')
-          ..write('floor: $floor, ')
+          ..write('purchaseOrder: $purchaseOrder, ')
+          ..write('building: $building, ')
+          ..write('floorLevel: $floorLevel, ')
           ..write('room: $room, ')
           ..write('description: $description, ')
+          ..write('configurationId: $configurationId, ')
+          ..write('configurationDetailId: $configurationDetailId, ')
+          ..write('eiLevelId: $eiLevelId, ')
+          ..write('supplierId: $supplierId, ')
+          ..write('productTypeId: $productTypeId, ')
+          ..write('product1Id: $product1Id, ')
+          ..write('product2Id: $product2Id, ')
+          ..write('product3Id: $product3Id, ')
+          ..write('product4Id: $product4Id, ')
+          ..write('product5Id: $product5Id, ')
           ..write('authorId: $authorId, ')
           ..write('capturedAt: $capturedAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -2495,8 +2840,30 @@ class Point extends DataClass implements Insertable<Point> {
   }
 
   @override
-  int get hashCode => Object.hash(id, projectId, refNumber, floor, room,
-      description, authorId, capturedAt, updatedAt, deletedAt);
+  int get hashCode => Object.hashAll([
+        id,
+        projectId,
+        refNumber,
+        purchaseOrder,
+        building,
+        floorLevel,
+        room,
+        description,
+        configurationId,
+        configurationDetailId,
+        eiLevelId,
+        supplierId,
+        productTypeId,
+        product1Id,
+        product2Id,
+        product3Id,
+        product4Id,
+        product5Id,
+        authorId,
+        capturedAt,
+        updatedAt,
+        deletedAt
+      ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2504,9 +2871,21 @@ class Point extends DataClass implements Insertable<Point> {
           other.id == this.id &&
           other.projectId == this.projectId &&
           other.refNumber == this.refNumber &&
-          other.floor == this.floor &&
+          other.purchaseOrder == this.purchaseOrder &&
+          other.building == this.building &&
+          other.floorLevel == this.floorLevel &&
           other.room == this.room &&
           other.description == this.description &&
+          other.configurationId == this.configurationId &&
+          other.configurationDetailId == this.configurationDetailId &&
+          other.eiLevelId == this.eiLevelId &&
+          other.supplierId == this.supplierId &&
+          other.productTypeId == this.productTypeId &&
+          other.product1Id == this.product1Id &&
+          other.product2Id == this.product2Id &&
+          other.product3Id == this.product3Id &&
+          other.product4Id == this.product4Id &&
+          other.product5Id == this.product5Id &&
           other.authorId == this.authorId &&
           other.capturedAt == this.capturedAt &&
           other.updatedAt == this.updatedAt &&
@@ -2517,9 +2896,21 @@ class PointsCompanion extends UpdateCompanion<Point> {
   final Value<String> id;
   final Value<String> projectId;
   final Value<int?> refNumber;
-  final Value<String?> floor;
+  final Value<String?> purchaseOrder;
+  final Value<String?> building;
+  final Value<int?> floorLevel;
   final Value<String?> room;
   final Value<String?> description;
+  final Value<String?> configurationId;
+  final Value<String?> configurationDetailId;
+  final Value<String?> eiLevelId;
+  final Value<String?> supplierId;
+  final Value<String?> productTypeId;
+  final Value<String?> product1Id;
+  final Value<String?> product2Id;
+  final Value<String?> product3Id;
+  final Value<String?> product4Id;
+  final Value<String?> product5Id;
   final Value<String> authorId;
   final Value<DateTime> capturedAt;
   final Value<DateTime> updatedAt;
@@ -2529,9 +2920,21 @@ class PointsCompanion extends UpdateCompanion<Point> {
     this.id = const Value.absent(),
     this.projectId = const Value.absent(),
     this.refNumber = const Value.absent(),
-    this.floor = const Value.absent(),
+    this.purchaseOrder = const Value.absent(),
+    this.building = const Value.absent(),
+    this.floorLevel = const Value.absent(),
     this.room = const Value.absent(),
     this.description = const Value.absent(),
+    this.configurationId = const Value.absent(),
+    this.configurationDetailId = const Value.absent(),
+    this.eiLevelId = const Value.absent(),
+    this.supplierId = const Value.absent(),
+    this.productTypeId = const Value.absent(),
+    this.product1Id = const Value.absent(),
+    this.product2Id = const Value.absent(),
+    this.product3Id = const Value.absent(),
+    this.product4Id = const Value.absent(),
+    this.product5Id = const Value.absent(),
     this.authorId = const Value.absent(),
     this.capturedAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -2542,9 +2945,21 @@ class PointsCompanion extends UpdateCompanion<Point> {
     required String id,
     required String projectId,
     this.refNumber = const Value.absent(),
-    this.floor = const Value.absent(),
+    this.purchaseOrder = const Value.absent(),
+    this.building = const Value.absent(),
+    this.floorLevel = const Value.absent(),
     this.room = const Value.absent(),
     this.description = const Value.absent(),
+    this.configurationId = const Value.absent(),
+    this.configurationDetailId = const Value.absent(),
+    this.eiLevelId = const Value.absent(),
+    this.supplierId = const Value.absent(),
+    this.productTypeId = const Value.absent(),
+    this.product1Id = const Value.absent(),
+    this.product2Id = const Value.absent(),
+    this.product3Id = const Value.absent(),
+    this.product4Id = const Value.absent(),
+    this.product5Id = const Value.absent(),
     required String authorId,
     required DateTime capturedAt,
     required DateTime updatedAt,
@@ -2559,9 +2974,21 @@ class PointsCompanion extends UpdateCompanion<Point> {
     Expression<String>? id,
     Expression<String>? projectId,
     Expression<int>? refNumber,
-    Expression<String>? floor,
+    Expression<String>? purchaseOrder,
+    Expression<String>? building,
+    Expression<int>? floorLevel,
     Expression<String>? room,
     Expression<String>? description,
+    Expression<String>? configurationId,
+    Expression<String>? configurationDetailId,
+    Expression<String>? eiLevelId,
+    Expression<String>? supplierId,
+    Expression<String>? productTypeId,
+    Expression<String>? product1Id,
+    Expression<String>? product2Id,
+    Expression<String>? product3Id,
+    Expression<String>? product4Id,
+    Expression<String>? product5Id,
     Expression<String>? authorId,
     Expression<DateTime>? capturedAt,
     Expression<DateTime>? updatedAt,
@@ -2572,9 +2999,22 @@ class PointsCompanion extends UpdateCompanion<Point> {
       if (id != null) 'id': id,
       if (projectId != null) 'project_id': projectId,
       if (refNumber != null) 'ref_number': refNumber,
-      if (floor != null) 'floor': floor,
+      if (purchaseOrder != null) 'purchase_order': purchaseOrder,
+      if (building != null) 'building': building,
+      if (floorLevel != null) 'floor_level': floorLevel,
       if (room != null) 'room': room,
       if (description != null) 'description': description,
+      if (configurationId != null) 'configuration_id': configurationId,
+      if (configurationDetailId != null)
+        'configuration_detail_id': configurationDetailId,
+      if (eiLevelId != null) 'ei_level_id': eiLevelId,
+      if (supplierId != null) 'supplier_id': supplierId,
+      if (productTypeId != null) 'product_type_id': productTypeId,
+      if (product1Id != null) 'product1_id': product1Id,
+      if (product2Id != null) 'product2_id': product2Id,
+      if (product3Id != null) 'product3_id': product3Id,
+      if (product4Id != null) 'product4_id': product4Id,
+      if (product5Id != null) 'product5_id': product5Id,
       if (authorId != null) 'author_id': authorId,
       if (capturedAt != null) 'captured_at': capturedAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -2587,9 +3027,21 @@ class PointsCompanion extends UpdateCompanion<Point> {
       {Value<String>? id,
       Value<String>? projectId,
       Value<int?>? refNumber,
-      Value<String?>? floor,
+      Value<String?>? purchaseOrder,
+      Value<String?>? building,
+      Value<int?>? floorLevel,
       Value<String?>? room,
       Value<String?>? description,
+      Value<String?>? configurationId,
+      Value<String?>? configurationDetailId,
+      Value<String?>? eiLevelId,
+      Value<String?>? supplierId,
+      Value<String?>? productTypeId,
+      Value<String?>? product1Id,
+      Value<String?>? product2Id,
+      Value<String?>? product3Id,
+      Value<String?>? product4Id,
+      Value<String?>? product5Id,
       Value<String>? authorId,
       Value<DateTime>? capturedAt,
       Value<DateTime>? updatedAt,
@@ -2599,9 +3051,22 @@ class PointsCompanion extends UpdateCompanion<Point> {
       id: id ?? this.id,
       projectId: projectId ?? this.projectId,
       refNumber: refNumber ?? this.refNumber,
-      floor: floor ?? this.floor,
+      purchaseOrder: purchaseOrder ?? this.purchaseOrder,
+      building: building ?? this.building,
+      floorLevel: floorLevel ?? this.floorLevel,
       room: room ?? this.room,
       description: description ?? this.description,
+      configurationId: configurationId ?? this.configurationId,
+      configurationDetailId:
+          configurationDetailId ?? this.configurationDetailId,
+      eiLevelId: eiLevelId ?? this.eiLevelId,
+      supplierId: supplierId ?? this.supplierId,
+      productTypeId: productTypeId ?? this.productTypeId,
+      product1Id: product1Id ?? this.product1Id,
+      product2Id: product2Id ?? this.product2Id,
+      product3Id: product3Id ?? this.product3Id,
+      product4Id: product4Id ?? this.product4Id,
+      product5Id: product5Id ?? this.product5Id,
       authorId: authorId ?? this.authorId,
       capturedAt: capturedAt ?? this.capturedAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -2622,14 +3087,51 @@ class PointsCompanion extends UpdateCompanion<Point> {
     if (refNumber.present) {
       map['ref_number'] = Variable<int>(refNumber.value);
     }
-    if (floor.present) {
-      map['floor'] = Variable<String>(floor.value);
+    if (purchaseOrder.present) {
+      map['purchase_order'] = Variable<String>(purchaseOrder.value);
+    }
+    if (building.present) {
+      map['building'] = Variable<String>(building.value);
+    }
+    if (floorLevel.present) {
+      map['floor_level'] = Variable<int>(floorLevel.value);
     }
     if (room.present) {
       map['room'] = Variable<String>(room.value);
     }
     if (description.present) {
       map['description'] = Variable<String>(description.value);
+    }
+    if (configurationId.present) {
+      map['configuration_id'] = Variable<String>(configurationId.value);
+    }
+    if (configurationDetailId.present) {
+      map['configuration_detail_id'] =
+          Variable<String>(configurationDetailId.value);
+    }
+    if (eiLevelId.present) {
+      map['ei_level_id'] = Variable<String>(eiLevelId.value);
+    }
+    if (supplierId.present) {
+      map['supplier_id'] = Variable<String>(supplierId.value);
+    }
+    if (productTypeId.present) {
+      map['product_type_id'] = Variable<String>(productTypeId.value);
+    }
+    if (product1Id.present) {
+      map['product1_id'] = Variable<String>(product1Id.value);
+    }
+    if (product2Id.present) {
+      map['product2_id'] = Variable<String>(product2Id.value);
+    }
+    if (product3Id.present) {
+      map['product3_id'] = Variable<String>(product3Id.value);
+    }
+    if (product4Id.present) {
+      map['product4_id'] = Variable<String>(product4Id.value);
+    }
+    if (product5Id.present) {
+      map['product5_id'] = Variable<String>(product5Id.value);
     }
     if (authorId.present) {
       map['author_id'] = Variable<String>(authorId.value);
@@ -2655,726 +3157,23 @@ class PointsCompanion extends UpdateCompanion<Point> {
           ..write('id: $id, ')
           ..write('projectId: $projectId, ')
           ..write('refNumber: $refNumber, ')
-          ..write('floor: $floor, ')
+          ..write('purchaseOrder: $purchaseOrder, ')
+          ..write('building: $building, ')
+          ..write('floorLevel: $floorLevel, ')
           ..write('room: $room, ')
           ..write('description: $description, ')
+          ..write('configurationId: $configurationId, ')
+          ..write('configurationDetailId: $configurationDetailId, ')
+          ..write('eiLevelId: $eiLevelId, ')
+          ..write('supplierId: $supplierId, ')
+          ..write('productTypeId: $productTypeId, ')
+          ..write('product1Id: $product1Id, ')
+          ..write('product2Id: $product2Id, ')
+          ..write('product3Id: $product3Id, ')
+          ..write('product4Id: $product4Id, ')
+          ..write('product5Id: $product5Id, ')
           ..write('authorId: $authorId, ')
           ..write('capturedAt: $capturedAt, ')
-          ..write('updatedAt: $updatedAt, ')
-          ..write('deletedAt: $deletedAt, ')
-          ..write('rowid: $rowid')
-          ..write(')'))
-        .toString();
-  }
-}
-
-class $MaterialsTable extends Materials
-    with TableInfo<$MaterialsTable, MaterialItem> {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  $MaterialsTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _idMeta = const VerificationMeta('id');
-  @override
-  late final GeneratedColumn<String> id = GeneratedColumn<String>(
-      'id', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _labelMeta = const VerificationMeta('label');
-  @override
-  late final GeneratedColumn<String> label = GeneratedColumn<String>(
-      'label', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _manufacturerMeta =
-      const VerificationMeta('manufacturer');
-  @override
-  late final GeneratedColumn<String> manufacturer = GeneratedColumn<String>(
-      'manufacturer', aliasedName, true,
-      type: DriftSqlType.string, requiredDuringInsert: false);
-  static const VerificationMeta _referenceMeta =
-      const VerificationMeta('reference');
-  @override
-  late final GeneratedColumn<String> reference = GeneratedColumn<String>(
-      'reference', aliasedName, true,
-      type: DriftSqlType.string, requiredDuringInsert: false);
-  static const VerificationMeta _clientIdMeta =
-      const VerificationMeta('clientId');
-  @override
-  late final GeneratedColumn<String> clientId = GeneratedColumn<String>(
-      'client_id', aliasedName, true,
-      type: DriftSqlType.string,
-      requiredDuringInsert: false,
-      $customConstraints: 'REFERENCES clients(id)');
-  static const VerificationMeta _updatedAtMeta =
-      const VerificationMeta('updatedAt');
-  @override
-  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
-      'updated_at', aliasedName, false,
-      type: DriftSqlType.dateTime, requiredDuringInsert: true);
-  static const VerificationMeta _deletedAtMeta =
-      const VerificationMeta('deletedAt');
-  @override
-  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
-      'deleted_at', aliasedName, true,
-      type: DriftSqlType.dateTime, requiredDuringInsert: false);
-  @override
-  List<GeneratedColumn> get $columns =>
-      [id, label, manufacturer, reference, clientId, updatedAt, deletedAt];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'materials';
-  @override
-  VerificationContext validateIntegrity(Insertable<MaterialItem> instance,
-      {bool isInserting = false}) {
-    final context = VerificationContext();
-    final data = instance.toColumns(true);
-    if (data.containsKey('id')) {
-      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
-    } else if (isInserting) {
-      context.missing(_idMeta);
-    }
-    if (data.containsKey('label')) {
-      context.handle(
-          _labelMeta, label.isAcceptableOrUnknown(data['label']!, _labelMeta));
-    } else if (isInserting) {
-      context.missing(_labelMeta);
-    }
-    if (data.containsKey('manufacturer')) {
-      context.handle(
-          _manufacturerMeta,
-          manufacturer.isAcceptableOrUnknown(
-              data['manufacturer']!, _manufacturerMeta));
-    }
-    if (data.containsKey('reference')) {
-      context.handle(_referenceMeta,
-          reference.isAcceptableOrUnknown(data['reference']!, _referenceMeta));
-    }
-    if (data.containsKey('client_id')) {
-      context.handle(_clientIdMeta,
-          clientId.isAcceptableOrUnknown(data['client_id']!, _clientIdMeta));
-    }
-    if (data.containsKey('updated_at')) {
-      context.handle(_updatedAtMeta,
-          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
-    } else if (isInserting) {
-      context.missing(_updatedAtMeta);
-    }
-    if (data.containsKey('deleted_at')) {
-      context.handle(_deletedAtMeta,
-          deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta));
-    }
-    return context;
-  }
-
-  @override
-  Set<GeneratedColumn> get $primaryKey => {id};
-  @override
-  MaterialItem map(Map<String, dynamic> data, {String? tablePrefix}) {
-    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return MaterialItem(
-      id: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
-      label: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}label'])!,
-      manufacturer: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}manufacturer']),
-      reference: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}reference']),
-      clientId: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}client_id']),
-      updatedAt: attachedDatabase.typeMapping
-          .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
-      deletedAt: attachedDatabase.typeMapping
-          .read(DriftSqlType.dateTime, data['${effectivePrefix}deleted_at']),
-    );
-  }
-
-  @override
-  $MaterialsTable createAlias(String alias) {
-    return $MaterialsTable(attachedDatabase, alias);
-  }
-}
-
-class MaterialItem extends DataClass implements Insertable<MaterialItem> {
-  final String id;
-  final String label;
-  final String? manufacturer;
-  final String? reference;
-  final String? clientId;
-  final DateTime updatedAt;
-  final DateTime? deletedAt;
-  const MaterialItem(
-      {required this.id,
-      required this.label,
-      this.manufacturer,
-      this.reference,
-      this.clientId,
-      required this.updatedAt,
-      this.deletedAt});
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    map['id'] = Variable<String>(id);
-    map['label'] = Variable<String>(label);
-    if (!nullToAbsent || manufacturer != null) {
-      map['manufacturer'] = Variable<String>(manufacturer);
-    }
-    if (!nullToAbsent || reference != null) {
-      map['reference'] = Variable<String>(reference);
-    }
-    if (!nullToAbsent || clientId != null) {
-      map['client_id'] = Variable<String>(clientId);
-    }
-    map['updated_at'] = Variable<DateTime>(updatedAt);
-    if (!nullToAbsent || deletedAt != null) {
-      map['deleted_at'] = Variable<DateTime>(deletedAt);
-    }
-    return map;
-  }
-
-  MaterialsCompanion toCompanion(bool nullToAbsent) {
-    return MaterialsCompanion(
-      id: Value(id),
-      label: Value(label),
-      manufacturer: manufacturer == null && nullToAbsent
-          ? const Value.absent()
-          : Value(manufacturer),
-      reference: reference == null && nullToAbsent
-          ? const Value.absent()
-          : Value(reference),
-      clientId: clientId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(clientId),
-      updatedAt: Value(updatedAt),
-      deletedAt: deletedAt == null && nullToAbsent
-          ? const Value.absent()
-          : Value(deletedAt),
-    );
-  }
-
-  factory MaterialItem.fromJson(Map<String, dynamic> json,
-      {ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return MaterialItem(
-      id: serializer.fromJson<String>(json['id']),
-      label: serializer.fromJson<String>(json['label']),
-      manufacturer: serializer.fromJson<String?>(json['manufacturer']),
-      reference: serializer.fromJson<String?>(json['reference']),
-      clientId: serializer.fromJson<String?>(json['clientId']),
-      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
-      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
-    );
-  }
-  @override
-  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return <String, dynamic>{
-      'id': serializer.toJson<String>(id),
-      'label': serializer.toJson<String>(label),
-      'manufacturer': serializer.toJson<String?>(manufacturer),
-      'reference': serializer.toJson<String?>(reference),
-      'clientId': serializer.toJson<String?>(clientId),
-      'updatedAt': serializer.toJson<DateTime>(updatedAt),
-      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
-    };
-  }
-
-  MaterialItem copyWith(
-          {String? id,
-          String? label,
-          Value<String?> manufacturer = const Value.absent(),
-          Value<String?> reference = const Value.absent(),
-          Value<String?> clientId = const Value.absent(),
-          DateTime? updatedAt,
-          Value<DateTime?> deletedAt = const Value.absent()}) =>
-      MaterialItem(
-        id: id ?? this.id,
-        label: label ?? this.label,
-        manufacturer:
-            manufacturer.present ? manufacturer.value : this.manufacturer,
-        reference: reference.present ? reference.value : this.reference,
-        clientId: clientId.present ? clientId.value : this.clientId,
-        updatedAt: updatedAt ?? this.updatedAt,
-        deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
-      );
-  MaterialItem copyWithCompanion(MaterialsCompanion data) {
-    return MaterialItem(
-      id: data.id.present ? data.id.value : this.id,
-      label: data.label.present ? data.label.value : this.label,
-      manufacturer: data.manufacturer.present
-          ? data.manufacturer.value
-          : this.manufacturer,
-      reference: data.reference.present ? data.reference.value : this.reference,
-      clientId: data.clientId.present ? data.clientId.value : this.clientId,
-      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
-      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
-    );
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('MaterialItem(')
-          ..write('id: $id, ')
-          ..write('label: $label, ')
-          ..write('manufacturer: $manufacturer, ')
-          ..write('reference: $reference, ')
-          ..write('clientId: $clientId, ')
-          ..write('updatedAt: $updatedAt, ')
-          ..write('deletedAt: $deletedAt')
-          ..write(')'))
-        .toString();
-  }
-
-  @override
-  int get hashCode => Object.hash(
-      id, label, manufacturer, reference, clientId, updatedAt, deletedAt);
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is MaterialItem &&
-          other.id == this.id &&
-          other.label == this.label &&
-          other.manufacturer == this.manufacturer &&
-          other.reference == this.reference &&
-          other.clientId == this.clientId &&
-          other.updatedAt == this.updatedAt &&
-          other.deletedAt == this.deletedAt);
-}
-
-class MaterialsCompanion extends UpdateCompanion<MaterialItem> {
-  final Value<String> id;
-  final Value<String> label;
-  final Value<String?> manufacturer;
-  final Value<String?> reference;
-  final Value<String?> clientId;
-  final Value<DateTime> updatedAt;
-  final Value<DateTime?> deletedAt;
-  final Value<int> rowid;
-  const MaterialsCompanion({
-    this.id = const Value.absent(),
-    this.label = const Value.absent(),
-    this.manufacturer = const Value.absent(),
-    this.reference = const Value.absent(),
-    this.clientId = const Value.absent(),
-    this.updatedAt = const Value.absent(),
-    this.deletedAt = const Value.absent(),
-    this.rowid = const Value.absent(),
-  });
-  MaterialsCompanion.insert({
-    required String id,
-    required String label,
-    this.manufacturer = const Value.absent(),
-    this.reference = const Value.absent(),
-    this.clientId = const Value.absent(),
-    required DateTime updatedAt,
-    this.deletedAt = const Value.absent(),
-    this.rowid = const Value.absent(),
-  })  : id = Value(id),
-        label = Value(label),
-        updatedAt = Value(updatedAt);
-  static Insertable<MaterialItem> custom({
-    Expression<String>? id,
-    Expression<String>? label,
-    Expression<String>? manufacturer,
-    Expression<String>? reference,
-    Expression<String>? clientId,
-    Expression<DateTime>? updatedAt,
-    Expression<DateTime>? deletedAt,
-    Expression<int>? rowid,
-  }) {
-    return RawValuesInsertable({
-      if (id != null) 'id': id,
-      if (label != null) 'label': label,
-      if (manufacturer != null) 'manufacturer': manufacturer,
-      if (reference != null) 'reference': reference,
-      if (clientId != null) 'client_id': clientId,
-      if (updatedAt != null) 'updated_at': updatedAt,
-      if (deletedAt != null) 'deleted_at': deletedAt,
-      if (rowid != null) 'rowid': rowid,
-    });
-  }
-
-  MaterialsCompanion copyWith(
-      {Value<String>? id,
-      Value<String>? label,
-      Value<String?>? manufacturer,
-      Value<String?>? reference,
-      Value<String?>? clientId,
-      Value<DateTime>? updatedAt,
-      Value<DateTime?>? deletedAt,
-      Value<int>? rowid}) {
-    return MaterialsCompanion(
-      id: id ?? this.id,
-      label: label ?? this.label,
-      manufacturer: manufacturer ?? this.manufacturer,
-      reference: reference ?? this.reference,
-      clientId: clientId ?? this.clientId,
-      updatedAt: updatedAt ?? this.updatedAt,
-      deletedAt: deletedAt ?? this.deletedAt,
-      rowid: rowid ?? this.rowid,
-    );
-  }
-
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    if (id.present) {
-      map['id'] = Variable<String>(id.value);
-    }
-    if (label.present) {
-      map['label'] = Variable<String>(label.value);
-    }
-    if (manufacturer.present) {
-      map['manufacturer'] = Variable<String>(manufacturer.value);
-    }
-    if (reference.present) {
-      map['reference'] = Variable<String>(reference.value);
-    }
-    if (clientId.present) {
-      map['client_id'] = Variable<String>(clientId.value);
-    }
-    if (updatedAt.present) {
-      map['updated_at'] = Variable<DateTime>(updatedAt.value);
-    }
-    if (deletedAt.present) {
-      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
-    }
-    if (rowid.present) {
-      map['rowid'] = Variable<int>(rowid.value);
-    }
-    return map;
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('MaterialsCompanion(')
-          ..write('id: $id, ')
-          ..write('label: $label, ')
-          ..write('manufacturer: $manufacturer, ')
-          ..write('reference: $reference, ')
-          ..write('clientId: $clientId, ')
-          ..write('updatedAt: $updatedAt, ')
-          ..write('deletedAt: $deletedAt, ')
-          ..write('rowid: $rowid')
-          ..write(')'))
-        .toString();
-  }
-}
-
-class $PointMaterialsTable extends PointMaterials
-    with TableInfo<$PointMaterialsTable, PointMaterial> {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  $PointMaterialsTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _pointIdMeta =
-      const VerificationMeta('pointId');
-  @override
-  late final GeneratedColumn<String> pointId = GeneratedColumn<String>(
-      'point_id', aliasedName, false,
-      type: DriftSqlType.string,
-      requiredDuringInsert: true,
-      $customConstraints: 'NOT NULL REFERENCES points(id)');
-  static const VerificationMeta _materialIdMeta =
-      const VerificationMeta('materialId');
-  @override
-  late final GeneratedColumn<String> materialId = GeneratedColumn<String>(
-      'material_id', aliasedName, false,
-      type: DriftSqlType.string,
-      requiredDuringInsert: true,
-      $customConstraints: 'NOT NULL REFERENCES materials(id)');
-  static const VerificationMeta _quantityMeta =
-      const VerificationMeta('quantity');
-  @override
-  late final GeneratedColumn<double> quantity = GeneratedColumn<double>(
-      'quantity', aliasedName, true,
-      type: DriftSqlType.double, requiredDuringInsert: false);
-  static const VerificationMeta _updatedAtMeta =
-      const VerificationMeta('updatedAt');
-  @override
-  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
-      'updated_at', aliasedName, false,
-      type: DriftSqlType.dateTime, requiredDuringInsert: true);
-  static const VerificationMeta _deletedAtMeta =
-      const VerificationMeta('deletedAt');
-  @override
-  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
-      'deleted_at', aliasedName, true,
-      type: DriftSqlType.dateTime, requiredDuringInsert: false);
-  @override
-  List<GeneratedColumn> get $columns =>
-      [pointId, materialId, quantity, updatedAt, deletedAt];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'point_materials';
-  @override
-  VerificationContext validateIntegrity(Insertable<PointMaterial> instance,
-      {bool isInserting = false}) {
-    final context = VerificationContext();
-    final data = instance.toColumns(true);
-    if (data.containsKey('point_id')) {
-      context.handle(_pointIdMeta,
-          pointId.isAcceptableOrUnknown(data['point_id']!, _pointIdMeta));
-    } else if (isInserting) {
-      context.missing(_pointIdMeta);
-    }
-    if (data.containsKey('material_id')) {
-      context.handle(
-          _materialIdMeta,
-          materialId.isAcceptableOrUnknown(
-              data['material_id']!, _materialIdMeta));
-    } else if (isInserting) {
-      context.missing(_materialIdMeta);
-    }
-    if (data.containsKey('quantity')) {
-      context.handle(_quantityMeta,
-          quantity.isAcceptableOrUnknown(data['quantity']!, _quantityMeta));
-    }
-    if (data.containsKey('updated_at')) {
-      context.handle(_updatedAtMeta,
-          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
-    } else if (isInserting) {
-      context.missing(_updatedAtMeta);
-    }
-    if (data.containsKey('deleted_at')) {
-      context.handle(_deletedAtMeta,
-          deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta));
-    }
-    return context;
-  }
-
-  @override
-  Set<GeneratedColumn> get $primaryKey => {pointId, materialId};
-  @override
-  PointMaterial map(Map<String, dynamic> data, {String? tablePrefix}) {
-    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return PointMaterial(
-      pointId: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}point_id'])!,
-      materialId: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}material_id'])!,
-      quantity: attachedDatabase.typeMapping
-          .read(DriftSqlType.double, data['${effectivePrefix}quantity']),
-      updatedAt: attachedDatabase.typeMapping
-          .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
-      deletedAt: attachedDatabase.typeMapping
-          .read(DriftSqlType.dateTime, data['${effectivePrefix}deleted_at']),
-    );
-  }
-
-  @override
-  $PointMaterialsTable createAlias(String alias) {
-    return $PointMaterialsTable(attachedDatabase, alias);
-  }
-}
-
-class PointMaterial extends DataClass implements Insertable<PointMaterial> {
-  final String pointId;
-  final String materialId;
-  final double? quantity;
-  final DateTime updatedAt;
-  final DateTime? deletedAt;
-  const PointMaterial(
-      {required this.pointId,
-      required this.materialId,
-      this.quantity,
-      required this.updatedAt,
-      this.deletedAt});
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    map['point_id'] = Variable<String>(pointId);
-    map['material_id'] = Variable<String>(materialId);
-    if (!nullToAbsent || quantity != null) {
-      map['quantity'] = Variable<double>(quantity);
-    }
-    map['updated_at'] = Variable<DateTime>(updatedAt);
-    if (!nullToAbsent || deletedAt != null) {
-      map['deleted_at'] = Variable<DateTime>(deletedAt);
-    }
-    return map;
-  }
-
-  PointMaterialsCompanion toCompanion(bool nullToAbsent) {
-    return PointMaterialsCompanion(
-      pointId: Value(pointId),
-      materialId: Value(materialId),
-      quantity: quantity == null && nullToAbsent
-          ? const Value.absent()
-          : Value(quantity),
-      updatedAt: Value(updatedAt),
-      deletedAt: deletedAt == null && nullToAbsent
-          ? const Value.absent()
-          : Value(deletedAt),
-    );
-  }
-
-  factory PointMaterial.fromJson(Map<String, dynamic> json,
-      {ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return PointMaterial(
-      pointId: serializer.fromJson<String>(json['pointId']),
-      materialId: serializer.fromJson<String>(json['materialId']),
-      quantity: serializer.fromJson<double?>(json['quantity']),
-      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
-      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
-    );
-  }
-  @override
-  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return <String, dynamic>{
-      'pointId': serializer.toJson<String>(pointId),
-      'materialId': serializer.toJson<String>(materialId),
-      'quantity': serializer.toJson<double?>(quantity),
-      'updatedAt': serializer.toJson<DateTime>(updatedAt),
-      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
-    };
-  }
-
-  PointMaterial copyWith(
-          {String? pointId,
-          String? materialId,
-          Value<double?> quantity = const Value.absent(),
-          DateTime? updatedAt,
-          Value<DateTime?> deletedAt = const Value.absent()}) =>
-      PointMaterial(
-        pointId: pointId ?? this.pointId,
-        materialId: materialId ?? this.materialId,
-        quantity: quantity.present ? quantity.value : this.quantity,
-        updatedAt: updatedAt ?? this.updatedAt,
-        deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
-      );
-  PointMaterial copyWithCompanion(PointMaterialsCompanion data) {
-    return PointMaterial(
-      pointId: data.pointId.present ? data.pointId.value : this.pointId,
-      materialId:
-          data.materialId.present ? data.materialId.value : this.materialId,
-      quantity: data.quantity.present ? data.quantity.value : this.quantity,
-      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
-      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
-    );
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('PointMaterial(')
-          ..write('pointId: $pointId, ')
-          ..write('materialId: $materialId, ')
-          ..write('quantity: $quantity, ')
-          ..write('updatedAt: $updatedAt, ')
-          ..write('deletedAt: $deletedAt')
-          ..write(')'))
-        .toString();
-  }
-
-  @override
-  int get hashCode =>
-      Object.hash(pointId, materialId, quantity, updatedAt, deletedAt);
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is PointMaterial &&
-          other.pointId == this.pointId &&
-          other.materialId == this.materialId &&
-          other.quantity == this.quantity &&
-          other.updatedAt == this.updatedAt &&
-          other.deletedAt == this.deletedAt);
-}
-
-class PointMaterialsCompanion extends UpdateCompanion<PointMaterial> {
-  final Value<String> pointId;
-  final Value<String> materialId;
-  final Value<double?> quantity;
-  final Value<DateTime> updatedAt;
-  final Value<DateTime?> deletedAt;
-  final Value<int> rowid;
-  const PointMaterialsCompanion({
-    this.pointId = const Value.absent(),
-    this.materialId = const Value.absent(),
-    this.quantity = const Value.absent(),
-    this.updatedAt = const Value.absent(),
-    this.deletedAt = const Value.absent(),
-    this.rowid = const Value.absent(),
-  });
-  PointMaterialsCompanion.insert({
-    required String pointId,
-    required String materialId,
-    this.quantity = const Value.absent(),
-    required DateTime updatedAt,
-    this.deletedAt = const Value.absent(),
-    this.rowid = const Value.absent(),
-  })  : pointId = Value(pointId),
-        materialId = Value(materialId),
-        updatedAt = Value(updatedAt);
-  static Insertable<PointMaterial> custom({
-    Expression<String>? pointId,
-    Expression<String>? materialId,
-    Expression<double>? quantity,
-    Expression<DateTime>? updatedAt,
-    Expression<DateTime>? deletedAt,
-    Expression<int>? rowid,
-  }) {
-    return RawValuesInsertable({
-      if (pointId != null) 'point_id': pointId,
-      if (materialId != null) 'material_id': materialId,
-      if (quantity != null) 'quantity': quantity,
-      if (updatedAt != null) 'updated_at': updatedAt,
-      if (deletedAt != null) 'deleted_at': deletedAt,
-      if (rowid != null) 'rowid': rowid,
-    });
-  }
-
-  PointMaterialsCompanion copyWith(
-      {Value<String>? pointId,
-      Value<String>? materialId,
-      Value<double?>? quantity,
-      Value<DateTime>? updatedAt,
-      Value<DateTime?>? deletedAt,
-      Value<int>? rowid}) {
-    return PointMaterialsCompanion(
-      pointId: pointId ?? this.pointId,
-      materialId: materialId ?? this.materialId,
-      quantity: quantity ?? this.quantity,
-      updatedAt: updatedAt ?? this.updatedAt,
-      deletedAt: deletedAt ?? this.deletedAt,
-      rowid: rowid ?? this.rowid,
-    );
-  }
-
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    if (pointId.present) {
-      map['point_id'] = Variable<String>(pointId.value);
-    }
-    if (materialId.present) {
-      map['material_id'] = Variable<String>(materialId.value);
-    }
-    if (quantity.present) {
-      map['quantity'] = Variable<double>(quantity.value);
-    }
-    if (updatedAt.present) {
-      map['updated_at'] = Variable<DateTime>(updatedAt.value);
-    }
-    if (deletedAt.present) {
-      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
-    }
-    if (rowid.present) {
-      map['rowid'] = Variable<int>(rowid.value);
-    }
-    return map;
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('PointMaterialsCompanion(')
-          ..write('pointId: $pointId, ')
-          ..write('materialId: $materialId, ')
-          ..write('quantity: $quantity, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
@@ -5064,20 +4863,18 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $ProfilesTable profiles = $ProfilesTable(this);
-  late final $ReportTemplatesTable reportTemplates =
-      $ReportTemplatesTable(this);
   late final $ClientsTable clients = $ClientsTable(this);
   late final $ProjectsTable projects = $ProjectsTable(this);
   late final $ProjectMembersTable projectMembers = $ProjectMembersTable(this);
+  late final $SettingOptionsTable settingOptions = $SettingOptionsTable(this);
   late final $PointsTable points = $PointsTable(this);
-  late final $MaterialsTable materials = $MaterialsTable(this);
-  late final $PointMaterialsTable pointMaterials = $PointMaterialsTable(this);
   late final $PhotosTable photos = $PhotosTable(this);
   late final $OutboxEntriesTable outboxEntries = $OutboxEntriesTable(this);
   late final $SyncCursorsTable syncCursors = $SyncCursorsTable(this);
   late final $AppSettingsTable appSettings = $AppSettingsTable(this);
   late final ProjectDao projectDao = ProjectDao(this as AppDatabase);
   late final PointDao pointDao = PointDao(this as AppDatabase);
+  late final SettingsDao settingsDao = SettingsDao(this as AppDatabase);
   late final OutboxDao outboxDao = OutboxDao(this as AppDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -5085,13 +4882,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
         profiles,
-        reportTemplates,
         clients,
         projects,
         projectMembers,
+        settingOptions,
         points,
-        materials,
-        pointMaterials,
         photos,
         outboxEntries,
         syncCursors,
@@ -5423,306 +5218,14 @@ typedef $$ProfilesTableProcessedTableManager = ProcessedTableManager<
     (Profile, $$ProfilesTableReferences),
     Profile,
     PrefetchHooks Function({bool projectMembersRefs, bool pointsRefs})>;
-typedef $$ReportTemplatesTableCreateCompanionBuilder = ReportTemplatesCompanion
-    Function({
-  required String id,
-  required String name,
-  required String config,
-  Value<bool> isDefault,
-  Value<String?> letterheadCoverPath,
-  Value<String?> letterheadBodyPath,
-  required DateTime updatedAt,
-  Value<int> rowid,
-});
-typedef $$ReportTemplatesTableUpdateCompanionBuilder = ReportTemplatesCompanion
-    Function({
-  Value<String> id,
-  Value<String> name,
-  Value<String> config,
-  Value<bool> isDefault,
-  Value<String?> letterheadCoverPath,
-  Value<String?> letterheadBodyPath,
-  Value<DateTime> updatedAt,
-  Value<int> rowid,
-});
-
-final class $$ReportTemplatesTableReferences extends BaseReferences<
-    _$AppDatabase, $ReportTemplatesTable, ReportTemplate> {
-  $$ReportTemplatesTableReferences(
-      super.$_db, super.$_table, super.$_typedResult);
-
-  static MultiTypedResultKey<$ClientsTable, List<Client>> _clientsRefsTable(
-          _$AppDatabase db) =>
-      MultiTypedResultKey.fromTable(db.clients,
-          aliasName: $_aliasNameGenerator(
-              db.reportTemplates.id, db.clients.templateId));
-
-  $$ClientsTableProcessedTableManager get clientsRefs {
-    final manager = $$ClientsTableTableManager($_db, $_db.clients)
-        .filter((f) => f.templateId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(_clientsRefsTable($_db));
-    return ProcessedTableManager(
-        manager.$state.copyWith(prefetchedData: cache));
-  }
-}
-
-class $$ReportTemplatesTableFilterComposer
-    extends Composer<_$AppDatabase, $ReportTemplatesTable> {
-  $$ReportTemplatesTableFilterComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnFilters<String> get id => $composableBuilder(
-      column: $table.id, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get name => $composableBuilder(
-      column: $table.name, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get config => $composableBuilder(
-      column: $table.config, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<bool> get isDefault => $composableBuilder(
-      column: $table.isDefault, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get letterheadCoverPath => $composableBuilder(
-      column: $table.letterheadCoverPath,
-      builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get letterheadBodyPath => $composableBuilder(
-      column: $table.letterheadBodyPath,
-      builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
-      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
-
-  Expression<bool> clientsRefs(
-      Expression<bool> Function($$ClientsTableFilterComposer f) f) {
-    final $$ClientsTableFilterComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.id,
-        referencedTable: $db.clients,
-        getReferencedColumn: (t) => t.templateId,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$ClientsTableFilterComposer(
-              $db: $db,
-              $table: $db.clients,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return f(composer);
-  }
-}
-
-class $$ReportTemplatesTableOrderingComposer
-    extends Composer<_$AppDatabase, $ReportTemplatesTable> {
-  $$ReportTemplatesTableOrderingComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnOrderings<String> get id => $composableBuilder(
-      column: $table.id, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get name => $composableBuilder(
-      column: $table.name, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get config => $composableBuilder(
-      column: $table.config, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<bool> get isDefault => $composableBuilder(
-      column: $table.isDefault, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get letterheadCoverPath => $composableBuilder(
-      column: $table.letterheadCoverPath,
-      builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get letterheadBodyPath => $composableBuilder(
-      column: $table.letterheadBodyPath,
-      builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
-      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
-}
-
-class $$ReportTemplatesTableAnnotationComposer
-    extends Composer<_$AppDatabase, $ReportTemplatesTable> {
-  $$ReportTemplatesTableAnnotationComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  GeneratedColumn<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
-
-  GeneratedColumn<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => column);
-
-  GeneratedColumn<String> get config =>
-      $composableBuilder(column: $table.config, builder: (column) => column);
-
-  GeneratedColumn<bool> get isDefault =>
-      $composableBuilder(column: $table.isDefault, builder: (column) => column);
-
-  GeneratedColumn<String> get letterheadCoverPath => $composableBuilder(
-      column: $table.letterheadCoverPath, builder: (column) => column);
-
-  GeneratedColumn<String> get letterheadBodyPath => $composableBuilder(
-      column: $table.letterheadBodyPath, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get updatedAt =>
-      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
-
-  Expression<T> clientsRefs<T extends Object>(
-      Expression<T> Function($$ClientsTableAnnotationComposer a) f) {
-    final $$ClientsTableAnnotationComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.id,
-        referencedTable: $db.clients,
-        getReferencedColumn: (t) => t.templateId,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$ClientsTableAnnotationComposer(
-              $db: $db,
-              $table: $db.clients,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return f(composer);
-  }
-}
-
-class $$ReportTemplatesTableTableManager extends RootTableManager<
-    _$AppDatabase,
-    $ReportTemplatesTable,
-    ReportTemplate,
-    $$ReportTemplatesTableFilterComposer,
-    $$ReportTemplatesTableOrderingComposer,
-    $$ReportTemplatesTableAnnotationComposer,
-    $$ReportTemplatesTableCreateCompanionBuilder,
-    $$ReportTemplatesTableUpdateCompanionBuilder,
-    (ReportTemplate, $$ReportTemplatesTableReferences),
-    ReportTemplate,
-    PrefetchHooks Function({bool clientsRefs})> {
-  $$ReportTemplatesTableTableManager(
-      _$AppDatabase db, $ReportTemplatesTable table)
-      : super(TableManagerState(
-          db: db,
-          table: table,
-          createFilteringComposer: () =>
-              $$ReportTemplatesTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$ReportTemplatesTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$ReportTemplatesTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback: ({
-            Value<String> id = const Value.absent(),
-            Value<String> name = const Value.absent(),
-            Value<String> config = const Value.absent(),
-            Value<bool> isDefault = const Value.absent(),
-            Value<String?> letterheadCoverPath = const Value.absent(),
-            Value<String?> letterheadBodyPath = const Value.absent(),
-            Value<DateTime> updatedAt = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) =>
-              ReportTemplatesCompanion(
-            id: id,
-            name: name,
-            config: config,
-            isDefault: isDefault,
-            letterheadCoverPath: letterheadCoverPath,
-            letterheadBodyPath: letterheadBodyPath,
-            updatedAt: updatedAt,
-            rowid: rowid,
-          ),
-          createCompanionCallback: ({
-            required String id,
-            required String name,
-            required String config,
-            Value<bool> isDefault = const Value.absent(),
-            Value<String?> letterheadCoverPath = const Value.absent(),
-            Value<String?> letterheadBodyPath = const Value.absent(),
-            required DateTime updatedAt,
-            Value<int> rowid = const Value.absent(),
-          }) =>
-              ReportTemplatesCompanion.insert(
-            id: id,
-            name: name,
-            config: config,
-            isDefault: isDefault,
-            letterheadCoverPath: letterheadCoverPath,
-            letterheadBodyPath: letterheadBodyPath,
-            updatedAt: updatedAt,
-            rowid: rowid,
-          ),
-          withReferenceMapper: (p0) => p0
-              .map((e) => (
-                    e.readTable(table),
-                    $$ReportTemplatesTableReferences(db, table, e)
-                  ))
-              .toList(),
-          prefetchHooksCallback: ({clientsRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [if (clientsRefs) db.clients],
-              addJoins: null,
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (clientsRefs)
-                    await $_getPrefetchedData<ReportTemplate,
-                            $ReportTemplatesTable, Client>(
-                        currentTable: table,
-                        referencedTable: $$ReportTemplatesTableReferences
-                            ._clientsRefsTable(db),
-                        managerFromTypedResult: (p0) =>
-                            $$ReportTemplatesTableReferences(db, table, p0)
-                                .clientsRefs,
-                        referencedItemsForCurrentItem:
-                            (item, referencedItems) => referencedItems
-                                .where((e) => e.templateId == item.id),
-                        typedResults: items)
-                ];
-              },
-            );
-          },
-        ));
-}
-
-typedef $$ReportTemplatesTableProcessedTableManager = ProcessedTableManager<
-    _$AppDatabase,
-    $ReportTemplatesTable,
-    ReportTemplate,
-    $$ReportTemplatesTableFilterComposer,
-    $$ReportTemplatesTableOrderingComposer,
-    $$ReportTemplatesTableAnnotationComposer,
-    $$ReportTemplatesTableCreateCompanionBuilder,
-    $$ReportTemplatesTableUpdateCompanionBuilder,
-    (ReportTemplate, $$ReportTemplatesTableReferences),
-    ReportTemplate,
-    PrefetchHooks Function({bool clientsRefs})>;
 typedef $$ClientsTableCreateCompanionBuilder = ClientsCompanion Function({
   required String id,
   required String name,
   Value<String?> contactName,
   Value<String?> contactEmail,
   Value<String?> contactPhone,
-  Value<String?> address,
-  Value<String?> logoPath,
-  Value<String?> templateId,
+  required String address,
+  required String logoPath,
   required DateTime createdAt,
   required DateTime updatedAt,
   Value<DateTime?> deletedAt,
@@ -5734,9 +5237,8 @@ typedef $$ClientsTableUpdateCompanionBuilder = ClientsCompanion Function({
   Value<String?> contactName,
   Value<String?> contactEmail,
   Value<String?> contactPhone,
-  Value<String?> address,
-  Value<String?> logoPath,
-  Value<String?> templateId,
+  Value<String> address,
+  Value<String> logoPath,
   Value<DateTime> createdAt,
   Value<DateTime> updatedAt,
   Value<DateTime?> deletedAt,
@@ -5746,22 +5248,6 @@ typedef $$ClientsTableUpdateCompanionBuilder = ClientsCompanion Function({
 final class $$ClientsTableReferences
     extends BaseReferences<_$AppDatabase, $ClientsTable, Client> {
   $$ClientsTableReferences(super.$_db, super.$_table, super.$_typedResult);
-
-  static $ReportTemplatesTable _templateIdTable(_$AppDatabase db) =>
-      db.reportTemplates.createAlias(
-          $_aliasNameGenerator(db.clients.templateId, db.reportTemplates.id));
-
-  $$ReportTemplatesTableProcessedTableManager? get templateId {
-    final $_column = $_itemColumn<String>('template_id');
-    if ($_column == null) return null;
-    final manager =
-        $$ReportTemplatesTableTableManager($_db, $_db.reportTemplates)
-            .filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_templateIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-        manager.$state.copyWith(prefetchedData: [item]));
-  }
 
   static MultiTypedResultKey<$ProjectsTable, List<Project>> _projectsRefsTable(
           _$AppDatabase db) =>
@@ -5773,21 +5259,6 @@ final class $$ClientsTableReferences
         .filter((f) => f.clientId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_projectsRefsTable($_db));
-    return ProcessedTableManager(
-        manager.$state.copyWith(prefetchedData: cache));
-  }
-
-  static MultiTypedResultKey<$MaterialsTable, List<MaterialItem>>
-      _materialsRefsTable(_$AppDatabase db) =>
-          MultiTypedResultKey.fromTable(db.materials,
-              aliasName:
-                  $_aliasNameGenerator(db.clients.id, db.materials.clientId));
-
-  $$MaterialsTableProcessedTableManager get materialsRefs {
-    final manager = $$MaterialsTableTableManager($_db, $_db.materials)
-        .filter((f) => f.clientId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(_materialsRefsTable($_db));
     return ProcessedTableManager(
         manager.$state.copyWith(prefetchedData: cache));
   }
@@ -5832,26 +5303,6 @@ class $$ClientsTableFilterComposer
   ColumnFilters<DateTime> get deletedAt => $composableBuilder(
       column: $table.deletedAt, builder: (column) => ColumnFilters(column));
 
-  $$ReportTemplatesTableFilterComposer get templateId {
-    final $$ReportTemplatesTableFilterComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.templateId,
-        referencedTable: $db.reportTemplates,
-        getReferencedColumn: (t) => t.id,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$ReportTemplatesTableFilterComposer(
-              $db: $db,
-              $table: $db.reportTemplates,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return composer;
-  }
-
   Expression<bool> projectsRefs(
       Expression<bool> Function($$ProjectsTableFilterComposer f) f) {
     final $$ProjectsTableFilterComposer composer = $composerBuilder(
@@ -5865,27 +5316,6 @@ class $$ClientsTableFilterComposer
             $$ProjectsTableFilterComposer(
               $db: $db,
               $table: $db.projects,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return f(composer);
-  }
-
-  Expression<bool> materialsRefs(
-      Expression<bool> Function($$MaterialsTableFilterComposer f) f) {
-    final $$MaterialsTableFilterComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.id,
-        referencedTable: $db.materials,
-        getReferencedColumn: (t) => t.clientId,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$MaterialsTableFilterComposer(
-              $db: $db,
-              $table: $db.materials,
               $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
               joinBuilder: joinBuilder,
               $removeJoinBuilderFromRootComposer:
@@ -5935,26 +5365,6 @@ class $$ClientsTableOrderingComposer
 
   ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
       column: $table.deletedAt, builder: (column) => ColumnOrderings(column));
-
-  $$ReportTemplatesTableOrderingComposer get templateId {
-    final $$ReportTemplatesTableOrderingComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.templateId,
-        referencedTable: $db.reportTemplates,
-        getReferencedColumn: (t) => t.id,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$ReportTemplatesTableOrderingComposer(
-              $db: $db,
-              $table: $db.reportTemplates,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return composer;
-  }
 }
 
 class $$ClientsTableAnnotationComposer
@@ -5996,26 +5406,6 @@ class $$ClientsTableAnnotationComposer
   GeneratedColumn<DateTime> get deletedAt =>
       $composableBuilder(column: $table.deletedAt, builder: (column) => column);
 
-  $$ReportTemplatesTableAnnotationComposer get templateId {
-    final $$ReportTemplatesTableAnnotationComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.templateId,
-        referencedTable: $db.reportTemplates,
-        getReferencedColumn: (t) => t.id,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$ReportTemplatesTableAnnotationComposer(
-              $db: $db,
-              $table: $db.reportTemplates,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return composer;
-  }
-
   Expression<T> projectsRefs<T extends Object>(
       Expression<T> Function($$ProjectsTableAnnotationComposer a) f) {
     final $$ProjectsTableAnnotationComposer composer = $composerBuilder(
@@ -6036,27 +5426,6 @@ class $$ClientsTableAnnotationComposer
             ));
     return f(composer);
   }
-
-  Expression<T> materialsRefs<T extends Object>(
-      Expression<T> Function($$MaterialsTableAnnotationComposer a) f) {
-    final $$MaterialsTableAnnotationComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.id,
-        referencedTable: $db.materials,
-        getReferencedColumn: (t) => t.clientId,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$MaterialsTableAnnotationComposer(
-              $db: $db,
-              $table: $db.materials,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return f(composer);
-  }
 }
 
 class $$ClientsTableTableManager extends RootTableManager<
@@ -6070,8 +5439,7 @@ class $$ClientsTableTableManager extends RootTableManager<
     $$ClientsTableUpdateCompanionBuilder,
     (Client, $$ClientsTableReferences),
     Client,
-    PrefetchHooks Function(
-        {bool templateId, bool projectsRefs, bool materialsRefs})> {
+    PrefetchHooks Function({bool projectsRefs})> {
   $$ClientsTableTableManager(_$AppDatabase db, $ClientsTable table)
       : super(TableManagerState(
           db: db,
@@ -6088,9 +5456,8 @@ class $$ClientsTableTableManager extends RootTableManager<
             Value<String?> contactName = const Value.absent(),
             Value<String?> contactEmail = const Value.absent(),
             Value<String?> contactPhone = const Value.absent(),
-            Value<String?> address = const Value.absent(),
-            Value<String?> logoPath = const Value.absent(),
-            Value<String?> templateId = const Value.absent(),
+            Value<String> address = const Value.absent(),
+            Value<String> logoPath = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
             Value<DateTime?> deletedAt = const Value.absent(),
@@ -6104,7 +5471,6 @@ class $$ClientsTableTableManager extends RootTableManager<
             contactPhone: contactPhone,
             address: address,
             logoPath: logoPath,
-            templateId: templateId,
             createdAt: createdAt,
             updatedAt: updatedAt,
             deletedAt: deletedAt,
@@ -6116,9 +5482,8 @@ class $$ClientsTableTableManager extends RootTableManager<
             Value<String?> contactName = const Value.absent(),
             Value<String?> contactEmail = const Value.absent(),
             Value<String?> contactPhone = const Value.absent(),
-            Value<String?> address = const Value.absent(),
-            Value<String?> logoPath = const Value.absent(),
-            Value<String?> templateId = const Value.absent(),
+            required String address,
+            required String logoPath,
             required DateTime createdAt,
             required DateTime updatedAt,
             Value<DateTime?> deletedAt = const Value.absent(),
@@ -6132,7 +5497,6 @@ class $$ClientsTableTableManager extends RootTableManager<
             contactPhone: contactPhone,
             address: address,
             logoPath: logoPath,
-            templateId: templateId,
             createdAt: createdAt,
             updatedAt: updatedAt,
             deletedAt: deletedAt,
@@ -6142,42 +5506,11 @@ class $$ClientsTableTableManager extends RootTableManager<
               .map((e) =>
                   (e.readTable(table), $$ClientsTableReferences(db, table, e)))
               .toList(),
-          prefetchHooksCallback: (
-              {templateId = false,
-              projectsRefs = false,
-              materialsRefs = false}) {
+          prefetchHooksCallback: ({projectsRefs = false}) {
             return PrefetchHooks(
               db: db,
-              explicitlyWatchedTables: [
-                if (projectsRefs) db.projects,
-                if (materialsRefs) db.materials
-              ],
-              addJoins: <
-                  T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic>>(state) {
-                if (templateId) {
-                  state = state.withJoin(
-                    currentTable: table,
-                    currentColumn: table.templateId,
-                    referencedTable:
-                        $$ClientsTableReferences._templateIdTable(db),
-                    referencedColumn:
-                        $$ClientsTableReferences._templateIdTable(db).id,
-                  ) as T;
-                }
-
-                return state;
-              },
+              explicitlyWatchedTables: [if (projectsRefs) db.projects],
+              addJoins: null,
               getPrefetchedDataCallback: (items) async {
                 return [
                   if (projectsRefs)
@@ -6188,19 +5521,6 @@ class $$ClientsTableTableManager extends RootTableManager<
                         managerFromTypedResult: (p0) =>
                             $$ClientsTableReferences(db, table, p0)
                                 .projectsRefs,
-                        referencedItemsForCurrentItem: (item,
-                                referencedItems) =>
-                            referencedItems.where((e) => e.clientId == item.id),
-                        typedResults: items),
-                  if (materialsRefs)
-                    await $_getPrefetchedData<Client, $ClientsTable,
-                            MaterialItem>(
-                        currentTable: table,
-                        referencedTable:
-                            $$ClientsTableReferences._materialsRefsTable(db),
-                        managerFromTypedResult: (p0) =>
-                            $$ClientsTableReferences(db, table, p0)
-                                .materialsRefs,
                         referencedItemsForCurrentItem: (item,
                                 referencedItems) =>
                             referencedItems.where((e) => e.clientId == item.id),
@@ -6223,11 +5543,11 @@ typedef $$ClientsTableProcessedTableManager = ProcessedTableManager<
     $$ClientsTableUpdateCompanionBuilder,
     (Client, $$ClientsTableReferences),
     Client,
-    PrefetchHooks Function(
-        {bool templateId, bool projectsRefs, bool materialsRefs})>;
+    PrefetchHooks Function({bool projectsRefs})>;
 typedef $$ProjectsTableCreateCompanionBuilder = ProjectsCompanion Function({
   required String id,
   required String clientId,
+  Value<String?> code,
   required String name,
   Value<String?> description,
   Value<DateTime?> startedOn,
@@ -6241,6 +5561,7 @@ typedef $$ProjectsTableCreateCompanionBuilder = ProjectsCompanion Function({
 typedef $$ProjectsTableUpdateCompanionBuilder = ProjectsCompanion Function({
   Value<String> id,
   Value<String> clientId,
+  Value<String?> code,
   Value<String> name,
   Value<String?> description,
   Value<DateTime?> startedOn,
@@ -6311,6 +5632,9 @@ class $$ProjectsTableFilterComposer
   });
   ColumnFilters<String> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get code => $composableBuilder(
+      column: $table.code, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get name => $composableBuilder(
       column: $table.name, builder: (column) => ColumnFilters(column));
@@ -6413,6 +5737,9 @@ class $$ProjectsTableOrderingComposer
   ColumnOrderings<String> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get code => $composableBuilder(
+      column: $table.code, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get name => $composableBuilder(
       column: $table.name, builder: (column) => ColumnOrderings(column));
 
@@ -6469,6 +5796,9 @@ class $$ProjectsTableAnnotationComposer
   });
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get code =>
+      $composableBuilder(column: $table.code, builder: (column) => column);
 
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
@@ -6583,6 +5913,7 @@ class $$ProjectsTableTableManager extends RootTableManager<
           updateCompanionCallback: ({
             Value<String> id = const Value.absent(),
             Value<String> clientId = const Value.absent(),
+            Value<String?> code = const Value.absent(),
             Value<String> name = const Value.absent(),
             Value<String?> description = const Value.absent(),
             Value<DateTime?> startedOn = const Value.absent(),
@@ -6596,6 +5927,7 @@ class $$ProjectsTableTableManager extends RootTableManager<
               ProjectsCompanion(
             id: id,
             clientId: clientId,
+            code: code,
             name: name,
             description: description,
             startedOn: startedOn,
@@ -6609,6 +5941,7 @@ class $$ProjectsTableTableManager extends RootTableManager<
           createCompanionCallback: ({
             required String id,
             required String clientId,
+            Value<String?> code = const Value.absent(),
             required String name,
             Value<String?> description = const Value.absent(),
             Value<DateTime?> startedOn = const Value.absent(),
@@ -6622,6 +5955,7 @@ class $$ProjectsTableTableManager extends RootTableManager<
               ProjectsCompanion.insert(
             id: id,
             clientId: clientId,
+            code: code,
             name: name,
             description: description,
             startedOn: startedOn,
@@ -7071,13 +6405,216 @@ typedef $$ProjectMembersTableProcessedTableManager = ProcessedTableManager<
     (ProjectMember, $$ProjectMembersTableReferences),
     ProjectMember,
     PrefetchHooks Function({bool projectId, bool userId})>;
+typedef $$SettingOptionsTableCreateCompanionBuilder = SettingOptionsCompanion
+    Function({
+  required String id,
+  required SettingKind kind,
+  required String label,
+  Value<int> sortOrder,
+  required DateTime updatedAt,
+  Value<DateTime?> deletedAt,
+  Value<int> rowid,
+});
+typedef $$SettingOptionsTableUpdateCompanionBuilder = SettingOptionsCompanion
+    Function({
+  Value<String> id,
+  Value<SettingKind> kind,
+  Value<String> label,
+  Value<int> sortOrder,
+  Value<DateTime> updatedAt,
+  Value<DateTime?> deletedAt,
+  Value<int> rowid,
+});
+
+class $$SettingOptionsTableFilterComposer
+    extends Composer<_$AppDatabase, $SettingOptionsTable> {
+  $$SettingOptionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnWithTypeConverterFilters<SettingKind, SettingKind, String> get kind =>
+      $composableBuilder(
+          column: $table.kind,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnFilters<String> get label => $composableBuilder(
+      column: $table.label, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+      column: $table.sortOrder, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+      column: $table.deletedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$SettingOptionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SettingOptionsTable> {
+  $$SettingOptionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+      column: $table.kind, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get label => $composableBuilder(
+      column: $table.label, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+      column: $table.sortOrder, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+      column: $table.deletedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$SettingOptionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SettingOptionsTable> {
+  $$SettingOptionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<SettingKind, String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get label =>
+      $composableBuilder(column: $table.label, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$SettingOptionsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $SettingOptionsTable,
+    SettingOption,
+    $$SettingOptionsTableFilterComposer,
+    $$SettingOptionsTableOrderingComposer,
+    $$SettingOptionsTableAnnotationComposer,
+    $$SettingOptionsTableCreateCompanionBuilder,
+    $$SettingOptionsTableUpdateCompanionBuilder,
+    (
+      SettingOption,
+      BaseReferences<_$AppDatabase, $SettingOptionsTable, SettingOption>
+    ),
+    SettingOption,
+    PrefetchHooks Function()> {
+  $$SettingOptionsTableTableManager(
+      _$AppDatabase db, $SettingOptionsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SettingOptionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SettingOptionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SettingOptionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> id = const Value.absent(),
+            Value<SettingKind> kind = const Value.absent(),
+            Value<String> label = const Value.absent(),
+            Value<int> sortOrder = const Value.absent(),
+            Value<DateTime> updatedAt = const Value.absent(),
+            Value<DateTime?> deletedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              SettingOptionsCompanion(
+            id: id,
+            kind: kind,
+            label: label,
+            sortOrder: sortOrder,
+            updatedAt: updatedAt,
+            deletedAt: deletedAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String id,
+            required SettingKind kind,
+            required String label,
+            Value<int> sortOrder = const Value.absent(),
+            required DateTime updatedAt,
+            Value<DateTime?> deletedAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              SettingOptionsCompanion.insert(
+            id: id,
+            kind: kind,
+            label: label,
+            sortOrder: sortOrder,
+            updatedAt: updatedAt,
+            deletedAt: deletedAt,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$SettingOptionsTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $SettingOptionsTable,
+    SettingOption,
+    $$SettingOptionsTableFilterComposer,
+    $$SettingOptionsTableOrderingComposer,
+    $$SettingOptionsTableAnnotationComposer,
+    $$SettingOptionsTableCreateCompanionBuilder,
+    $$SettingOptionsTableUpdateCompanionBuilder,
+    (
+      SettingOption,
+      BaseReferences<_$AppDatabase, $SettingOptionsTable, SettingOption>
+    ),
+    SettingOption,
+    PrefetchHooks Function()>;
 typedef $$PointsTableCreateCompanionBuilder = PointsCompanion Function({
   required String id,
   required String projectId,
   Value<int?> refNumber,
-  Value<String?> floor,
+  Value<String?> purchaseOrder,
+  Value<String?> building,
+  Value<int?> floorLevel,
   Value<String?> room,
   Value<String?> description,
+  Value<String?> configurationId,
+  Value<String?> configurationDetailId,
+  Value<String?> eiLevelId,
+  Value<String?> supplierId,
+  Value<String?> productTypeId,
+  Value<String?> product1Id,
+  Value<String?> product2Id,
+  Value<String?> product3Id,
+  Value<String?> product4Id,
+  Value<String?> product5Id,
   required String authorId,
   required DateTime capturedAt,
   required DateTime updatedAt,
@@ -7088,9 +6625,21 @@ typedef $$PointsTableUpdateCompanionBuilder = PointsCompanion Function({
   Value<String> id,
   Value<String> projectId,
   Value<int?> refNumber,
-  Value<String?> floor,
+  Value<String?> purchaseOrder,
+  Value<String?> building,
+  Value<int?> floorLevel,
   Value<String?> room,
   Value<String?> description,
+  Value<String?> configurationId,
+  Value<String?> configurationDetailId,
+  Value<String?> eiLevelId,
+  Value<String?> supplierId,
+  Value<String?> productTypeId,
+  Value<String?> product1Id,
+  Value<String?> product2Id,
+  Value<String?> product3Id,
+  Value<String?> product4Id,
+  Value<String?> product5Id,
   Value<String> authorId,
   Value<DateTime> capturedAt,
   Value<DateTime> updatedAt,
@@ -7116,6 +6665,157 @@ final class $$PointsTableReferences
         manager.$state.copyWith(prefetchedData: [item]));
   }
 
+  static $SettingOptionsTable _configurationIdTable(_$AppDatabase db) =>
+      db.settingOptions.createAlias($_aliasNameGenerator(
+          db.points.configurationId, db.settingOptions.id));
+
+  $$SettingOptionsTableProcessedTableManager? get configurationId {
+    final $_column = $_itemColumn<String>('configuration_id');
+    if ($_column == null) return null;
+    final manager = $$SettingOptionsTableTableManager($_db, $_db.settingOptions)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_configurationIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static $SettingOptionsTable _configurationDetailIdTable(_$AppDatabase db) =>
+      db.settingOptions.createAlias($_aliasNameGenerator(
+          db.points.configurationDetailId, db.settingOptions.id));
+
+  $$SettingOptionsTableProcessedTableManager? get configurationDetailId {
+    final $_column = $_itemColumn<String>('configuration_detail_id');
+    if ($_column == null) return null;
+    final manager = $$SettingOptionsTableTableManager($_db, $_db.settingOptions)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item =
+        $_typedResult.readTableOrNull(_configurationDetailIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static $SettingOptionsTable _eiLevelIdTable(_$AppDatabase db) =>
+      db.settingOptions.createAlias(
+          $_aliasNameGenerator(db.points.eiLevelId, db.settingOptions.id));
+
+  $$SettingOptionsTableProcessedTableManager? get eiLevelId {
+    final $_column = $_itemColumn<String>('ei_level_id');
+    if ($_column == null) return null;
+    final manager = $$SettingOptionsTableTableManager($_db, $_db.settingOptions)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_eiLevelIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static $SettingOptionsTable _supplierIdTable(_$AppDatabase db) =>
+      db.settingOptions.createAlias(
+          $_aliasNameGenerator(db.points.supplierId, db.settingOptions.id));
+
+  $$SettingOptionsTableProcessedTableManager? get supplierId {
+    final $_column = $_itemColumn<String>('supplier_id');
+    if ($_column == null) return null;
+    final manager = $$SettingOptionsTableTableManager($_db, $_db.settingOptions)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_supplierIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static $SettingOptionsTable _productTypeIdTable(_$AppDatabase db) =>
+      db.settingOptions.createAlias(
+          $_aliasNameGenerator(db.points.productTypeId, db.settingOptions.id));
+
+  $$SettingOptionsTableProcessedTableManager? get productTypeId {
+    final $_column = $_itemColumn<String>('product_type_id');
+    if ($_column == null) return null;
+    final manager = $$SettingOptionsTableTableManager($_db, $_db.settingOptions)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_productTypeIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static $SettingOptionsTable _product1IdTable(_$AppDatabase db) =>
+      db.settingOptions.createAlias(
+          $_aliasNameGenerator(db.points.product1Id, db.settingOptions.id));
+
+  $$SettingOptionsTableProcessedTableManager? get product1Id {
+    final $_column = $_itemColumn<String>('product1_id');
+    if ($_column == null) return null;
+    final manager = $$SettingOptionsTableTableManager($_db, $_db.settingOptions)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_product1IdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static $SettingOptionsTable _product2IdTable(_$AppDatabase db) =>
+      db.settingOptions.createAlias(
+          $_aliasNameGenerator(db.points.product2Id, db.settingOptions.id));
+
+  $$SettingOptionsTableProcessedTableManager? get product2Id {
+    final $_column = $_itemColumn<String>('product2_id');
+    if ($_column == null) return null;
+    final manager = $$SettingOptionsTableTableManager($_db, $_db.settingOptions)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_product2IdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static $SettingOptionsTable _product3IdTable(_$AppDatabase db) =>
+      db.settingOptions.createAlias(
+          $_aliasNameGenerator(db.points.product3Id, db.settingOptions.id));
+
+  $$SettingOptionsTableProcessedTableManager? get product3Id {
+    final $_column = $_itemColumn<String>('product3_id');
+    if ($_column == null) return null;
+    final manager = $$SettingOptionsTableTableManager($_db, $_db.settingOptions)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_product3IdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static $SettingOptionsTable _product4IdTable(_$AppDatabase db) =>
+      db.settingOptions.createAlias(
+          $_aliasNameGenerator(db.points.product4Id, db.settingOptions.id));
+
+  $$SettingOptionsTableProcessedTableManager? get product4Id {
+    final $_column = $_itemColumn<String>('product4_id');
+    if ($_column == null) return null;
+    final manager = $$SettingOptionsTableTableManager($_db, $_db.settingOptions)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_product4IdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static $SettingOptionsTable _product5IdTable(_$AppDatabase db) =>
+      db.settingOptions.createAlias(
+          $_aliasNameGenerator(db.points.product5Id, db.settingOptions.id));
+
+  $$SettingOptionsTableProcessedTableManager? get product5Id {
+    final $_column = $_itemColumn<String>('product5_id');
+    if ($_column == null) return null;
+    final manager = $$SettingOptionsTableTableManager($_db, $_db.settingOptions)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_product5IdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+
   static $ProfilesTable _authorIdTable(_$AppDatabase db) => db.profiles
       .createAlias($_aliasNameGenerator(db.points.authorId, db.profiles.id));
 
@@ -7128,21 +6828,6 @@ final class $$PointsTableReferences
     if (item == null) return manager;
     return ProcessedTableManager(
         manager.$state.copyWith(prefetchedData: [item]));
-  }
-
-  static MultiTypedResultKey<$PointMaterialsTable, List<PointMaterial>>
-      _pointMaterialsRefsTable(_$AppDatabase db) =>
-          MultiTypedResultKey.fromTable(db.pointMaterials,
-              aliasName: $_aliasNameGenerator(
-                  db.points.id, db.pointMaterials.pointId));
-
-  $$PointMaterialsTableProcessedTableManager get pointMaterialsRefs {
-    final manager = $$PointMaterialsTableTableManager($_db, $_db.pointMaterials)
-        .filter((f) => f.pointId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(_pointMaterialsRefsTable($_db));
-    return ProcessedTableManager(
-        manager.$state.copyWith(prefetchedData: cache));
   }
 
   static MultiTypedResultKey<$PhotosTable, List<Photo>> _photosRefsTable(
@@ -7175,8 +6860,14 @@ class $$PointsTableFilterComposer
   ColumnFilters<int> get refNumber => $composableBuilder(
       column: $table.refNumber, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<String> get floor => $composableBuilder(
-      column: $table.floor, builder: (column) => ColumnFilters(column));
+  ColumnFilters<String> get purchaseOrder => $composableBuilder(
+      column: $table.purchaseOrder, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get building => $composableBuilder(
+      column: $table.building, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get floorLevel => $composableBuilder(
+      column: $table.floorLevel, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get room => $composableBuilder(
       column: $table.room, builder: (column) => ColumnFilters(column));
@@ -7213,6 +6904,206 @@ class $$PointsTableFilterComposer
     return composer;
   }
 
+  $$SettingOptionsTableFilterComposer get configurationId {
+    final $$SettingOptionsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.configurationId,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableFilterComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableFilterComposer get configurationDetailId {
+    final $$SettingOptionsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.configurationDetailId,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableFilterComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableFilterComposer get eiLevelId {
+    final $$SettingOptionsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.eiLevelId,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableFilterComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableFilterComposer get supplierId {
+    final $$SettingOptionsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.supplierId,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableFilterComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableFilterComposer get productTypeId {
+    final $$SettingOptionsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.productTypeId,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableFilterComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableFilterComposer get product1Id {
+    final $$SettingOptionsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.product1Id,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableFilterComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableFilterComposer get product2Id {
+    final $$SettingOptionsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.product2Id,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableFilterComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableFilterComposer get product3Id {
+    final $$SettingOptionsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.product3Id,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableFilterComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableFilterComposer get product4Id {
+    final $$SettingOptionsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.product4Id,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableFilterComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableFilterComposer get product5Id {
+    final $$SettingOptionsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.product5Id,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableFilterComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
   $$ProfilesTableFilterComposer get authorId {
     final $$ProfilesTableFilterComposer composer = $composerBuilder(
         composer: this,
@@ -7231,27 +7122,6 @@ class $$PointsTableFilterComposer
                   $removeJoinBuilderFromRootComposer,
             ));
     return composer;
-  }
-
-  Expression<bool> pointMaterialsRefs(
-      Expression<bool> Function($$PointMaterialsTableFilterComposer f) f) {
-    final $$PointMaterialsTableFilterComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.id,
-        referencedTable: $db.pointMaterials,
-        getReferencedColumn: (t) => t.pointId,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$PointMaterialsTableFilterComposer(
-              $db: $db,
-              $table: $db.pointMaterials,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return f(composer);
   }
 
   Expression<bool> photosRefs(
@@ -7291,8 +7161,15 @@ class $$PointsTableOrderingComposer
   ColumnOrderings<int> get refNumber => $composableBuilder(
       column: $table.refNumber, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<String> get floor => $composableBuilder(
-      column: $table.floor, builder: (column) => ColumnOrderings(column));
+  ColumnOrderings<String> get purchaseOrder => $composableBuilder(
+      column: $table.purchaseOrder,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get building => $composableBuilder(
+      column: $table.building, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get floorLevel => $composableBuilder(
+      column: $table.floorLevel, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get room => $composableBuilder(
       column: $table.room, builder: (column) => ColumnOrderings(column));
@@ -7321,6 +7198,206 @@ class $$PointsTableOrderingComposer
             $$ProjectsTableOrderingComposer(
               $db: $db,
               $table: $db.projects,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableOrderingComposer get configurationId {
+    final $$SettingOptionsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.configurationId,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableOrderingComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableOrderingComposer get configurationDetailId {
+    final $$SettingOptionsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.configurationDetailId,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableOrderingComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableOrderingComposer get eiLevelId {
+    final $$SettingOptionsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.eiLevelId,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableOrderingComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableOrderingComposer get supplierId {
+    final $$SettingOptionsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.supplierId,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableOrderingComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableOrderingComposer get productTypeId {
+    final $$SettingOptionsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.productTypeId,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableOrderingComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableOrderingComposer get product1Id {
+    final $$SettingOptionsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.product1Id,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableOrderingComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableOrderingComposer get product2Id {
+    final $$SettingOptionsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.product2Id,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableOrderingComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableOrderingComposer get product3Id {
+    final $$SettingOptionsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.product3Id,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableOrderingComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableOrderingComposer get product4Id {
+    final $$SettingOptionsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.product4Id,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableOrderingComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableOrderingComposer get product5Id {
+    final $$SettingOptionsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.product5Id,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableOrderingComposer(
+              $db: $db,
+              $table: $db.settingOptions,
               $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
               joinBuilder: joinBuilder,
               $removeJoinBuilderFromRootComposer:
@@ -7365,8 +7442,14 @@ class $$PointsTableAnnotationComposer
   GeneratedColumn<int> get refNumber =>
       $composableBuilder(column: $table.refNumber, builder: (column) => column);
 
-  GeneratedColumn<String> get floor =>
-      $composableBuilder(column: $table.floor, builder: (column) => column);
+  GeneratedColumn<String> get purchaseOrder => $composableBuilder(
+      column: $table.purchaseOrder, builder: (column) => column);
+
+  GeneratedColumn<String> get building =>
+      $composableBuilder(column: $table.building, builder: (column) => column);
+
+  GeneratedColumn<int> get floorLevel => $composableBuilder(
+      column: $table.floorLevel, builder: (column) => column);
 
   GeneratedColumn<String> get room =>
       $composableBuilder(column: $table.room, builder: (column) => column);
@@ -7403,6 +7486,206 @@ class $$PointsTableAnnotationComposer
     return composer;
   }
 
+  $$SettingOptionsTableAnnotationComposer get configurationId {
+    final $$SettingOptionsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.configurationId,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableAnnotationComposer get configurationDetailId {
+    final $$SettingOptionsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.configurationDetailId,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableAnnotationComposer get eiLevelId {
+    final $$SettingOptionsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.eiLevelId,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableAnnotationComposer get supplierId {
+    final $$SettingOptionsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.supplierId,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableAnnotationComposer get productTypeId {
+    final $$SettingOptionsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.productTypeId,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableAnnotationComposer get product1Id {
+    final $$SettingOptionsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.product1Id,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableAnnotationComposer get product2Id {
+    final $$SettingOptionsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.product2Id,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableAnnotationComposer get product3Id {
+    final $$SettingOptionsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.product3Id,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableAnnotationComposer get product4Id {
+    final $$SettingOptionsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.product4Id,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableAnnotationComposer get product5Id {
+    final $$SettingOptionsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.product5Id,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.settingOptions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
   $$ProfilesTableAnnotationComposer get authorId {
     final $$ProfilesTableAnnotationComposer composer = $composerBuilder(
         composer: this,
@@ -7421,27 +7704,6 @@ class $$PointsTableAnnotationComposer
                   $removeJoinBuilderFromRootComposer,
             ));
     return composer;
-  }
-
-  Expression<T> pointMaterialsRefs<T extends Object>(
-      Expression<T> Function($$PointMaterialsTableAnnotationComposer a) f) {
-    final $$PointMaterialsTableAnnotationComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.id,
-        referencedTable: $db.pointMaterials,
-        getReferencedColumn: (t) => t.pointId,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$PointMaterialsTableAnnotationComposer(
-              $db: $db,
-              $table: $db.pointMaterials,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return f(composer);
   }
 
   Expression<T> photosRefs<T extends Object>(
@@ -7479,8 +7741,17 @@ class $$PointsTableTableManager extends RootTableManager<
     Point,
     PrefetchHooks Function(
         {bool projectId,
+        bool configurationId,
+        bool configurationDetailId,
+        bool eiLevelId,
+        bool supplierId,
+        bool productTypeId,
+        bool product1Id,
+        bool product2Id,
+        bool product3Id,
+        bool product4Id,
+        bool product5Id,
         bool authorId,
-        bool pointMaterialsRefs,
         bool photosRefs})> {
   $$PointsTableTableManager(_$AppDatabase db, $PointsTable table)
       : super(TableManagerState(
@@ -7496,9 +7767,21 @@ class $$PointsTableTableManager extends RootTableManager<
             Value<String> id = const Value.absent(),
             Value<String> projectId = const Value.absent(),
             Value<int?> refNumber = const Value.absent(),
-            Value<String?> floor = const Value.absent(),
+            Value<String?> purchaseOrder = const Value.absent(),
+            Value<String?> building = const Value.absent(),
+            Value<int?> floorLevel = const Value.absent(),
             Value<String?> room = const Value.absent(),
             Value<String?> description = const Value.absent(),
+            Value<String?> configurationId = const Value.absent(),
+            Value<String?> configurationDetailId = const Value.absent(),
+            Value<String?> eiLevelId = const Value.absent(),
+            Value<String?> supplierId = const Value.absent(),
+            Value<String?> productTypeId = const Value.absent(),
+            Value<String?> product1Id = const Value.absent(),
+            Value<String?> product2Id = const Value.absent(),
+            Value<String?> product3Id = const Value.absent(),
+            Value<String?> product4Id = const Value.absent(),
+            Value<String?> product5Id = const Value.absent(),
             Value<String> authorId = const Value.absent(),
             Value<DateTime> capturedAt = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
@@ -7509,9 +7792,21 @@ class $$PointsTableTableManager extends RootTableManager<
             id: id,
             projectId: projectId,
             refNumber: refNumber,
-            floor: floor,
+            purchaseOrder: purchaseOrder,
+            building: building,
+            floorLevel: floorLevel,
             room: room,
             description: description,
+            configurationId: configurationId,
+            configurationDetailId: configurationDetailId,
+            eiLevelId: eiLevelId,
+            supplierId: supplierId,
+            productTypeId: productTypeId,
+            product1Id: product1Id,
+            product2Id: product2Id,
+            product3Id: product3Id,
+            product4Id: product4Id,
+            product5Id: product5Id,
             authorId: authorId,
             capturedAt: capturedAt,
             updatedAt: updatedAt,
@@ -7522,9 +7817,21 @@ class $$PointsTableTableManager extends RootTableManager<
             required String id,
             required String projectId,
             Value<int?> refNumber = const Value.absent(),
-            Value<String?> floor = const Value.absent(),
+            Value<String?> purchaseOrder = const Value.absent(),
+            Value<String?> building = const Value.absent(),
+            Value<int?> floorLevel = const Value.absent(),
             Value<String?> room = const Value.absent(),
             Value<String?> description = const Value.absent(),
+            Value<String?> configurationId = const Value.absent(),
+            Value<String?> configurationDetailId = const Value.absent(),
+            Value<String?> eiLevelId = const Value.absent(),
+            Value<String?> supplierId = const Value.absent(),
+            Value<String?> productTypeId = const Value.absent(),
+            Value<String?> product1Id = const Value.absent(),
+            Value<String?> product2Id = const Value.absent(),
+            Value<String?> product3Id = const Value.absent(),
+            Value<String?> product4Id = const Value.absent(),
+            Value<String?> product5Id = const Value.absent(),
             required String authorId,
             required DateTime capturedAt,
             required DateTime updatedAt,
@@ -7535,9 +7842,21 @@ class $$PointsTableTableManager extends RootTableManager<
             id: id,
             projectId: projectId,
             refNumber: refNumber,
-            floor: floor,
+            purchaseOrder: purchaseOrder,
+            building: building,
+            floorLevel: floorLevel,
             room: room,
             description: description,
+            configurationId: configurationId,
+            configurationDetailId: configurationDetailId,
+            eiLevelId: eiLevelId,
+            supplierId: supplierId,
+            productTypeId: productTypeId,
+            product1Id: product1Id,
+            product2Id: product2Id,
+            product3Id: product3Id,
+            product4Id: product4Id,
+            product5Id: product5Id,
             authorId: authorId,
             capturedAt: capturedAt,
             updatedAt: updatedAt,
@@ -7550,15 +7869,21 @@ class $$PointsTableTableManager extends RootTableManager<
               .toList(),
           prefetchHooksCallback: (
               {projectId = false,
+              configurationId = false,
+              configurationDetailId = false,
+              eiLevelId = false,
+              supplierId = false,
+              productTypeId = false,
+              product1Id = false,
+              product2Id = false,
+              product3Id = false,
+              product4Id = false,
+              product5Id = false,
               authorId = false,
-              pointMaterialsRefs = false,
               photosRefs = false}) {
             return PrefetchHooks(
               db: db,
-              explicitlyWatchedTables: [
-                if (pointMaterialsRefs) db.pointMaterials,
-                if (photosRefs) db.photos
-              ],
+              explicitlyWatchedTables: [if (photosRefs) db.photos],
               addJoins: <
                   T extends TableManagerState<
                       dynamic,
@@ -7582,6 +7907,107 @@ class $$PointsTableTableManager extends RootTableManager<
                         $$PointsTableReferences._projectIdTable(db).id,
                   ) as T;
                 }
+                if (configurationId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.configurationId,
+                    referencedTable:
+                        $$PointsTableReferences._configurationIdTable(db),
+                    referencedColumn:
+                        $$PointsTableReferences._configurationIdTable(db).id,
+                  ) as T;
+                }
+                if (configurationDetailId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.configurationDetailId,
+                    referencedTable:
+                        $$PointsTableReferences._configurationDetailIdTable(db),
+                    referencedColumn: $$PointsTableReferences
+                        ._configurationDetailIdTable(db)
+                        .id,
+                  ) as T;
+                }
+                if (eiLevelId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.eiLevelId,
+                    referencedTable:
+                        $$PointsTableReferences._eiLevelIdTable(db),
+                    referencedColumn:
+                        $$PointsTableReferences._eiLevelIdTable(db).id,
+                  ) as T;
+                }
+                if (supplierId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.supplierId,
+                    referencedTable:
+                        $$PointsTableReferences._supplierIdTable(db),
+                    referencedColumn:
+                        $$PointsTableReferences._supplierIdTable(db).id,
+                  ) as T;
+                }
+                if (productTypeId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.productTypeId,
+                    referencedTable:
+                        $$PointsTableReferences._productTypeIdTable(db),
+                    referencedColumn:
+                        $$PointsTableReferences._productTypeIdTable(db).id,
+                  ) as T;
+                }
+                if (product1Id) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.product1Id,
+                    referencedTable:
+                        $$PointsTableReferences._product1IdTable(db),
+                    referencedColumn:
+                        $$PointsTableReferences._product1IdTable(db).id,
+                  ) as T;
+                }
+                if (product2Id) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.product2Id,
+                    referencedTable:
+                        $$PointsTableReferences._product2IdTable(db),
+                    referencedColumn:
+                        $$PointsTableReferences._product2IdTable(db).id,
+                  ) as T;
+                }
+                if (product3Id) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.product3Id,
+                    referencedTable:
+                        $$PointsTableReferences._product3IdTable(db),
+                    referencedColumn:
+                        $$PointsTableReferences._product3IdTable(db).id,
+                  ) as T;
+                }
+                if (product4Id) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.product4Id,
+                    referencedTable:
+                        $$PointsTableReferences._product4IdTable(db),
+                    referencedColumn:
+                        $$PointsTableReferences._product4IdTable(db).id,
+                  ) as T;
+                }
+                if (product5Id) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.product5Id,
+                    referencedTable:
+                        $$PointsTableReferences._product5IdTable(db),
+                    referencedColumn:
+                        $$PointsTableReferences._product5IdTable(db).id,
+                  ) as T;
+                }
                 if (authorId) {
                   state = state.withJoin(
                     currentTable: table,
@@ -7596,19 +8022,6 @@ class $$PointsTableTableManager extends RootTableManager<
               },
               getPrefetchedDataCallback: (items) async {
                 return [
-                  if (pointMaterialsRefs)
-                    await $_getPrefetchedData<Point, $PointsTable,
-                            PointMaterial>(
-                        currentTable: table,
-                        referencedTable: $$PointsTableReferences
-                            ._pointMaterialsRefsTable(db),
-                        managerFromTypedResult: (p0) =>
-                            $$PointsTableReferences(db, table, p0)
-                                .pointMaterialsRefs,
-                        referencedItemsForCurrentItem: (item,
-                                referencedItems) =>
-                            referencedItems.where((e) => e.pointId == item.id),
-                        typedResults: items),
                   if (photosRefs)
                     await $_getPrefetchedData<Point, $PointsTable, Photo>(
                         currentTable: table,
@@ -7640,738 +8053,18 @@ typedef $$PointsTableProcessedTableManager = ProcessedTableManager<
     Point,
     PrefetchHooks Function(
         {bool projectId,
+        bool configurationId,
+        bool configurationDetailId,
+        bool eiLevelId,
+        bool supplierId,
+        bool productTypeId,
+        bool product1Id,
+        bool product2Id,
+        bool product3Id,
+        bool product4Id,
+        bool product5Id,
         bool authorId,
-        bool pointMaterialsRefs,
         bool photosRefs})>;
-typedef $$MaterialsTableCreateCompanionBuilder = MaterialsCompanion Function({
-  required String id,
-  required String label,
-  Value<String?> manufacturer,
-  Value<String?> reference,
-  Value<String?> clientId,
-  required DateTime updatedAt,
-  Value<DateTime?> deletedAt,
-  Value<int> rowid,
-});
-typedef $$MaterialsTableUpdateCompanionBuilder = MaterialsCompanion Function({
-  Value<String> id,
-  Value<String> label,
-  Value<String?> manufacturer,
-  Value<String?> reference,
-  Value<String?> clientId,
-  Value<DateTime> updatedAt,
-  Value<DateTime?> deletedAt,
-  Value<int> rowid,
-});
-
-final class $$MaterialsTableReferences
-    extends BaseReferences<_$AppDatabase, $MaterialsTable, MaterialItem> {
-  $$MaterialsTableReferences(super.$_db, super.$_table, super.$_typedResult);
-
-  static $ClientsTable _clientIdTable(_$AppDatabase db) => db.clients
-      .createAlias($_aliasNameGenerator(db.materials.clientId, db.clients.id));
-
-  $$ClientsTableProcessedTableManager? get clientId {
-    final $_column = $_itemColumn<String>('client_id');
-    if ($_column == null) return null;
-    final manager = $$ClientsTableTableManager($_db, $_db.clients)
-        .filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_clientIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-        manager.$state.copyWith(prefetchedData: [item]));
-  }
-
-  static MultiTypedResultKey<$PointMaterialsTable, List<PointMaterial>>
-      _pointMaterialsRefsTable(_$AppDatabase db) =>
-          MultiTypedResultKey.fromTable(db.pointMaterials,
-              aliasName: $_aliasNameGenerator(
-                  db.materials.id, db.pointMaterials.materialId));
-
-  $$PointMaterialsTableProcessedTableManager get pointMaterialsRefs {
-    final manager = $$PointMaterialsTableTableManager($_db, $_db.pointMaterials)
-        .filter((f) => f.materialId.id.sqlEquals($_itemColumn<String>('id')!));
-
-    final cache = $_typedResult.readTableOrNull(_pointMaterialsRefsTable($_db));
-    return ProcessedTableManager(
-        manager.$state.copyWith(prefetchedData: cache));
-  }
-}
-
-class $$MaterialsTableFilterComposer
-    extends Composer<_$AppDatabase, $MaterialsTable> {
-  $$MaterialsTableFilterComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnFilters<String> get id => $composableBuilder(
-      column: $table.id, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get label => $composableBuilder(
-      column: $table.label, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get manufacturer => $composableBuilder(
-      column: $table.manufacturer, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get reference => $composableBuilder(
-      column: $table.reference, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
-      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
-      column: $table.deletedAt, builder: (column) => ColumnFilters(column));
-
-  $$ClientsTableFilterComposer get clientId {
-    final $$ClientsTableFilterComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.clientId,
-        referencedTable: $db.clients,
-        getReferencedColumn: (t) => t.id,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$ClientsTableFilterComposer(
-              $db: $db,
-              $table: $db.clients,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return composer;
-  }
-
-  Expression<bool> pointMaterialsRefs(
-      Expression<bool> Function($$PointMaterialsTableFilterComposer f) f) {
-    final $$PointMaterialsTableFilterComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.id,
-        referencedTable: $db.pointMaterials,
-        getReferencedColumn: (t) => t.materialId,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$PointMaterialsTableFilterComposer(
-              $db: $db,
-              $table: $db.pointMaterials,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return f(composer);
-  }
-}
-
-class $$MaterialsTableOrderingComposer
-    extends Composer<_$AppDatabase, $MaterialsTable> {
-  $$MaterialsTableOrderingComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnOrderings<String> get id => $composableBuilder(
-      column: $table.id, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get label => $composableBuilder(
-      column: $table.label, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get manufacturer => $composableBuilder(
-      column: $table.manufacturer,
-      builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get reference => $composableBuilder(
-      column: $table.reference, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
-      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
-      column: $table.deletedAt, builder: (column) => ColumnOrderings(column));
-
-  $$ClientsTableOrderingComposer get clientId {
-    final $$ClientsTableOrderingComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.clientId,
-        referencedTable: $db.clients,
-        getReferencedColumn: (t) => t.id,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$ClientsTableOrderingComposer(
-              $db: $db,
-              $table: $db.clients,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return composer;
-  }
-}
-
-class $$MaterialsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $MaterialsTable> {
-  $$MaterialsTableAnnotationComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  GeneratedColumn<String> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
-
-  GeneratedColumn<String> get label =>
-      $composableBuilder(column: $table.label, builder: (column) => column);
-
-  GeneratedColumn<String> get manufacturer => $composableBuilder(
-      column: $table.manufacturer, builder: (column) => column);
-
-  GeneratedColumn<String> get reference =>
-      $composableBuilder(column: $table.reference, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get updatedAt =>
-      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get deletedAt =>
-      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
-
-  $$ClientsTableAnnotationComposer get clientId {
-    final $$ClientsTableAnnotationComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.clientId,
-        referencedTable: $db.clients,
-        getReferencedColumn: (t) => t.id,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$ClientsTableAnnotationComposer(
-              $db: $db,
-              $table: $db.clients,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return composer;
-  }
-
-  Expression<T> pointMaterialsRefs<T extends Object>(
-      Expression<T> Function($$PointMaterialsTableAnnotationComposer a) f) {
-    final $$PointMaterialsTableAnnotationComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.id,
-        referencedTable: $db.pointMaterials,
-        getReferencedColumn: (t) => t.materialId,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$PointMaterialsTableAnnotationComposer(
-              $db: $db,
-              $table: $db.pointMaterials,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return f(composer);
-  }
-}
-
-class $$MaterialsTableTableManager extends RootTableManager<
-    _$AppDatabase,
-    $MaterialsTable,
-    MaterialItem,
-    $$MaterialsTableFilterComposer,
-    $$MaterialsTableOrderingComposer,
-    $$MaterialsTableAnnotationComposer,
-    $$MaterialsTableCreateCompanionBuilder,
-    $$MaterialsTableUpdateCompanionBuilder,
-    (MaterialItem, $$MaterialsTableReferences),
-    MaterialItem,
-    PrefetchHooks Function({bool clientId, bool pointMaterialsRefs})> {
-  $$MaterialsTableTableManager(_$AppDatabase db, $MaterialsTable table)
-      : super(TableManagerState(
-          db: db,
-          table: table,
-          createFilteringComposer: () =>
-              $$MaterialsTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$MaterialsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$MaterialsTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback: ({
-            Value<String> id = const Value.absent(),
-            Value<String> label = const Value.absent(),
-            Value<String?> manufacturer = const Value.absent(),
-            Value<String?> reference = const Value.absent(),
-            Value<String?> clientId = const Value.absent(),
-            Value<DateTime> updatedAt = const Value.absent(),
-            Value<DateTime?> deletedAt = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) =>
-              MaterialsCompanion(
-            id: id,
-            label: label,
-            manufacturer: manufacturer,
-            reference: reference,
-            clientId: clientId,
-            updatedAt: updatedAt,
-            deletedAt: deletedAt,
-            rowid: rowid,
-          ),
-          createCompanionCallback: ({
-            required String id,
-            required String label,
-            Value<String?> manufacturer = const Value.absent(),
-            Value<String?> reference = const Value.absent(),
-            Value<String?> clientId = const Value.absent(),
-            required DateTime updatedAt,
-            Value<DateTime?> deletedAt = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) =>
-              MaterialsCompanion.insert(
-            id: id,
-            label: label,
-            manufacturer: manufacturer,
-            reference: reference,
-            clientId: clientId,
-            updatedAt: updatedAt,
-            deletedAt: deletedAt,
-            rowid: rowid,
-          ),
-          withReferenceMapper: (p0) => p0
-              .map((e) => (
-                    e.readTable(table),
-                    $$MaterialsTableReferences(db, table, e)
-                  ))
-              .toList(),
-          prefetchHooksCallback: (
-              {clientId = false, pointMaterialsRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [
-                if (pointMaterialsRefs) db.pointMaterials
-              ],
-              addJoins: <
-                  T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic>>(state) {
-                if (clientId) {
-                  state = state.withJoin(
-                    currentTable: table,
-                    currentColumn: table.clientId,
-                    referencedTable:
-                        $$MaterialsTableReferences._clientIdTable(db),
-                    referencedColumn:
-                        $$MaterialsTableReferences._clientIdTable(db).id,
-                  ) as T;
-                }
-
-                return state;
-              },
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (pointMaterialsRefs)
-                    await $_getPrefetchedData<MaterialItem, $MaterialsTable,
-                            PointMaterial>(
-                        currentTable: table,
-                        referencedTable: $$MaterialsTableReferences
-                            ._pointMaterialsRefsTable(db),
-                        managerFromTypedResult: (p0) =>
-                            $$MaterialsTableReferences(db, table, p0)
-                                .pointMaterialsRefs,
-                        referencedItemsForCurrentItem:
-                            (item, referencedItems) => referencedItems
-                                .where((e) => e.materialId == item.id),
-                        typedResults: items)
-                ];
-              },
-            );
-          },
-        ));
-}
-
-typedef $$MaterialsTableProcessedTableManager = ProcessedTableManager<
-    _$AppDatabase,
-    $MaterialsTable,
-    MaterialItem,
-    $$MaterialsTableFilterComposer,
-    $$MaterialsTableOrderingComposer,
-    $$MaterialsTableAnnotationComposer,
-    $$MaterialsTableCreateCompanionBuilder,
-    $$MaterialsTableUpdateCompanionBuilder,
-    (MaterialItem, $$MaterialsTableReferences),
-    MaterialItem,
-    PrefetchHooks Function({bool clientId, bool pointMaterialsRefs})>;
-typedef $$PointMaterialsTableCreateCompanionBuilder = PointMaterialsCompanion
-    Function({
-  required String pointId,
-  required String materialId,
-  Value<double?> quantity,
-  required DateTime updatedAt,
-  Value<DateTime?> deletedAt,
-  Value<int> rowid,
-});
-typedef $$PointMaterialsTableUpdateCompanionBuilder = PointMaterialsCompanion
-    Function({
-  Value<String> pointId,
-  Value<String> materialId,
-  Value<double?> quantity,
-  Value<DateTime> updatedAt,
-  Value<DateTime?> deletedAt,
-  Value<int> rowid,
-});
-
-final class $$PointMaterialsTableReferences
-    extends BaseReferences<_$AppDatabase, $PointMaterialsTable, PointMaterial> {
-  $$PointMaterialsTableReferences(
-      super.$_db, super.$_table, super.$_typedResult);
-
-  static $PointsTable _pointIdTable(_$AppDatabase db) => db.points.createAlias(
-      $_aliasNameGenerator(db.pointMaterials.pointId, db.points.id));
-
-  $$PointsTableProcessedTableManager get pointId {
-    final $_column = $_itemColumn<String>('point_id')!;
-
-    final manager = $$PointsTableTableManager($_db, $_db.points)
-        .filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_pointIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-        manager.$state.copyWith(prefetchedData: [item]));
-  }
-
-  static $MaterialsTable _materialIdTable(_$AppDatabase db) =>
-      db.materials.createAlias(
-          $_aliasNameGenerator(db.pointMaterials.materialId, db.materials.id));
-
-  $$MaterialsTableProcessedTableManager get materialId {
-    final $_column = $_itemColumn<String>('material_id')!;
-
-    final manager = $$MaterialsTableTableManager($_db, $_db.materials)
-        .filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_materialIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-        manager.$state.copyWith(prefetchedData: [item]));
-  }
-}
-
-class $$PointMaterialsTableFilterComposer
-    extends Composer<_$AppDatabase, $PointMaterialsTable> {
-  $$PointMaterialsTableFilterComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnFilters<double> get quantity => $composableBuilder(
-      column: $table.quantity, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
-      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
-      column: $table.deletedAt, builder: (column) => ColumnFilters(column));
-
-  $$PointsTableFilterComposer get pointId {
-    final $$PointsTableFilterComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.pointId,
-        referencedTable: $db.points,
-        getReferencedColumn: (t) => t.id,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$PointsTableFilterComposer(
-              $db: $db,
-              $table: $db.points,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return composer;
-  }
-
-  $$MaterialsTableFilterComposer get materialId {
-    final $$MaterialsTableFilterComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.materialId,
-        referencedTable: $db.materials,
-        getReferencedColumn: (t) => t.id,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$MaterialsTableFilterComposer(
-              $db: $db,
-              $table: $db.materials,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return composer;
-  }
-}
-
-class $$PointMaterialsTableOrderingComposer
-    extends Composer<_$AppDatabase, $PointMaterialsTable> {
-  $$PointMaterialsTableOrderingComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnOrderings<double> get quantity => $composableBuilder(
-      column: $table.quantity, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
-      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
-      column: $table.deletedAt, builder: (column) => ColumnOrderings(column));
-
-  $$PointsTableOrderingComposer get pointId {
-    final $$PointsTableOrderingComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.pointId,
-        referencedTable: $db.points,
-        getReferencedColumn: (t) => t.id,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$PointsTableOrderingComposer(
-              $db: $db,
-              $table: $db.points,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return composer;
-  }
-
-  $$MaterialsTableOrderingComposer get materialId {
-    final $$MaterialsTableOrderingComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.materialId,
-        referencedTable: $db.materials,
-        getReferencedColumn: (t) => t.id,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$MaterialsTableOrderingComposer(
-              $db: $db,
-              $table: $db.materials,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return composer;
-  }
-}
-
-class $$PointMaterialsTableAnnotationComposer
-    extends Composer<_$AppDatabase, $PointMaterialsTable> {
-  $$PointMaterialsTableAnnotationComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  GeneratedColumn<double> get quantity =>
-      $composableBuilder(column: $table.quantity, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get updatedAt =>
-      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get deletedAt =>
-      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
-
-  $$PointsTableAnnotationComposer get pointId {
-    final $$PointsTableAnnotationComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.pointId,
-        referencedTable: $db.points,
-        getReferencedColumn: (t) => t.id,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$PointsTableAnnotationComposer(
-              $db: $db,
-              $table: $db.points,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return composer;
-  }
-
-  $$MaterialsTableAnnotationComposer get materialId {
-    final $$MaterialsTableAnnotationComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.materialId,
-        referencedTable: $db.materials,
-        getReferencedColumn: (t) => t.id,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$MaterialsTableAnnotationComposer(
-              $db: $db,
-              $table: $db.materials,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return composer;
-  }
-}
-
-class $$PointMaterialsTableTableManager extends RootTableManager<
-    _$AppDatabase,
-    $PointMaterialsTable,
-    PointMaterial,
-    $$PointMaterialsTableFilterComposer,
-    $$PointMaterialsTableOrderingComposer,
-    $$PointMaterialsTableAnnotationComposer,
-    $$PointMaterialsTableCreateCompanionBuilder,
-    $$PointMaterialsTableUpdateCompanionBuilder,
-    (PointMaterial, $$PointMaterialsTableReferences),
-    PointMaterial,
-    PrefetchHooks Function({bool pointId, bool materialId})> {
-  $$PointMaterialsTableTableManager(
-      _$AppDatabase db, $PointMaterialsTable table)
-      : super(TableManagerState(
-          db: db,
-          table: table,
-          createFilteringComposer: () =>
-              $$PointMaterialsTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$PointMaterialsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$PointMaterialsTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback: ({
-            Value<String> pointId = const Value.absent(),
-            Value<String> materialId = const Value.absent(),
-            Value<double?> quantity = const Value.absent(),
-            Value<DateTime> updatedAt = const Value.absent(),
-            Value<DateTime?> deletedAt = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) =>
-              PointMaterialsCompanion(
-            pointId: pointId,
-            materialId: materialId,
-            quantity: quantity,
-            updatedAt: updatedAt,
-            deletedAt: deletedAt,
-            rowid: rowid,
-          ),
-          createCompanionCallback: ({
-            required String pointId,
-            required String materialId,
-            Value<double?> quantity = const Value.absent(),
-            required DateTime updatedAt,
-            Value<DateTime?> deletedAt = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) =>
-              PointMaterialsCompanion.insert(
-            pointId: pointId,
-            materialId: materialId,
-            quantity: quantity,
-            updatedAt: updatedAt,
-            deletedAt: deletedAt,
-            rowid: rowid,
-          ),
-          withReferenceMapper: (p0) => p0
-              .map((e) => (
-                    e.readTable(table),
-                    $$PointMaterialsTableReferences(db, table, e)
-                  ))
-              .toList(),
-          prefetchHooksCallback: ({pointId = false, materialId = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [],
-              addJoins: <
-                  T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic>>(state) {
-                if (pointId) {
-                  state = state.withJoin(
-                    currentTable: table,
-                    currentColumn: table.pointId,
-                    referencedTable:
-                        $$PointMaterialsTableReferences._pointIdTable(db),
-                    referencedColumn:
-                        $$PointMaterialsTableReferences._pointIdTable(db).id,
-                  ) as T;
-                }
-                if (materialId) {
-                  state = state.withJoin(
-                    currentTable: table,
-                    currentColumn: table.materialId,
-                    referencedTable:
-                        $$PointMaterialsTableReferences._materialIdTable(db),
-                    referencedColumn:
-                        $$PointMaterialsTableReferences._materialIdTable(db).id,
-                  ) as T;
-                }
-
-                return state;
-              },
-              getPrefetchedDataCallback: (items) async {
-                return [];
-              },
-            );
-          },
-        ));
-}
-
-typedef $$PointMaterialsTableProcessedTableManager = ProcessedTableManager<
-    _$AppDatabase,
-    $PointMaterialsTable,
-    PointMaterial,
-    $$PointMaterialsTableFilterComposer,
-    $$PointMaterialsTableOrderingComposer,
-    $$PointMaterialsTableAnnotationComposer,
-    $$PointMaterialsTableCreateCompanionBuilder,
-    $$PointMaterialsTableUpdateCompanionBuilder,
-    (PointMaterial, $$PointMaterialsTableReferences),
-    PointMaterial,
-    PrefetchHooks Function({bool pointId, bool materialId})>;
 typedef $$PhotosTableCreateCompanionBuilder = PhotosCompanion Function({
   required String id,
   required String pointId,
@@ -9318,20 +9011,16 @@ class $AppDatabaseManager {
   $AppDatabaseManager(this._db);
   $$ProfilesTableTableManager get profiles =>
       $$ProfilesTableTableManager(_db, _db.profiles);
-  $$ReportTemplatesTableTableManager get reportTemplates =>
-      $$ReportTemplatesTableTableManager(_db, _db.reportTemplates);
   $$ClientsTableTableManager get clients =>
       $$ClientsTableTableManager(_db, _db.clients);
   $$ProjectsTableTableManager get projects =>
       $$ProjectsTableTableManager(_db, _db.projects);
   $$ProjectMembersTableTableManager get projectMembers =>
       $$ProjectMembersTableTableManager(_db, _db.projectMembers);
+  $$SettingOptionsTableTableManager get settingOptions =>
+      $$SettingOptionsTableTableManager(_db, _db.settingOptions);
   $$PointsTableTableManager get points =>
       $$PointsTableTableManager(_db, _db.points);
-  $$MaterialsTableTableManager get materials =>
-      $$MaterialsTableTableManager(_db, _db.materials);
-  $$PointMaterialsTableTableManager get pointMaterials =>
-      $$PointMaterialsTableTableManager(_db, _db.pointMaterials);
   $$PhotosTableTableManager get photos =>
       $$PhotosTableTableManager(_db, _db.photos);
   $$OutboxEntriesTableTableManager get outboxEntries =>

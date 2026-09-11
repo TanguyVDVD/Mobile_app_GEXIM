@@ -84,14 +84,21 @@ class AuthService {
   /// reconnecte retrouve son chantier sans tout retélécharger. Mais elle ouvre
   /// la porte à une connexion d'un autre compte, laquelle purge — d'où le
   /// contrôle ici, au plus tôt, pendant qu'il est encore facile de synchroniser.
+  ///
+  /// Les envois **refusés** par le serveur bloquent aussi : ils attendent
+  /// qu'un administrateur lève la cause, et n'existent que sur cet appareil.
   Future<void> signOut() async {
-    final pending = await _db.pendingCount();
-    if (pending > 0) {
+    final (:enAttente, :refuses) = await _db.travailNonTransmis();
+    if (enAttente + refuses > 0) {
       throw PendingWorkBlocked(
-        pending,
-        '$pending élément${pending > 1 ? 's' : ''} ne ${pending > 1 ? 'sont' : 'est'} '
-        'pas encore synchronisé${pending > 1 ? 's' : ''}. Connectez-vous à un '
-        'réseau avant de vous déconnecter.',
+        enAttente + refuses,
+        refuses == 0
+            ? '$enAttente élément${_s(enAttente)} '
+                'ne ${enAttente > 1 ? 'sont' : 'est'} pas encore '
+                'synchronisé${_s(enAttente)}. Connectez-vous à un réseau avant '
+                'de vous déconnecter.'
+            : _messageRefus(enAttente + refuses, refuses,
+                geste: 'vous déconnecter'),
       );
     }
     await _backend.signOut();
@@ -101,18 +108,25 @@ class AuthService {
     final previous = await _readSetting(_lastUserKey);
 
     if (previous != null && previous != userId) {
-      final pending = await _db.pendingCount();
-      if (pending > 0) {
+      final (:enAttente, :refuses) = await _db.travailNonTransmis();
+      final total = enAttente + refuses;
+      if (total > 0) {
         // On referme la session que l'on vient d'ouvrir : la tablette reste
         // sur le compte précédent, seul capable de faire partir ces relevés.
         await _backend.signOut();
         throw PendingWorkBlocked(
-          pending,
-          'Cette tablette contient $pending élément'
-          '${pending > 1 ? 's' : ''} non synchronisé'
-          '${pending > 1 ? 's' : ''} appartenant au compte précédent. '
-          'Reconnectez-vous avec ce compte et synchronisez avant de changer '
-          'd\'utilisateur.',
+          total,
+          refuses == 0
+              ? 'Cette tablette contient $total élément${_s(total)} '
+                  'non synchronisé${_s(total)} appartenant au compte '
+                  'précédent. Reconnectez-vous avec ce compte et synchronisez '
+                  'avant de changer d\'utilisateur.'
+              : 'Cette tablette contient $total élément${_s(total)} '
+                  'non transmis appartenant au compte précédent, dont '
+                  '$refuses refusé${_s(refuses)} par le serveur. '
+                  'Reconnectez-vous avec ce compte : ils doivent partir, ou '
+                  'être débloqués par un administrateur, avant tout '
+                  'changement d\'utilisateur.',
         );
       }
       await _wipeLocalData();
@@ -121,6 +135,14 @@ class AuthService {
     await _writeSetting(_lastUserKey, userId);
     await _seedProfile(userId, email);
   }
+
+  static String _s(int n) => n > 1 ? 's' : '';
+
+  static String _messageRefus(int total, int refuses, {required String geste}) =>
+      '$total élément${_s(total)} n\'${total > 1 ? 'ont' : 'a'} pas encore été '
+      'transmis au serveur, dont $refuses refusé${_s(refuses)}. Touchez le '
+      'bandeau de synchronisation pour réessayer ; si le refus persiste, un '
+      'administrateur doit lever le blocage avant que vous puissiez $geste.';
 
   /// Crée un profil local minimal pour l'utilisateur connecté.
   ///
@@ -159,13 +181,12 @@ class AuthService {
       // Ordre inverse des dépendances : les enfants d'abord, les clés
       // étrangères étant actives localement.
       await _db.delete(_db.photos).go();
-      await _db.delete(_db.pointMaterials).go();
       await _db.delete(_db.points).go();
-      await _db.delete(_db.materials).go();
+      // Après `points`, qui référencent les options par clé étrangère.
+      await _db.delete(_db.settingOptions).go();
       await _db.delete(_db.projectMembers).go();
       await _db.delete(_db.projects).go();
       await _db.delete(_db.clients).go();
-      await _db.delete(_db.reportTemplates).go();
       await _db.delete(_db.profiles).go();
 
       await _db.delete(_db.outboxEntries).go();

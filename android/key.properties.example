@@ -1,0 +1,25 @@
+# Gabarit — copier en `android/key.properties`, qui n'est PAS versionné.
+#
+# Ce fichier désigne la clé qui signe les APK distribués aux tablettes. En
+# diffusion directe (hors Play Store), cette clé est l'identité définitive de
+# l'application : Android n'accepte une mise à jour que si elle porte la même
+# signature. La perdre oblige à désinstaller l'app de chaque tablette pour la
+# réinstaller — donc à perdre la base locale et tout relevé non encore
+# synchronisé. **Sauvegarder le .jks ailleurs que sur le poste de build.**
+#
+# Génération du keystore, dans PowerShell, **sur une seule ligne** : coupée
+# par des backticks, la continuation se perd au copier-coller et seule la
+# première ligne s'exécute — keytool échoue alors sur « The -keyalg option
+# must be specified », un message qui ne désigne pas la vraie cause.
+#
+# keytool n'est pas dans le PATH sur ce poste : le JDK est celui d'Android
+# Studio, que `flutter doctor -v` localise sous « Java binary at ».
+#
+#   & "C:\Program Files\Android\Android Studio1\jbr\bin\keytool.exe" -genkey -v -keystore C:/chemin/hors-depot/gexim-firestop.jks -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 -alias firestop -dname "CN=GEXIM, O=GEXIM, C=BE"
+#
+# `validity 10000` ≈ 27 ans : une clé expirée ne signe plus de mise à jour.
+
+storeFile=C:/chemin/hors-depot/gexim-firestop.jks
+storePassword=
+keyAlias=firestop
+keyPassword=

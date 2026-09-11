@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
+import '../../core/emplacements.dart';
 import '../../database/database.dart';
 
 /// Emplacement disque des clichés compressés.
@@ -17,14 +17,17 @@ class PhotoStorage {
   /// intestable, alors que c'est précisément celle qui détruit des données.
   final Directory? _root;
 
-  /// Répertoire des photos, dans l'espace **documents** et non le cache.
+  /// Répertoire des photos, dans l'espace **privé durable** et non le cache.
   ///
   /// Distinction critique : Android purge le cache sous pression de stockage.
   /// Une photo de calfeutrement non encore transférée y disparaîtrait, et le
   /// relevé de l'opérateur serait irrécupérable — sur un chantier où repasser
   /// coûte une demi-journée.
+  ///
+  /// L'emplacement exact diffère selon la plateforme, et pas par confort :
+  /// voir `racineDonnees`.
   Future<Directory> directory() async {
-    final base = _root ?? await getApplicationDocumentsDirectory();
+    final base = _root ?? await racineDonnees();
     final dir = Directory(p.join(base.path, 'photos'));
     if (!dir.existsSync()) {
       await dir.create(recursive: true);

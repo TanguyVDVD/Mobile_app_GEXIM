@@ -67,6 +67,9 @@ dev_dependencies:
   build_runner: ^2.4.13
   drift_dev: ^2.20.0
   flutter_lints: ^4.0.0
+  # `MockClient` : simuler une panne réseau sous `GoTrueClient`, sans réseau.
+  # Déjà présent en dépendance transitive de `supabase_flutter`.
+  http: ^1.2.0
 
 flutter:
   uses-material-design: true
@@ -76,3 +79,10 @@ flutter:
     # contient encore que sa notice : `ReportService` cherche les TTF et se
     # rabat sur Helvetica si elles manquent. Voir assets/fonts/README.md.
     - assets/fonts/
+
+    # Formulaire « Resserrage RF — Fiche AS BUILT », fond de chaque page du
+    # rapport. Déclaré à la racine plutôt que recopié sous assets/ : deux
+    # exemplaires du même document finiraient par diverger, et c'est celui-ci
+    # que l'on retouche. Les coordonnées des cases sont relevées dessus, dans
+    # `AsBuiltBuilder` — toute modification de l'image impose de les reprendre.
+    - template_rapport.png
