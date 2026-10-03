@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logo de FireStop Tracker.
+
+  La plaque d'identification coupe-feu, rivetée aux quatre coins ; au centre,
+  une traversée vue en coupe : le tube, et le collier coupe-feu qui le serre.
+
+  Mêmes cotes que tools/logo.py, qui produit les icônes de l'application :
+  toute retouche se fait aux deux endroits.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>FireStop Tracker</title>
+
+  <!-- La plaque : angles presque droits, un filet, quatre rivets. -->
+  <rect width="1024" height="1024" rx="72" fill="#14181C"/>
+  <rect x="64" y="64" width="896" height="896" rx="24" fill="none" stroke="#626D78" stroke-width="8"/>
+  <g fill="#D9DDE1">
+    <circle cx="140" cy="140" r="24"/>
+    <circle cx="884" cy="140" r="24"/>
+    <circle cx="140" cy="884" r="24"/>
+    <circle cx="884" cy="884" r="24"/>
+  </g>
+
+  <!-- La traversée : collier coupe-feu, jeu, paroi du tube, intérieur. -->
+  <circle cx="512" cy="512" r="300" fill="#C8102E"/>
+  <circle cx="512" cy="512" r="205" fill="#14181C"/>
+  <circle cx="512" cy="512" r="150" fill="#FFFFFF"/>
+  <circle cx="512" cy="512" r="78" fill="#14181C"/>
+</svg>

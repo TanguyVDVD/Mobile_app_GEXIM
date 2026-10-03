@@ -9,6 +9,22 @@ import '../../database/database.dart';
 class PhotoStorage {
   const PhotoStorage({Directory? root}) : _root = root;
 
+  /// Efface des fichiers de clichés dont les lignes viennent d'être purgées.
+  ///
+  /// Sans jamais lever : un fichier déjà absent, ou verrouillé, n'est pas une
+  /// raison de faire échouer la suppression d'un chantier. Ce qui résiste est
+  /// repris au démarrage suivant par [sweepOrphans].
+  static Future<void> effacer(Iterable<String> chemins) async {
+    for (final chemin in chemins) {
+      try {
+        final fichier = File(chemin);
+        if (fichier.existsSync()) await fichier.delete();
+      } on FileSystemException {
+        // Voir ci-dessus.
+      }
+    }
+  }
+
   /// Racine de substitution.
   ///
   /// `path_provider` passe par un canal de plateforme, indisponible dans un

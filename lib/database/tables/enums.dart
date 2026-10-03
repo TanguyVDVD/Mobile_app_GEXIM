@@ -5,7 +5,7 @@ enum UserRole { admin, operator }
 ///
 /// Le passage à [completed] est réservé à l'admin : il gèle le chantier (aucune
 /// écriture de technicien n'est plus acceptée, y compris côté serveur via RLS)
-/// et ouvre la génération du rapport PDF.
+/// et ouvre l'export des fiches en classeur Excel.
 enum ProjectStatus { inProgress, completed }
 
 /// Liste de paramètres administrable depuis `/parametres`.
@@ -21,7 +21,7 @@ enum ProjectStatus { inProgress, completed }
 /// l'objet de cette table : un administrateur doit pouvoir ajouter un produit
 /// sans migration. Seule la *nature* de la liste est figée ici, parce que
 /// chacune correspond à une colonne précise de `points` et à une ligne précise
-/// du gabarit PDF.
+/// de la fiche AS BUILT.
 enum SettingKind {
   /// Traversée de paroi verticale, percement horizontal, ouverture linéaire…
   configuration,
@@ -100,6 +100,14 @@ enum PullEntity {
   projectMember,
   point,
   photo,
+
+  /// Trace d'un chantier **supprimé définitivement** : la seule entité qui ne
+  /// se range pas dans une table, mais efface (`ProjectDao.purgeProject`).
+  ///
+  /// En dernier : la purge retire d'un coup le chantier et tout ce qui en
+  /// dépend, y compris ce que les entités précédentes viennent de faire
+  /// descendre.
+  deletedProject,
 }
 
 /// État d'une entrée d'outbox.

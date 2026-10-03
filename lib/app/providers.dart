@@ -6,6 +6,7 @@ import '../database/daos/project_dao.dart';
 import '../database/daos/settings_dao.dart';
 import '../database/database.dart';
 import '../database/tables/enums.dart';
+import '../features/admin/project_admin_service.dart';
 import '../features/admin/user_admin_service.dart';
 import '../features/auth/auth_backend.dart';
 import '../features/auth/auth_service.dart';
@@ -67,14 +68,14 @@ final photoCaptureServiceProvider = Provider<PhotoCaptureService>(
 );
 
 /// Réduction des clichés : codec natif sur mobile, repli Dart sur Windows.
-/// Voir `ReductionJpeg` — sans ce repli, un rapport généré sur PC sortirait
-/// sans aucune photo, et sans le moindre message.
+/// Voir `ReductionJpeg` — sans ce repli, un classeur généré sur PC sortirait
+/// sans aucune photo.
 final reductionJpegProvider = Provider<ReductionJpeg>(
   (ref) => ReductionJpeg.pourLaPlateforme(),
 );
 
-/// Sortie du rapport : sélecteur d'emplacement sur PC, feuille de partage sur
-/// tablette.
+/// Sortie du classeur Excel : sélecteur d'emplacement sur PC, feuille de
+/// partage sur tablette.
 final reportExporterProvider = Provider<ReportExporter>(
   (ref) => ReportExporter.pourLaPlateforme(),
 );
@@ -174,6 +175,13 @@ final assignmentCountsProvider = StreamProvider<Map<String, int>>(
   (ref) => ref.watch(projectDaoProvider).watchAssignmentCounts(),
 );
 
+final projectAdminServiceProvider = Provider<ProjectAdminService>(
+  (ref) => ProjectAdminService(
+    ref.watch(databaseProvider),
+    ref.watch(remoteGatewayProvider),
+  ),
+);
+
 final userAdminServiceProvider = Provider<UserAdminService>(
   (ref) => UserAdminService(
     ref.watch(databaseProvider),
@@ -210,6 +218,11 @@ final pointProvider = StreamProvider.family<Point?, String>(
   (ref, pointId) => ref.watch(pointDaoProvider).watchPoint(pointId),
 );
 
+/// Le numéro de cette traversée est-il déjà porté par une autre du chantier ?
+final refNumberTakenProvider = StreamProvider.family<bool, String>(
+  (ref, pointId) => ref.watch(pointDaoProvider).watchRefNumberTaken(pointId),
+);
+
 final pointPhotosProvider = StreamProvider.family<List<Photo>, String>(
   (ref, pointId) => ref.watch(pointDaoProvider).watchPhotos(pointId),
 );
@@ -221,6 +234,16 @@ final pointPhotosProvider = StreamProvider.family<List<Photo>, String>(
 final settingOptionsProvider =
     StreamProvider.family<List<SettingOption>, SettingKind>(
   (ref, kind) => ref.watch(settingsDaoProvider).watchKind(kind),
+);
+
+/// Produits vivants d'un fournisseur ; `null` rend ceux qui n'en ont aucun.
+///
+/// C'est ce provider, et non [settingOptionsProvider], qui alimente les cinq
+/// listes « Produit utilisé » de la fiche.
+final productsOfSupplierProvider =
+    StreamProvider.family<List<SettingOption>, String?>(
+  (ref, supplierId) =>
+      ref.watch(settingsDaoProvider).watchProducts(supplierId),
 );
 
 /// Libellé de **toutes** les options, y compris celles retirées du catalogue.

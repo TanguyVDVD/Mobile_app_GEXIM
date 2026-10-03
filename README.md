@@ -7,7 +7,8 @@ dispositifs coupe-feu qui les rebouchent.
 Chaque traversée doit être prouvée par deux clichés — la percée nue, puis le
 calfeutrement réalisé — et caractérisée : configuration, niveau EI, produits mis
 en œuvre. À la clôture du
-chantier, l'ensemble devient un **rapport de conformité PDF** remis au client.
+chantier, l'ensemble devient un **classeur Excel de fiches AS BUILT**, une feuille
+par traversée, dans le modèle du bureau.
 C'est un document à valeur contractuelle, opposable en cas de sinistre.
 
 L'application est conçue pour être utilisée **sans réseau**, sur une tablette,
@@ -132,7 +133,7 @@ confort. Le verrou réel est dans les policies RLS : un APK modifié, une tablet
 à l'heure fausse ou un appel direct à l'API se heurtent aux mêmes règles.
 
 Une policy trop permissive ne produit **aucune erreur** — elle laisse passer.
-Les refus sont donc prouvés par 26 tests SQL rejouant les migrations réelles sur
+Les refus sont donc prouvés par 30 tests SQL rejouant les migrations réelles sur
 un Postgres jetable :
 
 ```bash
@@ -141,30 +142,33 @@ docker compose -f docker/docker-compose.yml exec -T db \
   psql -v ON_ERROR_STOP=1 -U postgres -d firestop < docker/rls_tests.sql
 ```
 
-### Le rapport est une donnée dérivée
+### L'export est une donnée dérivée
 
-`packages/firestop_report/` est un package **Dart pur**, sans dépendance
-Flutter ni entrée-sortie : le rendu est une fonction des données vers des
-octets. Le même code produira le document côté serveur le jour où la génération
-y sera déplacée.
+À la clôture d'un chantier, l'application produit un classeur Excel : **une
+feuille par traversée**, remplie dans le modèle du bureau,
+`AS_BUILT_Resserages_RF_model_vierge.xlsm`.
 
-Le PDF ne transite donc pas par la file d'attente : il se reconstruit à
-l'identique depuis les traversées, ce qui vaut mieux que de faire voyager des
-dizaines de mégaoctets.
+`packages/firestop_excel/` est un package **Dart pur**, sans dépendance Flutter
+ni entrée-sortie : une fonction `(modèle, données) → octets`. Il ne reconstruit
+pas le classeur, il le **retouche** — un `.xlsm` est une archive de fichiers
+XML, et seules les feuilles de fiche sont réécrites. Tout le reste traverse
+octet pour octet : les macros, les styles, la feuille « Menus déroulants ».
+Chaque fiche garde donc ses trois boutons et ses listes déroulantes, et le
+classeur reste exploitable dans Excel — y compris pour ajouter un point à la
+main.
 
-La mise en page n'est **pas** configurable, et c'est volontaire : le document
-est toujours la fiche « Resserrage RF — AS BUILT », composée par-dessus
-`template_rapport.png`. Une traversée par page, les clichés suivants sur des
-pages de suite. Seuls le logo et l'adresse du client y varient — tous deux
-exigés à la création d'un client.
+Le classeur ne transite pas par la file d'attente : il se reconstruit à
+l'identique depuis les traversées.
 
 Ce qui change d'une entreprise à l'autre se règle dans *Paramètres* :
-configurations, configurations détaillées, niveaux EI, fournisseurs, types de
-produit et produits. Ce sont des listes de données, pas du code : un
+configurations, configurations détaillées, niveaux EI, fournisseurs et leurs
+produits, types de produit. Ce sont des listes de données, pas du code : un
 administrateur en ajoute sans migration.
 
-Le détail — ce qui remplit chaque ligne, la pagination, et ce qu'il faut refaire
-si le formulaire est retouché — est dans `docs/fiche-as-built.md`.
+**Retoucher le modèle** impose de relancer les tests du package : les
+emplacements des valeurs y sont relevés cellule par cellule, et un test échoue
+si l'une d'elles a disparu. Pour regarder le résultat dans Excel :
+`cd packages/firestop_excel ; dart run tool/exemple.dart ..\..\exemple.xlsm`.
 
 ---
 
@@ -178,7 +182,7 @@ lib/
   features/     auth · capture · points · projects · admin · reports
   shared/       composants d'interface
 packages/
-  firestop_report/   rendu PDF, Dart pur
+  firestop_excel/    classeur Excel des fiches AS BUILT, Dart pur
 supabase/
   migrations/   schéma, RLS, stockage
   bootstrap.sql généré, pour l'installation initiale
@@ -186,18 +190,19 @@ docker/
   rls_tests.sql banc d'essai des policies
 tools/
   bootstrap.dart  régénère supabase/bootstrap.sql
-docs/
-  fiche-as-built.md  ce qui remplit chaque ligne du rapport
-template_rapport.png le formulaire, fond de chaque page — à versionner :
-                     les cases du rapport sont relevées au pixel sur lui
+  macros.ps1      réinscrit la macro « Nouveau point » (tools/macros/) dans le modèle
+  logo.py         régénère le logo et les icônes
+AS_BUILT_Resserages_RF_model_vierge.xlsm
+                le modèle du classeur, avec ses macros — à versionner :
+                les cellules de la fiche sont relevées sur lui
 ```
 
 ## Vérifier
 
 ```bash
 flutter analyze                                  # doit rester à zéro
-flutter test                                     # 97 tests
-cd packages/firestop_report && dart test         # 18 tests
+flutter test                                     # 145 tests
+cd packages/firestop_excel && dart test          # 35 tests
 ```
 
 `dart run build_runner build` est **obligatoire** après toute modification de
@@ -210,13 +215,13 @@ table ou de DAO.
 0. **Le premier essai en conditions réelles.** La version 0.1.0 est prête à
    installer, mais n'a encore tourné sur aucune tablette réelle : un relevé
    complet photos comprises, hors réseau puis au retour du réseau, jusqu'au
-   rapport ouvert et relu.
-1. **Deux polices TrueType** à déposer dans `assets/fonts/`. Sans elles, le PDF
-   perd silencieusement `—`, `’`, `œ` et `…` — des caractères que les correcteurs
-   de clavier produisent tout seuls. Voir `assets/fonts/README.md`.
-2. **Un worker de génération PDF**, utile au-delà d'environ 150 traversées par
-   chantier, où la mémoire d'une tablette ancienne devient le facteur limitant.
-   Le package est déjà prêt pour ça.
+   classeur ouvert dans Excel et relu.
+1. **Le numéro de point est un entier.** Le modèle nomme ses feuilles
+   « 1.40 », « 1.167 » : si le repérage du bureau a cette forme, la colonne
+   doit passer en texte.
+2. **Les listes de « Menus déroulants »** du classeur sont celles du modèle,
+   pas celles de *Paramètres*. Une fiche exportée porte les bonnes valeurs ;
+   seule une fiche ajoutée à la main dans Excel propose les anciennes.
 3. **La purge locale après révocation** : retirer un technicien d'un chantier lui
    coupe l'accès côté serveur, mais les données déjà descendues restent sur sa
    tablette jusqu'à une reconnexion.

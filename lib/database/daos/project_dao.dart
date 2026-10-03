@@ -12,6 +12,17 @@ part 'project_dao.g.dart';
 ///
 /// Même invariant que [PointDao] : table métier et outbox dans une seule
 /// transaction.
+/// Le client a encore des chantiers : il ne se supprime pas.
+class ClientEncoreUtilise implements Exception {
+  const ClientEncoreUtilise(this.chantiers);
+
+  /// Nombre de chantiers vivants qui le désignent.
+  final int chantiers;
+
+  @override
+  String toString() => 'Client encore désigné par $chantiers chantier(s)';
+}
+
 @DriftAccessor(tables: [Clients, Projects, ProjectMembers, Profiles])
 class ProjectDao extends DatabaseAccessor<AppDatabase> with _$ProjectDaoMixin {
   ProjectDao(super.attachedDatabase);
@@ -155,6 +166,8 @@ class ProjectDao extends DatabaseAccessor<AppDatabase> with _$ProjectDaoMixin {
     required String clientId,
     required String name,
     String? code,
+    String? purchaseOrder,
+    String? building,
     String? description,
     DateTime? startedOn,
   }) async {
@@ -163,6 +176,8 @@ class ProjectDao extends DatabaseAccessor<AppDatabase> with _$ProjectDaoMixin {
       id: newId(),
       clientId: clientId,
       code: code,
+      purchaseOrder: purchaseOrder,
+      building: building,
       name: name,
       description: description,
       startedOn: startedOn ?? now,
@@ -184,8 +199,8 @@ class ProjectDao extends DatabaseAccessor<AppDatabase> with _$ProjectDaoMixin {
     String? contactEmail,
     String? contactPhone,
   }) async {
-    final current =
-        await (select(clients)..where((t) => t.id.equals(clientId))).getSingle();
+    final current = await (select(clients)..where((t) => t.id.equals(clientId)))
+        .getSingle();
 
     await _persistClient(
       current.copyWith(
@@ -209,8 +224,8 @@ class ProjectDao extends DatabaseAccessor<AppDatabase> with _$ProjectDaoMixin {
   /// L'ancien objet n'est pas effacé du bucket : il peut encore figurer dans
   /// un rapport déjà remis.
   Future<void> setClientLogo(String clientId, String logoPath) async {
-    final current =
-        await (select(clients)..where((t) => t.id.equals(clientId))).getSingle();
+    final current = await (select(clients)..where((t) => t.id.equals(clientId)))
+        .getSingle();
 
     await _persistClient(
       current.copyWith(logoPath: logoPath, updatedAt: DateTime.now()),
@@ -222,6 +237,8 @@ class ProjectDao extends DatabaseAccessor<AppDatabase> with _$ProjectDaoMixin {
     required String name,
     required String clientId,
     String? code,
+    String? purchaseOrder,
+    String? building,
     String? description,
     DateTime? startedOn,
   }) async {
@@ -232,6 +249,10 @@ class ProjectDao extends DatabaseAccessor<AppDatabase> with _$ProjectDaoMixin {
         name: name,
         clientId: clientId,
         code: Value(code),
+        purchaseOrder: Value(purchaseOrder),
+        // Ne réécrit pas les traversées déjà relevées : c'est une valeur de
+        // départ, recopiée à la création de chaque point.
+        building: Value(building),
         description: Value(description),
         startedOn: Value(startedOn),
         updatedAt: DateTime.now(),
@@ -282,7 +303,7 @@ class ProjectDao extends DatabaseAccessor<AppDatabase> with _$ProjectDaoMixin {
     });
   }
 
-  /// Clôture un chantier : gèle la saisie et rend le rapport PDF générable.
+  /// Clôture un chantier : gèle la saisie et ouvre l'export des fiches.
   ///
   /// L'app masque les chantiers clôturés aux opérateurs, mais ce n'est qu'un
   /// confort d'interface. Le verrou qui compte est la policy RLS côté Postgres,
@@ -304,20 +325,73 @@ class ProjectDao extends DatabaseAccessor<AppDatabase> with _$ProjectDaoMixin {
     );
   }
 
-  /// Supprime un chantier — **logiquement**, comme partout ailleurs.
+  /// Efface **physiquement** un chantier de cet appareil : ses affectations,
+  /// ses traversées, leurs clichés, et tout ce qui attendait d'être envoyé
+  /// pour eux. Rend les chemins des fichiers de clichés, que l'appelant
+  /// retire du disque.
   ///
-  /// Les traversées et leurs clichés ne sont pas touchés : ils restent
-  /// rattachés au chantier, invisibles avec lui. Un dossier de conformité
-  /// incendie ne s'efface pas d'un geste dans une interface, et une suppression
-  /// faite par erreur doit rester réparable — il suffit de remettre
-  /// `deleted_at` à `null` en base.
-  Future<void> deleteProject(String projectId) async {
-    final current = await projectById(projectId);
-    final now = DateTime.now();
+  /// La seule exception à « suppression logique partout », et elle ne se
+  /// décide jamais ici : cette méthode n'est appelée qu'**après** que le
+  /// serveur a effacé le chantier — par `ProjectAdminService` sur l'appareil
+  /// de l'administrateur, par `PullEngine` sur les autres. Elle ne met donc
+  /// rien en file : il n'y a plus rien à dire au serveur.
+  ///
+  /// La file d'attente est vidée de ce chantier **dans la même transaction**.
+  /// Une entrée laissée derrière repousserait une traversée que le serveur
+  /// écarte désormais ; pire, un échec resté là bloquerait la déconnexion
+  /// pour un travail qui n'existe plus.
+  Future<List<String>> purgeProject(String projectId) {
+    final chantier = [Variable<String>(projectId)];
 
-    await _persistProject(
-      current.copyWith(deletedAt: Value(now), updatedAt: now),
-    );
+    return transaction(() async {
+      final fichiers = await customSelect(
+        '''
+        SELECT ph.local_path
+          FROM photos ph
+          JOIN points p ON p.id = ph.point_id
+         WHERE p.project_id = ?1 AND ph.local_path IS NOT NULL
+        ''',
+        variables: chantier,
+      ).map((row) => row.read<String>('local_path')).get();
+
+      await customUpdate(
+        '''
+        DELETE FROM outbox_entries
+         WHERE (entity_type = 'project' AND entity_id = ?1)
+            OR (entity_type = 'projectMember' AND entity_id LIKE ?1 || ':%')
+            OR (entity_type = 'point' AND entity_id IN
+                 (SELECT id FROM points WHERE project_id = ?1))
+            OR (entity_type = 'photo' AND entity_id IN
+                 (SELECT ph.id FROM photos ph
+                    JOIN points p ON p.id = ph.point_id
+                   WHERE p.project_id = ?1))
+        ''',
+        variables: chantier,
+        updates: {attachedDatabase.outboxEntries},
+        updateKind: UpdateKind.delete,
+      );
+      // Dans l'ordre des clés étrangères : les clichés avant leurs
+      // traversées, tout avant le chantier.
+      await customUpdate(
+        'DELETE FROM photos WHERE point_id IN '
+        '(SELECT id FROM points WHERE project_id = ?1)',
+        variables: chantier,
+        updates: {attachedDatabase.photos},
+        updateKind: UpdateKind.delete,
+      );
+      await customUpdate(
+        'DELETE FROM points WHERE project_id = ?1',
+        variables: chantier,
+        updates: {attachedDatabase.points},
+        updateKind: UpdateKind.delete,
+      );
+      await (delete(projectMembers)
+            ..where((t) => t.projectId.equals(projectId)))
+          .go();
+      await (delete(projects)..where((t) => t.id.equals(projectId))).go();
+
+      return fichiers;
+    });
   }
 
   /// Rouvre un chantier clôturé par erreur.
@@ -351,6 +425,45 @@ class ProjectDao extends DatabaseAccessor<AppDatabase> with _$ProjectDaoMixin {
   // Le companion, lui, sérialise sur `present` et non sur la nullité : un
   // `Value(null)` explicite est bien écrit.
   // ---------------------------------------------------------------------------
+
+  /// Nombre de chantiers vivants d'un client. En une seule lecture : c'est une
+  /// boîte de dialogue destructive qui le demande.
+  Future<int> liveProjectCount(String clientId) async {
+    final total = projects.id.count();
+    final row = await (selectOnly(projects)
+          ..addColumns([total])
+          ..where(
+            projects.clientId.equals(clientId) & projects.deletedAt.isNull(),
+          ))
+        .getSingle();
+    return row.read(total) ?? 0;
+  }
+
+  /// Supprime un client — **logiquement**, et seulement s'il n'a plus de
+  /// chantier.
+  ///
+  /// Un chantier vivant désigne son client : le supprimer dessous laisserait
+  /// des fiches sans logo ni adresse, donc des classeurs exportés avec une
+  /// case « Client » vide. Lève [ClientEncoreUtilise] plutôt que de le
+  /// permettre ; l'administrateur supprime d'abord les chantiers, ou les
+  /// rattache à un autre client.
+  ///
+  /// La vérification et l'écriture sont dans la même transaction : un
+  /// chantier créé entre les deux ne passe pas au travers.
+  Future<void> deleteClient(String clientId) {
+    return transaction(() async {
+      final chantiers = await liveProjectCount(clientId);
+      if (chantiers > 0) throw ClientEncoreUtilise(chantiers);
+
+      final current = await (select(clients)
+            ..where((t) => t.id.equals(clientId)))
+          .getSingle();
+      final now = DateTime.now();
+      await _persistClient(
+        current.copyWith(deletedAt: Value(now), updatedAt: now),
+      );
+    });
+  }
 
   Future<void> _persistClient(Client row) {
     return transaction(() async {

@@ -210,7 +210,7 @@ class _ClientsTab extends ConsumerWidget {
             ? const EmptyState(
                 title: 'Aucun client',
                 body: 'Un client porte son adresse et son logo, qui figurent '
-                    'en tête de chaque fiche du rapport. C\'est le point de '
+                    'en tête de chaque fiche. C\'est le point de '
                     'départ de tout chantier.',
                 icon: Icons.business_outlined,
               )

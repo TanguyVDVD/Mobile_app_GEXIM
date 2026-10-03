@@ -50,29 +50,73 @@ class AppDatabase extends _$AppDatabase {
   // ignore: use_super_parameters
   AppDatabase.forTesting(QueryExecutor executor) : super(executor);
 
-  /// Première version du schéma.
+  /// Version 2 : `setting_options.parent_id`, le fournisseur d'un produit.
+  /// Version 3 : `projects.purchase_order` et `projects.building`.
+  /// Version 4 : `points.project_code` et `points.project_name`.
   ///
-  /// Toute modification de table devra s'accompagner d'une migration, et d'un
-  /// test qui la rejoue : les pièges rencontrés avant la remise à plat du
-  /// schéma sont décrits dans `CLAUDE.md` (« Une migration est écrite hier mais
-  /// s'exécute avec le code d'aujourd'hui »).
+  /// Toute modification de table doit s'accompagner d'une migration, et d'un
+  /// test qui la rejoue (`test/migration_test.dart`) : les pièges rencontrés
+  /// avant la remise à plat du schéma sont décrits dans `CLAUDE.md` (« Une
+  /// migration est écrite hier mais s'exécute avec le code d'aujourd'hui »).
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (Migrator m) async {
           await m.createAll();
           await _createIndexes();
+          await _createParentIndex();
         },
-        // Aucune autre version n'existe. Une base qui en porte une vient d'une
-        // build de développement antérieure : le dire en clair, plutôt que le
-        // message générique de drift, qui parle de « strategy » à un
-        // technicien. L'écran de démarrage affiche ce texte tel quel.
-        onUpgrade: (Migrator m, int from, int to) async => throw StateError(
-          'La base locale de cet appareil est en version $from, que cette '
-          'version de l\'application (schéma $to) ne sait pas lire.',
-        ),
+        onUpgrade: (Migrator m, int from, int to) async {
+          // Une base qui porte une autre version vient d'une build de
+          // développement antérieure à la remise à plat : le dire en clair,
+          // plutôt que le message générique de drift, qui parle de « strategy »
+          // à un technicien. L'écran de démarrage affiche ce texte tel quel.
+          if (from < 1 || from > to) {
+            throw StateError(
+              'La base locale de cet appareil est en version $from, que cette '
+              'version de l\'application (schéma $to) ne sait pas lire.',
+            );
+          }
+
+          // 1 → 2. SQL littéral et non `m.addColumn` : une migration doit
+          // rester ce qu'elle était le jour où elle a été écrite, quelle que
+          // soit la définition Dart qui aura cours quand elle s'exécutera.
+          //
+          // Les produits déjà présents restent sans fournisseur jusqu'à ce que
+          // le serveur les renvoie rattachés (voir la migration SQL
+          // `product_supplier`, qui les réestampille).
+          if (from < 2) {
+            await customStatement(
+              'ALTER TABLE setting_options ADD COLUMN parent_id TEXT',
+            );
+            await _createParentIndex();
+          }
+
+          // 2 → 3. Le bon de commande et le bâtiment par défaut du chantier.
+          // `points.ref_number` existait déjà : seul son sens change, il est
+          // saisi au lieu d'être attribué par le serveur.
+          if (from < 3) {
+            await customStatement(
+              'ALTER TABLE projects ADD COLUMN purchase_order TEXT',
+            );
+            await customStatement(
+              'ALTER TABLE projects ADD COLUMN building TEXT',
+            );
+          }
+
+          // 3 → 4. Les écarts d'une traversée à son chantier. Le troisième,
+          // `purchase_order`, existait déjà.
+          if (from < 4) {
+            await customStatement(
+              'ALTER TABLE points ADD COLUMN project_code TEXT',
+            );
+            await customStatement(
+              'ALTER TABLE points ADD COLUMN project_name TEXT',
+            );
+          }
+        },
         beforeOpen: (OpeningDetails details) async {
           // Drift n'active pas les clés étrangères par défaut : SQLite les
           // ignore silencieusement sans ce pragma, et le schéma relationnel
@@ -110,6 +154,15 @@ class AppDatabase extends _$AppDatabase {
       'ON setting_options (kind, deleted_at, sort_order)',
     );
   }
+
+  /// Les produits d'un fournisseur — la liste que la fiche ouvre cinq fois.
+  ///
+  /// À part de [_createIndexes] : la montée de version 1 → 2 le crée aussi, et
+  /// rejouer les autres échouerait sur des index déjà présents.
+  Future<void> _createParentIndex() => customStatement(
+        'CREATE INDEX idx_setting_options_parent '
+        'ON setting_options (parent_id, deleted_at, sort_order)',
+      );
 
   /// Profil de l'utilisateur connecté. Porte son rôle, donc ce que l'interface
   /// doit lui proposer.

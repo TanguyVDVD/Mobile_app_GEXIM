@@ -64,7 +64,8 @@ void main() {
     expect(tester.getSize(find.byType(Plate)).height, greaterThan(60));
   });
 
-  testWidgets('le registre affiche numéro, état des clichés et vide', (tester) async {
+  testWidgets('le registre affiche numéro, état des clichés et vide',
+      (tester) async {
     await tester.pumpWidget(
       dansUneListe(const [
         Plate(
@@ -72,7 +73,7 @@ void main() {
             children: [
               ReferenceTag(label: '12'),
               SizedBox(width: 12),
-              SealRule(before: true, after: false),
+              PointStatus(photos: 1, missingValues: 1),
             ],
           ),
         ),
@@ -83,10 +84,74 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('12'), findsOneWidget);
     expect(
-      find.text('Après manquant'),
+      find.text('1 photo ajoutée, 1 valeur manquante', findRichText: true),
       findsOneWidget,
-      reason: 'l\'etat des deux cliches reglementaires doit se lire en clair',
+      reason: 'ce que la fiche a et ce qui lui manque doit se lire en clair',
     );
     expect(find.text('Rien ici'), findsOneWidget);
+  });
+
+  group('l\'etat d\'une fiche', () {
+    /// Les morceaux affichés, chacun avec sa couleur.
+    Future<List<(String, Color?)>> morceaux(
+      WidgetTester tester,
+      int photos,
+      int manquantes,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PointStatus(photos: photos, missingValues: manquantes),
+          ),
+        ),
+      );
+      final sortie = <(String, Color?)>[];
+      // La couleur s'hérite de morceau en morceau : on descend l'arbre en la
+      // portant, au lieu de ne lire que le style propre à chaque feuille.
+      void descendre(InlineSpan span, Color? heritee) {
+        if (span is! TextSpan) return;
+        final couleur = span.style?.color ?? heritee;
+        if (span.text != null) sortie.add((span.text!, couleur));
+        for (final enfant in span.children ?? const <InlineSpan>[]) {
+          descendre(enfant, couleur);
+        }
+      }
+
+      descendre(tester.widget<RichText>(find.byType(RichText)).text, null);
+      // Seuls les morceaux qui portent une information, pas la virgule.
+      return sortie.where((m) => m.$1.trim() != ',').toList();
+    }
+
+    testWidgets('complet : au moins une photo et plus rien a remplir',
+        (tester) async {
+      expect(await morceaux(tester, 1, 0), [('Complet', Fs.inkMuted)]);
+      expect(await morceaux(tester, 2, 0), [('Complet', Fs.inkMuted)]);
+    });
+
+    testWidgets('des photos, des valeurs manquantes : gris puis rouge',
+        (tester) async {
+      // Une photo ajoutée est un constat, pas une alerte : seul ce qui
+      // manque est en rouge.
+      expect(await morceaux(tester, 1, 1), [
+        ('1 photo ajoutée', Fs.inkMuted),
+        ('1 valeur manquante', Fs.signal),
+      ]);
+      expect(await morceaux(tester, 2, 4), [
+        ('2 photos ajoutées', Fs.inkMuted),
+        ('4 valeurs manquantes', Fs.signal),
+      ]);
+    });
+
+    testWidgets('aucune photo : en rouge, avec ou sans valeur manquante',
+        (tester) async {
+      expect(await morceaux(tester, 0, 3), [
+        ('Aucune photo ajoutée', Fs.signal),
+        ('3 valeurs manquantes', Fs.signal),
+      ]);
+      // Tout est rempli, mais rien à montrer : pas « complet ».
+      expect(await morceaux(tester, 0, 0), [
+        ('Aucune photo ajoutée', Fs.signal),
+      ]);
+    });
   });
 }

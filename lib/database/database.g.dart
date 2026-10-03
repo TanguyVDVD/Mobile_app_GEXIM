@@ -867,6 +867,18 @@ class $ProjectsTable extends Projects with TableInfo<$ProjectsTable, Project> {
   late final GeneratedColumn<String> code = GeneratedColumn<String>(
       'code', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _purchaseOrderMeta =
+      const VerificationMeta('purchaseOrder');
+  @override
+  late final GeneratedColumn<String> purchaseOrder = GeneratedColumn<String>(
+      'purchase_order', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _buildingMeta =
+      const VerificationMeta('building');
+  @override
+  late final GeneratedColumn<String> building = GeneratedColumn<String>(
+      'building', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _nameMeta = const VerificationMeta('name');
   @override
   late final GeneratedColumn<String> name = GeneratedColumn<String>(
@@ -923,6 +935,8 @@ class $ProjectsTable extends Projects with TableInfo<$ProjectsTable, Project> {
         id,
         clientId,
         code,
+        purchaseOrder,
+        building,
         name,
         description,
         startedOn,
@@ -956,6 +970,16 @@ class $ProjectsTable extends Projects with TableInfo<$ProjectsTable, Project> {
     if (data.containsKey('code')) {
       context.handle(
           _codeMeta, code.isAcceptableOrUnknown(data['code']!, _codeMeta));
+    }
+    if (data.containsKey('purchase_order')) {
+      context.handle(
+          _purchaseOrderMeta,
+          purchaseOrder.isAcceptableOrUnknown(
+              data['purchase_order']!, _purchaseOrderMeta));
+    }
+    if (data.containsKey('building')) {
+      context.handle(_buildingMeta,
+          building.isAcceptableOrUnknown(data['building']!, _buildingMeta));
     }
     if (data.containsKey('name')) {
       context.handle(
@@ -1008,6 +1032,10 @@ class $ProjectsTable extends Projects with TableInfo<$ProjectsTable, Project> {
           .read(DriftSqlType.string, data['${effectivePrefix}client_id'])!,
       code: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}code']),
+      purchaseOrder: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}purchase_order']),
+      building: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}building']),
       name: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
       description: attachedDatabase.typeMapping
@@ -1048,6 +1076,18 @@ class Project extends DataClass implements Insertable<Project> {
   /// préfixe ou un millésime (« 2026-118 », « BE/447 »). Nullable, parce qu'un
   /// chantier se crée sur le terrain avant que l'administratif ne suive.
   final String? code;
+
+  /// Bon de commande du client, reporté sur chaque fiche du rapport (ligne
+  /// « Purchase Order »). Saisi ici et non sur les traversées, pour la même
+  /// raison que [code] : un seul endroit où le corriger.
+  final String? purchaseOrder;
+
+  /// Bâtiment proposé **par défaut** à chaque nouvelle traversée.
+  ///
+  /// Une valeur de départ, pas une valeur partagée : elle est recopiée dans
+  /// `Points.building` à la création, où elle reste modifiable. La changer ici
+  /// ne réécrit donc pas les traversées déjà relevées.
+  final String? building;
   final String name;
   final String? description;
   final DateTime? startedOn;
@@ -1060,6 +1100,8 @@ class Project extends DataClass implements Insertable<Project> {
       {required this.id,
       required this.clientId,
       this.code,
+      this.purchaseOrder,
+      this.building,
       required this.name,
       this.description,
       this.startedOn,
@@ -1075,6 +1117,12 @@ class Project extends DataClass implements Insertable<Project> {
     map['client_id'] = Variable<String>(clientId);
     if (!nullToAbsent || code != null) {
       map['code'] = Variable<String>(code);
+    }
+    if (!nullToAbsent || purchaseOrder != null) {
+      map['purchase_order'] = Variable<String>(purchaseOrder);
+    }
+    if (!nullToAbsent || building != null) {
+      map['building'] = Variable<String>(building);
     }
     map['name'] = Variable<String>(name);
     if (!nullToAbsent || description != null) {
@@ -1103,6 +1151,12 @@ class Project extends DataClass implements Insertable<Project> {
       id: Value(id),
       clientId: Value(clientId),
       code: code == null && nullToAbsent ? const Value.absent() : Value(code),
+      purchaseOrder: purchaseOrder == null && nullToAbsent
+          ? const Value.absent()
+          : Value(purchaseOrder),
+      building: building == null && nullToAbsent
+          ? const Value.absent()
+          : Value(building),
       name: Value(name),
       description: description == null && nullToAbsent
           ? const Value.absent()
@@ -1129,6 +1183,8 @@ class Project extends DataClass implements Insertable<Project> {
       id: serializer.fromJson<String>(json['id']),
       clientId: serializer.fromJson<String>(json['clientId']),
       code: serializer.fromJson<String?>(json['code']),
+      purchaseOrder: serializer.fromJson<String?>(json['purchaseOrder']),
+      building: serializer.fromJson<String?>(json['building']),
       name: serializer.fromJson<String>(json['name']),
       description: serializer.fromJson<String?>(json['description']),
       startedOn: serializer.fromJson<DateTime?>(json['startedOn']),
@@ -1147,6 +1203,8 @@ class Project extends DataClass implements Insertable<Project> {
       'id': serializer.toJson<String>(id),
       'clientId': serializer.toJson<String>(clientId),
       'code': serializer.toJson<String?>(code),
+      'purchaseOrder': serializer.toJson<String?>(purchaseOrder),
+      'building': serializer.toJson<String?>(building),
       'name': serializer.toJson<String>(name),
       'description': serializer.toJson<String?>(description),
       'startedOn': serializer.toJson<DateTime?>(startedOn),
@@ -1163,6 +1221,8 @@ class Project extends DataClass implements Insertable<Project> {
           {String? id,
           String? clientId,
           Value<String?> code = const Value.absent(),
+          Value<String?> purchaseOrder = const Value.absent(),
+          Value<String?> building = const Value.absent(),
           String? name,
           Value<String?> description = const Value.absent(),
           Value<DateTime?> startedOn = const Value.absent(),
@@ -1175,6 +1235,9 @@ class Project extends DataClass implements Insertable<Project> {
         id: id ?? this.id,
         clientId: clientId ?? this.clientId,
         code: code.present ? code.value : this.code,
+        purchaseOrder:
+            purchaseOrder.present ? purchaseOrder.value : this.purchaseOrder,
+        building: building.present ? building.value : this.building,
         name: name ?? this.name,
         description: description.present ? description.value : this.description,
         startedOn: startedOn.present ? startedOn.value : this.startedOn,
@@ -1189,6 +1252,10 @@ class Project extends DataClass implements Insertable<Project> {
       id: data.id.present ? data.id.value : this.id,
       clientId: data.clientId.present ? data.clientId.value : this.clientId,
       code: data.code.present ? data.code.value : this.code,
+      purchaseOrder: data.purchaseOrder.present
+          ? data.purchaseOrder.value
+          : this.purchaseOrder,
+      building: data.building.present ? data.building.value : this.building,
       name: data.name.present ? data.name.value : this.name,
       description:
           data.description.present ? data.description.value : this.description,
@@ -1207,6 +1274,8 @@ class Project extends DataClass implements Insertable<Project> {
           ..write('id: $id, ')
           ..write('clientId: $clientId, ')
           ..write('code: $code, ')
+          ..write('purchaseOrder: $purchaseOrder, ')
+          ..write('building: $building, ')
           ..write('name: $name, ')
           ..write('description: $description, ')
           ..write('startedOn: $startedOn, ')
@@ -1220,8 +1289,20 @@ class Project extends DataClass implements Insertable<Project> {
   }
 
   @override
-  int get hashCode => Object.hash(id, clientId, code, name, description,
-      startedOn, endedOn, status, createdAt, updatedAt, deletedAt);
+  int get hashCode => Object.hash(
+      id,
+      clientId,
+      code,
+      purchaseOrder,
+      building,
+      name,
+      description,
+      startedOn,
+      endedOn,
+      status,
+      createdAt,
+      updatedAt,
+      deletedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1229,6 +1310,8 @@ class Project extends DataClass implements Insertable<Project> {
           other.id == this.id &&
           other.clientId == this.clientId &&
           other.code == this.code &&
+          other.purchaseOrder == this.purchaseOrder &&
+          other.building == this.building &&
           other.name == this.name &&
           other.description == this.description &&
           other.startedOn == this.startedOn &&
@@ -1243,6 +1326,8 @@ class ProjectsCompanion extends UpdateCompanion<Project> {
   final Value<String> id;
   final Value<String> clientId;
   final Value<String?> code;
+  final Value<String?> purchaseOrder;
+  final Value<String?> building;
   final Value<String> name;
   final Value<String?> description;
   final Value<DateTime?> startedOn;
@@ -1256,6 +1341,8 @@ class ProjectsCompanion extends UpdateCompanion<Project> {
     this.id = const Value.absent(),
     this.clientId = const Value.absent(),
     this.code = const Value.absent(),
+    this.purchaseOrder = const Value.absent(),
+    this.building = const Value.absent(),
     this.name = const Value.absent(),
     this.description = const Value.absent(),
     this.startedOn = const Value.absent(),
@@ -1270,6 +1357,8 @@ class ProjectsCompanion extends UpdateCompanion<Project> {
     required String id,
     required String clientId,
     this.code = const Value.absent(),
+    this.purchaseOrder = const Value.absent(),
+    this.building = const Value.absent(),
     required String name,
     this.description = const Value.absent(),
     this.startedOn = const Value.absent(),
@@ -1288,6 +1377,8 @@ class ProjectsCompanion extends UpdateCompanion<Project> {
     Expression<String>? id,
     Expression<String>? clientId,
     Expression<String>? code,
+    Expression<String>? purchaseOrder,
+    Expression<String>? building,
     Expression<String>? name,
     Expression<String>? description,
     Expression<DateTime>? startedOn,
@@ -1302,6 +1393,8 @@ class ProjectsCompanion extends UpdateCompanion<Project> {
       if (id != null) 'id': id,
       if (clientId != null) 'client_id': clientId,
       if (code != null) 'code': code,
+      if (purchaseOrder != null) 'purchase_order': purchaseOrder,
+      if (building != null) 'building': building,
       if (name != null) 'name': name,
       if (description != null) 'description': description,
       if (startedOn != null) 'started_on': startedOn,
@@ -1318,6 +1411,8 @@ class ProjectsCompanion extends UpdateCompanion<Project> {
       {Value<String>? id,
       Value<String>? clientId,
       Value<String?>? code,
+      Value<String?>? purchaseOrder,
+      Value<String?>? building,
       Value<String>? name,
       Value<String?>? description,
       Value<DateTime?>? startedOn,
@@ -1331,6 +1426,8 @@ class ProjectsCompanion extends UpdateCompanion<Project> {
       id: id ?? this.id,
       clientId: clientId ?? this.clientId,
       code: code ?? this.code,
+      purchaseOrder: purchaseOrder ?? this.purchaseOrder,
+      building: building ?? this.building,
       name: name ?? this.name,
       description: description ?? this.description,
       startedOn: startedOn ?? this.startedOn,
@@ -1354,6 +1451,12 @@ class ProjectsCompanion extends UpdateCompanion<Project> {
     }
     if (code.present) {
       map['code'] = Variable<String>(code.value);
+    }
+    if (purchaseOrder.present) {
+      map['purchase_order'] = Variable<String>(purchaseOrder.value);
+    }
+    if (building.present) {
+      map['building'] = Variable<String>(building.value);
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
@@ -1392,6 +1495,8 @@ class ProjectsCompanion extends UpdateCompanion<Project> {
           ..write('id: $id, ')
           ..write('clientId: $clientId, ')
           ..write('code: $code, ')
+          ..write('purchaseOrder: $purchaseOrder, ')
+          ..write('building: $building, ')
           ..write('name: $name, ')
           ..write('description: $description, ')
           ..write('startedOn: $startedOn, ')
@@ -1754,6 +1859,12 @@ class $SettingOptionsTable extends SettingOptions
       type: DriftSqlType.int,
       requiredDuringInsert: false,
       defaultValue: const Constant(0));
+  static const VerificationMeta _parentIdMeta =
+      const VerificationMeta('parentId');
+  @override
+  late final GeneratedColumn<String> parentId = GeneratedColumn<String>(
+      'parent_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _updatedAtMeta =
       const VerificationMeta('updatedAt');
   @override
@@ -1768,7 +1879,7 @@ class $SettingOptionsTable extends SettingOptions
       type: DriftSqlType.dateTime, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns =>
-      [id, kind, label, sortOrder, updatedAt, deletedAt];
+      [id, kind, label, sortOrder, parentId, updatedAt, deletedAt];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1793,6 +1904,10 @@ class $SettingOptionsTable extends SettingOptions
     if (data.containsKey('sort_order')) {
       context.handle(_sortOrderMeta,
           sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta));
+    }
+    if (data.containsKey('parent_id')) {
+      context.handle(_parentIdMeta,
+          parentId.isAcceptableOrUnknown(data['parent_id']!, _parentIdMeta));
     }
     if (data.containsKey('updated_at')) {
       context.handle(_updatedAtMeta,
@@ -1822,6 +1937,8 @@ class $SettingOptionsTable extends SettingOptions
           .read(DriftSqlType.string, data['${effectivePrefix}label'])!,
       sortOrder: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}sort_order'])!,
+      parentId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}parent_id']),
       updatedAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
       deletedAt: attachedDatabase.typeMapping
@@ -1849,6 +1966,18 @@ class SettingOption extends DataClass implements Insertable<SettingOption> {
   /// ordre croissant que l'alphabet casserait — EI120 passerait avant EI30 —
   /// et les configurations ont un ordre métier que l'administrateur connaît.
   final int sortOrder;
+
+  /// Fournisseur d'un produit ; `null` pour toute autre liste.
+  ///
+  /// **Sans clause `REFERENCES`, et c'est délibéré** — la seule colonne du
+  /// schéma dans ce cas. La descente trie par `synced_at`, et un fournisseur
+  /// renommé après la création de ses produits porte un `synced_at` plus récent
+  /// qu'eux : sur une tablette neuve, le produit arriverait toujours avant son
+  /// parent. `PullEngine._parentManquant` le différerait, le curseur
+  /// n'avancerait pas, et le cycle suivant buterait sur la même ligne — la
+  /// descente des listes serait figée pour de bon. Le serveur, lui, porte la
+  /// clé étrangère.
+  final String? parentId;
   final DateTime updatedAt;
   final DateTime? deletedAt;
   const SettingOption(
@@ -1856,6 +1985,7 @@ class SettingOption extends DataClass implements Insertable<SettingOption> {
       required this.kind,
       required this.label,
       required this.sortOrder,
+      this.parentId,
       required this.updatedAt,
       this.deletedAt});
   @override
@@ -1868,6 +1998,9 @@ class SettingOption extends DataClass implements Insertable<SettingOption> {
     }
     map['label'] = Variable<String>(label);
     map['sort_order'] = Variable<int>(sortOrder);
+    if (!nullToAbsent || parentId != null) {
+      map['parent_id'] = Variable<String>(parentId);
+    }
     map['updated_at'] = Variable<DateTime>(updatedAt);
     if (!nullToAbsent || deletedAt != null) {
       map['deleted_at'] = Variable<DateTime>(deletedAt);
@@ -1881,6 +2014,9 @@ class SettingOption extends DataClass implements Insertable<SettingOption> {
       kind: Value(kind),
       label: Value(label),
       sortOrder: Value(sortOrder),
+      parentId: parentId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(parentId),
       updatedAt: Value(updatedAt),
       deletedAt: deletedAt == null && nullToAbsent
           ? const Value.absent()
@@ -1897,6 +2033,7 @@ class SettingOption extends DataClass implements Insertable<SettingOption> {
           .fromJson(serializer.fromJson<String>(json['kind'])),
       label: serializer.fromJson<String>(json['label']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      parentId: serializer.fromJson<String?>(json['parentId']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
     );
@@ -1910,6 +2047,7 @@ class SettingOption extends DataClass implements Insertable<SettingOption> {
           .toJson<String>($SettingOptionsTable.$converterkind.toJson(kind)),
       'label': serializer.toJson<String>(label),
       'sortOrder': serializer.toJson<int>(sortOrder),
+      'parentId': serializer.toJson<String?>(parentId),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'deletedAt': serializer.toJson<DateTime?>(deletedAt),
     };
@@ -1920,6 +2058,7 @@ class SettingOption extends DataClass implements Insertable<SettingOption> {
           SettingKind? kind,
           String? label,
           int? sortOrder,
+          Value<String?> parentId = const Value.absent(),
           DateTime? updatedAt,
           Value<DateTime?> deletedAt = const Value.absent()}) =>
       SettingOption(
@@ -1927,6 +2066,7 @@ class SettingOption extends DataClass implements Insertable<SettingOption> {
         kind: kind ?? this.kind,
         label: label ?? this.label,
         sortOrder: sortOrder ?? this.sortOrder,
+        parentId: parentId.present ? parentId.value : this.parentId,
         updatedAt: updatedAt ?? this.updatedAt,
         deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
       );
@@ -1936,6 +2076,7 @@ class SettingOption extends DataClass implements Insertable<SettingOption> {
       kind: data.kind.present ? data.kind.value : this.kind,
       label: data.label.present ? data.label.value : this.label,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      parentId: data.parentId.present ? data.parentId.value : this.parentId,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
@@ -1948,6 +2089,7 @@ class SettingOption extends DataClass implements Insertable<SettingOption> {
           ..write('kind: $kind, ')
           ..write('label: $label, ')
           ..write('sortOrder: $sortOrder, ')
+          ..write('parentId: $parentId, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt')
           ..write(')'))
@@ -1956,7 +2098,7 @@ class SettingOption extends DataClass implements Insertable<SettingOption> {
 
   @override
   int get hashCode =>
-      Object.hash(id, kind, label, sortOrder, updatedAt, deletedAt);
+      Object.hash(id, kind, label, sortOrder, parentId, updatedAt, deletedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1965,6 +2107,7 @@ class SettingOption extends DataClass implements Insertable<SettingOption> {
           other.kind == this.kind &&
           other.label == this.label &&
           other.sortOrder == this.sortOrder &&
+          other.parentId == this.parentId &&
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt);
 }
@@ -1974,6 +2117,7 @@ class SettingOptionsCompanion extends UpdateCompanion<SettingOption> {
   final Value<SettingKind> kind;
   final Value<String> label;
   final Value<int> sortOrder;
+  final Value<String?> parentId;
   final Value<DateTime> updatedAt;
   final Value<DateTime?> deletedAt;
   final Value<int> rowid;
@@ -1982,6 +2126,7 @@ class SettingOptionsCompanion extends UpdateCompanion<SettingOption> {
     this.kind = const Value.absent(),
     this.label = const Value.absent(),
     this.sortOrder = const Value.absent(),
+    this.parentId = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1991,6 +2136,7 @@ class SettingOptionsCompanion extends UpdateCompanion<SettingOption> {
     required SettingKind kind,
     required String label,
     this.sortOrder = const Value.absent(),
+    this.parentId = const Value.absent(),
     required DateTime updatedAt,
     this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -2003,6 +2149,7 @@ class SettingOptionsCompanion extends UpdateCompanion<SettingOption> {
     Expression<String>? kind,
     Expression<String>? label,
     Expression<int>? sortOrder,
+    Expression<String>? parentId,
     Expression<DateTime>? updatedAt,
     Expression<DateTime>? deletedAt,
     Expression<int>? rowid,
@@ -2012,6 +2159,7 @@ class SettingOptionsCompanion extends UpdateCompanion<SettingOption> {
       if (kind != null) 'kind': kind,
       if (label != null) 'label': label,
       if (sortOrder != null) 'sort_order': sortOrder,
+      if (parentId != null) 'parent_id': parentId,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (rowid != null) 'rowid': rowid,
@@ -2023,6 +2171,7 @@ class SettingOptionsCompanion extends UpdateCompanion<SettingOption> {
       Value<SettingKind>? kind,
       Value<String>? label,
       Value<int>? sortOrder,
+      Value<String?>? parentId,
       Value<DateTime>? updatedAt,
       Value<DateTime?>? deletedAt,
       Value<int>? rowid}) {
@@ -2031,6 +2180,7 @@ class SettingOptionsCompanion extends UpdateCompanion<SettingOption> {
       kind: kind ?? this.kind,
       label: label ?? this.label,
       sortOrder: sortOrder ?? this.sortOrder,
+      parentId: parentId ?? this.parentId,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
       rowid: rowid ?? this.rowid,
@@ -2053,6 +2203,9 @@ class SettingOptionsCompanion extends UpdateCompanion<SettingOption> {
     if (sortOrder.present) {
       map['sort_order'] = Variable<int>(sortOrder.value);
     }
+    if (parentId.present) {
+      map['parent_id'] = Variable<String>(parentId.value);
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -2072,6 +2225,7 @@ class SettingOptionsCompanion extends UpdateCompanion<SettingOption> {
           ..write('kind: $kind, ')
           ..write('label: $label, ')
           ..write('sortOrder: $sortOrder, ')
+          ..write('parentId: $parentId, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
@@ -2104,6 +2258,18 @@ class $PointsTable extends Points with TableInfo<$PointsTable, Point> {
   late final GeneratedColumn<int> refNumber = GeneratedColumn<int>(
       'ref_number', aliasedName, true,
       type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _projectCodeMeta =
+      const VerificationMeta('projectCode');
+  @override
+  late final GeneratedColumn<String> projectCode = GeneratedColumn<String>(
+      'project_code', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _projectNameMeta =
+      const VerificationMeta('projectName');
+  @override
+  late final GeneratedColumn<String> projectName = GeneratedColumn<String>(
+      'project_name', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _purchaseOrderMeta =
       const VerificationMeta('purchaseOrder');
   @override
@@ -2244,6 +2410,8 @@ class $PointsTable extends Points with TableInfo<$PointsTable, Point> {
         id,
         projectId,
         refNumber,
+        projectCode,
+        projectName,
         purchaseOrder,
         building,
         floorLevel,
@@ -2288,6 +2456,18 @@ class $PointsTable extends Points with TableInfo<$PointsTable, Point> {
     if (data.containsKey('ref_number')) {
       context.handle(_refNumberMeta,
           refNumber.isAcceptableOrUnknown(data['ref_number']!, _refNumberMeta));
+    }
+    if (data.containsKey('project_code')) {
+      context.handle(
+          _projectCodeMeta,
+          projectCode.isAcceptableOrUnknown(
+              data['project_code']!, _projectCodeMeta));
+    }
+    if (data.containsKey('project_name')) {
+      context.handle(
+          _projectNameMeta,
+          projectName.isAcceptableOrUnknown(
+              data['project_name']!, _projectNameMeta));
     }
     if (data.containsKey('purchase_order')) {
       context.handle(
@@ -2414,6 +2594,10 @@ class $PointsTable extends Points with TableInfo<$PointsTable, Point> {
           .read(DriftSqlType.string, data['${effectivePrefix}project_id'])!,
       refNumber: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}ref_number']),
+      projectCode: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}project_code']),
+      projectName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}project_name']),
       purchaseOrder: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}purchase_order']),
       building: attachedDatabase.typeMapping
@@ -2466,17 +2650,23 @@ class Point extends DataClass implements Insertable<Point> {
   final String id;
   final String projectId;
 
-  /// Numéro **définitif**, attribué par une séquence Postgres à la synchro.
+  /// Numéro de la traversée, **saisi par le technicien**.
   ///
-  /// Volontairement nullable. Deux opérateurs hors-ligne créeraient tous deux
-  /// le « point 47 » : impossible de trancher localement. Tant que ce champ est
-  /// `null`, l'UI affiche un numéro provisoire déduit du rang de création dans
-  /// le projet — l'ordre par `id` suffit, les UUID v7 étant chronologiques.
-  /// Aucune colonne supplémentaire n'est donc nécessaire.
+  /// Il suit le repérage du chantier — plans, étiquettes posées sur place. La
+  /// création propose le suivant du plus grand numéro connu de l'appareil,
+  /// modifiable. Nullable : une fiche peut rester sans numéro le temps de la
+  /// saisie.
+  ///
+  /// **Aucune unicité n'est imposée**, ni ici ni sur le serveur. Deux
+  /// techniciens hors ligne peuvent saisir le même numéro ; une contrainte
+  /// ferait refuser le second relevé à la synchronisation. Le doublon est
+  /// signalé sur la fiche (`PointDao.watchRefNumberTaken`).
   final int? refNumber;
+  final String? projectCode;
+  final String? projectName;
 
-  /// Bon de commande du client. Terme anglais conservé : c'est celui qui figure
-  /// sur les pièces contractuelles comme sur le gabarit du rapport.
+  /// Terme anglais conservé : c'est celui de la fiche et des pièces
+  /// contractuelles.
   final String? purchaseOrder;
 
   /// Bâtiment(s) concerné(s). Champ libre : aucune nomenclature ne s'impose
@@ -2514,6 +2704,8 @@ class Point extends DataClass implements Insertable<Point> {
       {required this.id,
       required this.projectId,
       this.refNumber,
+      this.projectCode,
+      this.projectName,
       this.purchaseOrder,
       this.building,
       this.floorLevel,
@@ -2540,6 +2732,12 @@ class Point extends DataClass implements Insertable<Point> {
     map['project_id'] = Variable<String>(projectId);
     if (!nullToAbsent || refNumber != null) {
       map['ref_number'] = Variable<int>(refNumber);
+    }
+    if (!nullToAbsent || projectCode != null) {
+      map['project_code'] = Variable<String>(projectCode);
+    }
+    if (!nullToAbsent || projectName != null) {
+      map['project_name'] = Variable<String>(projectName);
     }
     if (!nullToAbsent || purchaseOrder != null) {
       map['purchase_order'] = Variable<String>(purchaseOrder);
@@ -2602,6 +2800,12 @@ class Point extends DataClass implements Insertable<Point> {
       refNumber: refNumber == null && nullToAbsent
           ? const Value.absent()
           : Value(refNumber),
+      projectCode: projectCode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(projectCode),
+      projectName: projectName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(projectName),
       purchaseOrder: purchaseOrder == null && nullToAbsent
           ? const Value.absent()
           : Value(purchaseOrder),
@@ -2661,6 +2865,8 @@ class Point extends DataClass implements Insertable<Point> {
       id: serializer.fromJson<String>(json['id']),
       projectId: serializer.fromJson<String>(json['projectId']),
       refNumber: serializer.fromJson<int?>(json['refNumber']),
+      projectCode: serializer.fromJson<String?>(json['projectCode']),
+      projectName: serializer.fromJson<String?>(json['projectName']),
       purchaseOrder: serializer.fromJson<String?>(json['purchaseOrder']),
       building: serializer.fromJson<String?>(json['building']),
       floorLevel: serializer.fromJson<int?>(json['floorLevel']),
@@ -2690,6 +2896,8 @@ class Point extends DataClass implements Insertable<Point> {
       'id': serializer.toJson<String>(id),
       'projectId': serializer.toJson<String>(projectId),
       'refNumber': serializer.toJson<int?>(refNumber),
+      'projectCode': serializer.toJson<String?>(projectCode),
+      'projectName': serializer.toJson<String?>(projectName),
       'purchaseOrder': serializer.toJson<String?>(purchaseOrder),
       'building': serializer.toJson<String?>(building),
       'floorLevel': serializer.toJson<int?>(floorLevel),
@@ -2717,6 +2925,8 @@ class Point extends DataClass implements Insertable<Point> {
           {String? id,
           String? projectId,
           Value<int?> refNumber = const Value.absent(),
+          Value<String?> projectCode = const Value.absent(),
+          Value<String?> projectName = const Value.absent(),
           Value<String?> purchaseOrder = const Value.absent(),
           Value<String?> building = const Value.absent(),
           Value<int?> floorLevel = const Value.absent(),
@@ -2740,6 +2950,8 @@ class Point extends DataClass implements Insertable<Point> {
         id: id ?? this.id,
         projectId: projectId ?? this.projectId,
         refNumber: refNumber.present ? refNumber.value : this.refNumber,
+        projectCode: projectCode.present ? projectCode.value : this.projectCode,
+        projectName: projectName.present ? projectName.value : this.projectName,
         purchaseOrder:
             purchaseOrder.present ? purchaseOrder.value : this.purchaseOrder,
         building: building.present ? building.value : this.building,
@@ -2771,6 +2983,10 @@ class Point extends DataClass implements Insertable<Point> {
       id: data.id.present ? data.id.value : this.id,
       projectId: data.projectId.present ? data.projectId.value : this.projectId,
       refNumber: data.refNumber.present ? data.refNumber.value : this.refNumber,
+      projectCode:
+          data.projectCode.present ? data.projectCode.value : this.projectCode,
+      projectName:
+          data.projectName.present ? data.projectName.value : this.projectName,
       purchaseOrder: data.purchaseOrder.present
           ? data.purchaseOrder.value
           : this.purchaseOrder,
@@ -2816,6 +3032,8 @@ class Point extends DataClass implements Insertable<Point> {
           ..write('id: $id, ')
           ..write('projectId: $projectId, ')
           ..write('refNumber: $refNumber, ')
+          ..write('projectCode: $projectCode, ')
+          ..write('projectName: $projectName, ')
           ..write('purchaseOrder: $purchaseOrder, ')
           ..write('building: $building, ')
           ..write('floorLevel: $floorLevel, ')
@@ -2844,6 +3062,8 @@ class Point extends DataClass implements Insertable<Point> {
         id,
         projectId,
         refNumber,
+        projectCode,
+        projectName,
         purchaseOrder,
         building,
         floorLevel,
@@ -2871,6 +3091,8 @@ class Point extends DataClass implements Insertable<Point> {
           other.id == this.id &&
           other.projectId == this.projectId &&
           other.refNumber == this.refNumber &&
+          other.projectCode == this.projectCode &&
+          other.projectName == this.projectName &&
           other.purchaseOrder == this.purchaseOrder &&
           other.building == this.building &&
           other.floorLevel == this.floorLevel &&
@@ -2896,6 +3118,8 @@ class PointsCompanion extends UpdateCompanion<Point> {
   final Value<String> id;
   final Value<String> projectId;
   final Value<int?> refNumber;
+  final Value<String?> projectCode;
+  final Value<String?> projectName;
   final Value<String?> purchaseOrder;
   final Value<String?> building;
   final Value<int?> floorLevel;
@@ -2920,6 +3144,8 @@ class PointsCompanion extends UpdateCompanion<Point> {
     this.id = const Value.absent(),
     this.projectId = const Value.absent(),
     this.refNumber = const Value.absent(),
+    this.projectCode = const Value.absent(),
+    this.projectName = const Value.absent(),
     this.purchaseOrder = const Value.absent(),
     this.building = const Value.absent(),
     this.floorLevel = const Value.absent(),
@@ -2945,6 +3171,8 @@ class PointsCompanion extends UpdateCompanion<Point> {
     required String id,
     required String projectId,
     this.refNumber = const Value.absent(),
+    this.projectCode = const Value.absent(),
+    this.projectName = const Value.absent(),
     this.purchaseOrder = const Value.absent(),
     this.building = const Value.absent(),
     this.floorLevel = const Value.absent(),
@@ -2974,6 +3202,8 @@ class PointsCompanion extends UpdateCompanion<Point> {
     Expression<String>? id,
     Expression<String>? projectId,
     Expression<int>? refNumber,
+    Expression<String>? projectCode,
+    Expression<String>? projectName,
     Expression<String>? purchaseOrder,
     Expression<String>? building,
     Expression<int>? floorLevel,
@@ -2999,6 +3229,8 @@ class PointsCompanion extends UpdateCompanion<Point> {
       if (id != null) 'id': id,
       if (projectId != null) 'project_id': projectId,
       if (refNumber != null) 'ref_number': refNumber,
+      if (projectCode != null) 'project_code': projectCode,
+      if (projectName != null) 'project_name': projectName,
       if (purchaseOrder != null) 'purchase_order': purchaseOrder,
       if (building != null) 'building': building,
       if (floorLevel != null) 'floor_level': floorLevel,
@@ -3027,6 +3259,8 @@ class PointsCompanion extends UpdateCompanion<Point> {
       {Value<String>? id,
       Value<String>? projectId,
       Value<int?>? refNumber,
+      Value<String?>? projectCode,
+      Value<String?>? projectName,
       Value<String?>? purchaseOrder,
       Value<String?>? building,
       Value<int?>? floorLevel,
@@ -3051,6 +3285,8 @@ class PointsCompanion extends UpdateCompanion<Point> {
       id: id ?? this.id,
       projectId: projectId ?? this.projectId,
       refNumber: refNumber ?? this.refNumber,
+      projectCode: projectCode ?? this.projectCode,
+      projectName: projectName ?? this.projectName,
       purchaseOrder: purchaseOrder ?? this.purchaseOrder,
       building: building ?? this.building,
       floorLevel: floorLevel ?? this.floorLevel,
@@ -3086,6 +3322,12 @@ class PointsCompanion extends UpdateCompanion<Point> {
     }
     if (refNumber.present) {
       map['ref_number'] = Variable<int>(refNumber.value);
+    }
+    if (projectCode.present) {
+      map['project_code'] = Variable<String>(projectCode.value);
+    }
+    if (projectName.present) {
+      map['project_name'] = Variable<String>(projectName.value);
     }
     if (purchaseOrder.present) {
       map['purchase_order'] = Variable<String>(purchaseOrder.value);
@@ -3157,6 +3399,8 @@ class PointsCompanion extends UpdateCompanion<Point> {
           ..write('id: $id, ')
           ..write('projectId: $projectId, ')
           ..write('refNumber: $refNumber, ')
+          ..write('projectCode: $projectCode, ')
+          ..write('projectName: $projectName, ')
           ..write('purchaseOrder: $purchaseOrder, ')
           ..write('building: $building, ')
           ..write('floorLevel: $floorLevel, ')
@@ -5548,6 +5792,8 @@ typedef $$ProjectsTableCreateCompanionBuilder = ProjectsCompanion Function({
   required String id,
   required String clientId,
   Value<String?> code,
+  Value<String?> purchaseOrder,
+  Value<String?> building,
   required String name,
   Value<String?> description,
   Value<DateTime?> startedOn,
@@ -5562,6 +5808,8 @@ typedef $$ProjectsTableUpdateCompanionBuilder = ProjectsCompanion Function({
   Value<String> id,
   Value<String> clientId,
   Value<String?> code,
+  Value<String?> purchaseOrder,
+  Value<String?> building,
   Value<String> name,
   Value<String?> description,
   Value<DateTime?> startedOn,
@@ -5635,6 +5883,12 @@ class $$ProjectsTableFilterComposer
 
   ColumnFilters<String> get code => $composableBuilder(
       column: $table.code, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get purchaseOrder => $composableBuilder(
+      column: $table.purchaseOrder, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get building => $composableBuilder(
+      column: $table.building, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get name => $composableBuilder(
       column: $table.name, builder: (column) => ColumnFilters(column));
@@ -5740,6 +5994,13 @@ class $$ProjectsTableOrderingComposer
   ColumnOrderings<String> get code => $composableBuilder(
       column: $table.code, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get purchaseOrder => $composableBuilder(
+      column: $table.purchaseOrder,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get building => $composableBuilder(
+      column: $table.building, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get name => $composableBuilder(
       column: $table.name, builder: (column) => ColumnOrderings(column));
 
@@ -5799,6 +6060,12 @@ class $$ProjectsTableAnnotationComposer
 
   GeneratedColumn<String> get code =>
       $composableBuilder(column: $table.code, builder: (column) => column);
+
+  GeneratedColumn<String> get purchaseOrder => $composableBuilder(
+      column: $table.purchaseOrder, builder: (column) => column);
+
+  GeneratedColumn<String> get building =>
+      $composableBuilder(column: $table.building, builder: (column) => column);
 
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
@@ -5914,6 +6181,8 @@ class $$ProjectsTableTableManager extends RootTableManager<
             Value<String> id = const Value.absent(),
             Value<String> clientId = const Value.absent(),
             Value<String?> code = const Value.absent(),
+            Value<String?> purchaseOrder = const Value.absent(),
+            Value<String?> building = const Value.absent(),
             Value<String> name = const Value.absent(),
             Value<String?> description = const Value.absent(),
             Value<DateTime?> startedOn = const Value.absent(),
@@ -5928,6 +6197,8 @@ class $$ProjectsTableTableManager extends RootTableManager<
             id: id,
             clientId: clientId,
             code: code,
+            purchaseOrder: purchaseOrder,
+            building: building,
             name: name,
             description: description,
             startedOn: startedOn,
@@ -5942,6 +6213,8 @@ class $$ProjectsTableTableManager extends RootTableManager<
             required String id,
             required String clientId,
             Value<String?> code = const Value.absent(),
+            Value<String?> purchaseOrder = const Value.absent(),
+            Value<String?> building = const Value.absent(),
             required String name,
             Value<String?> description = const Value.absent(),
             Value<DateTime?> startedOn = const Value.absent(),
@@ -5956,6 +6229,8 @@ class $$ProjectsTableTableManager extends RootTableManager<
             id: id,
             clientId: clientId,
             code: code,
+            purchaseOrder: purchaseOrder,
+            building: building,
             name: name,
             description: description,
             startedOn: startedOn,
@@ -6411,6 +6686,7 @@ typedef $$SettingOptionsTableCreateCompanionBuilder = SettingOptionsCompanion
   required SettingKind kind,
   required String label,
   Value<int> sortOrder,
+  Value<String?> parentId,
   required DateTime updatedAt,
   Value<DateTime?> deletedAt,
   Value<int> rowid,
@@ -6421,6 +6697,7 @@ typedef $$SettingOptionsTableUpdateCompanionBuilder = SettingOptionsCompanion
   Value<SettingKind> kind,
   Value<String> label,
   Value<int> sortOrder,
+  Value<String?> parentId,
   Value<DateTime> updatedAt,
   Value<DateTime?> deletedAt,
   Value<int> rowid,
@@ -6448,6 +6725,9 @@ class $$SettingOptionsTableFilterComposer
 
   ColumnFilters<int> get sortOrder => $composableBuilder(
       column: $table.sortOrder, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get parentId => $composableBuilder(
+      column: $table.parentId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
       column: $table.updatedAt, builder: (column) => ColumnFilters(column));
@@ -6477,6 +6757,9 @@ class $$SettingOptionsTableOrderingComposer
   ColumnOrderings<int> get sortOrder => $composableBuilder(
       column: $table.sortOrder, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get parentId => $composableBuilder(
+      column: $table.parentId, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
       column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
 
@@ -6504,6 +6787,9 @@ class $$SettingOptionsTableAnnotationComposer
 
   GeneratedColumn<int> get sortOrder =>
       $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<String> get parentId =>
+      $composableBuilder(column: $table.parentId, builder: (column) => column);
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
@@ -6543,6 +6829,7 @@ class $$SettingOptionsTableTableManager extends RootTableManager<
             Value<SettingKind> kind = const Value.absent(),
             Value<String> label = const Value.absent(),
             Value<int> sortOrder = const Value.absent(),
+            Value<String?> parentId = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
             Value<DateTime?> deletedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
@@ -6552,6 +6839,7 @@ class $$SettingOptionsTableTableManager extends RootTableManager<
             kind: kind,
             label: label,
             sortOrder: sortOrder,
+            parentId: parentId,
             updatedAt: updatedAt,
             deletedAt: deletedAt,
             rowid: rowid,
@@ -6561,6 +6849,7 @@ class $$SettingOptionsTableTableManager extends RootTableManager<
             required SettingKind kind,
             required String label,
             Value<int> sortOrder = const Value.absent(),
+            Value<String?> parentId = const Value.absent(),
             required DateTime updatedAt,
             Value<DateTime?> deletedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
@@ -6570,6 +6859,7 @@ class $$SettingOptionsTableTableManager extends RootTableManager<
             kind: kind,
             label: label,
             sortOrder: sortOrder,
+            parentId: parentId,
             updatedAt: updatedAt,
             deletedAt: deletedAt,
             rowid: rowid,
@@ -6600,6 +6890,8 @@ typedef $$PointsTableCreateCompanionBuilder = PointsCompanion Function({
   required String id,
   required String projectId,
   Value<int?> refNumber,
+  Value<String?> projectCode,
+  Value<String?> projectName,
   Value<String?> purchaseOrder,
   Value<String?> building,
   Value<int?> floorLevel,
@@ -6625,6 +6917,8 @@ typedef $$PointsTableUpdateCompanionBuilder = PointsCompanion Function({
   Value<String> id,
   Value<String> projectId,
   Value<int?> refNumber,
+  Value<String?> projectCode,
+  Value<String?> projectName,
   Value<String?> purchaseOrder,
   Value<String?> building,
   Value<int?> floorLevel,
@@ -6859,6 +7153,12 @@ class $$PointsTableFilterComposer
 
   ColumnFilters<int> get refNumber => $composableBuilder(
       column: $table.refNumber, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get projectCode => $composableBuilder(
+      column: $table.projectCode, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get projectName => $composableBuilder(
+      column: $table.projectName, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get purchaseOrder => $composableBuilder(
       column: $table.purchaseOrder, builder: (column) => ColumnFilters(column));
@@ -7161,6 +7461,12 @@ class $$PointsTableOrderingComposer
   ColumnOrderings<int> get refNumber => $composableBuilder(
       column: $table.refNumber, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get projectCode => $composableBuilder(
+      column: $table.projectCode, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get projectName => $composableBuilder(
+      column: $table.projectName, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get purchaseOrder => $composableBuilder(
       column: $table.purchaseOrder,
       builder: (column) => ColumnOrderings(column));
@@ -7441,6 +7747,12 @@ class $$PointsTableAnnotationComposer
 
   GeneratedColumn<int> get refNumber =>
       $composableBuilder(column: $table.refNumber, builder: (column) => column);
+
+  GeneratedColumn<String> get projectCode => $composableBuilder(
+      column: $table.projectCode, builder: (column) => column);
+
+  GeneratedColumn<String> get projectName => $composableBuilder(
+      column: $table.projectName, builder: (column) => column);
 
   GeneratedColumn<String> get purchaseOrder => $composableBuilder(
       column: $table.purchaseOrder, builder: (column) => column);
@@ -7767,6 +8079,8 @@ class $$PointsTableTableManager extends RootTableManager<
             Value<String> id = const Value.absent(),
             Value<String> projectId = const Value.absent(),
             Value<int?> refNumber = const Value.absent(),
+            Value<String?> projectCode = const Value.absent(),
+            Value<String?> projectName = const Value.absent(),
             Value<String?> purchaseOrder = const Value.absent(),
             Value<String?> building = const Value.absent(),
             Value<int?> floorLevel = const Value.absent(),
@@ -7792,6 +8106,8 @@ class $$PointsTableTableManager extends RootTableManager<
             id: id,
             projectId: projectId,
             refNumber: refNumber,
+            projectCode: projectCode,
+            projectName: projectName,
             purchaseOrder: purchaseOrder,
             building: building,
             floorLevel: floorLevel,
@@ -7817,6 +8133,8 @@ class $$PointsTableTableManager extends RootTableManager<
             required String id,
             required String projectId,
             Value<int?> refNumber = const Value.absent(),
+            Value<String?> projectCode = const Value.absent(),
+            Value<String?> projectName = const Value.absent(),
             Value<String?> purchaseOrder = const Value.absent(),
             Value<String?> building = const Value.absent(),
             Value<int?> floorLevel = const Value.absent(),
@@ -7842,6 +8160,8 @@ class $$PointsTableTableManager extends RootTableManager<
             id: id,
             projectId: projectId,
             refNumber: refNumber,
+            projectCode: projectCode,
+            projectName: projectName,
             purchaseOrder: purchaseOrder,
             building: building,
             floorLevel: floorLevel,

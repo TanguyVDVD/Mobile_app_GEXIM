@@ -14,7 +14,7 @@ import '../../shared/widgets/sync_status_bar.dart';
 /// synchronisation partagé avec Postgres, et il n'a pas à porter le vocabulaire
 /// d'un écran. Les libellés reprennent mot pour mot ceux imprimés sur le
 /// formulaire du rapport — un administrateur doit pouvoir faire le lien sans
-/// réfléchir entre la ligne qu'il voit sur un PDF et la liste qu'il modifie.
+/// réfléchir entre la ligne qu'il voit sur une fiche et la liste qu'il modifie.
 extension SettingKindLabel on SettingKind {
   String get titre => switch (this) {
         SettingKind.configuration => 'Configurations',
@@ -36,27 +36,19 @@ extension SettingKindLabel on SettingKind {
         SettingKind.product => 'Nouveau produit',
       };
 
+  /// Où la liste apparaît sur la fiche — rien de plus : la note d'en-tête sert
+  /// à faire le lien avec le document, pas à expliquer le métier.
   String get aide => switch (this) {
-        SettingKind.configuration =>
-          'Ligne « Configuration » de la fiche. Nature de la percée : '
-              'traversée, percement ou ouverture linéaire, en paroi verticale '
-              'ou horizontale.',
+        SettingKind.configuration => 'Ligne « Configuration » de la fiche.',
         SettingKind.configurationDetail =>
-          'Ligne « Configuration détaillée ». Ce qui passe dans la percée, ou '
-              'ce qu\'elle est quand rien n\'y passe.',
-        SettingKind.eiLevel =>
-          'Ligne « Niveau EI ». Degré coupe-feu exigé par le cahier des '
-              'charges.',
+          'Ligne « Configuration détaillée » de la fiche.',
+        SettingKind.eiLevel => 'Ligne « Niveau EI » de la fiche.',
         SettingKind.supplier =>
-          'Ligne « Fournisseur de produit utilisé ». Fabricant des produits '
-              'mis en œuvre.',
+          'Ligne « Fournisseur de produit utilisé » de la fiche.',
         SettingKind.productType =>
-          'Ligne « Type de produit utilisé ». Nature de ce qui est posé : '
-              'manchon, mortier, mousse, panneau… Un même type se décline chez '
-              'plusieurs fournisseurs.',
+          'Ligne « Type de produit utilisé » de la fiche.',
         SettingKind.product =>
-          'Lignes « Produit utilisé (1) » à « (5) ». Références commerciales '
-              'posées sur la traversée.',
+          'Lignes « Produit utilisé (1) » à « (5) » de la fiche.',
       };
 }
 
@@ -71,10 +63,19 @@ extension SettingKindLabel on SettingKind {
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
+  /// Les produits n'ont pas d'onglet : ils se gèrent **depuis leur
+  /// fournisseur**. Une liste à plat de tous les produits inviterait à en
+  /// créer un sans dire de qui il est — et celui-là ne serait proposé sur
+  /// aucune fiche.
+  static final _onglets = [
+    for (final kind in SettingKind.values)
+      if (kind != SettingKind.product) kind,
+  ];
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
-      length: SettingKind.values.length,
+      length: _onglets.length,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Paramètres'),
@@ -82,8 +83,7 @@ class SettingsScreen extends ConsumerWidget {
             isScrollable: true,
             tabAlignment: TabAlignment.start,
             tabs: [
-              for (final kind in SettingKind.values)
-                Tab(text: kind.titre, height: 44),
+              for (final kind in _onglets) Tab(text: kind.titre, height: 44),
             ],
           ),
         ),
@@ -93,7 +93,7 @@ class SettingsScreen extends ConsumerWidget {
             Expanded(
               child: TabBarView(
                 children: [
-                  for (final kind in SettingKind.values) _ListePage(kind: kind),
+                  for (final kind in _onglets) _ListePage(kind: kind),
                 ],
               ),
             ),
@@ -104,15 +104,84 @@ class SettingsScreen extends ConsumerWidget {
   }
 }
 
+/// Les produits d'un fournisseur — ou, sans [fournisseur], ceux qui n'en ont
+/// aucun et attendent d'être rattachés.
+///
+/// Un écran poussé et non une route GoRouter : ce n'est pas une destination,
+/// c'est le détail d'une ligne de `/parametres`, et « retour » doit y ramener.
+class _ProduitsScreen extends StatelessWidget {
+  const _ProduitsScreen({this.fournisseur});
+
+  final SettingOption? fournisseur;
+
+  @override
+  Widget build(BuildContext context) {
+    final fournisseur = this.fournisseur;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          fournisseur == null
+              ? 'Produits sans fournisseur'
+              : 'Produits — ${fournisseur.label}',
+        ),
+      ),
+      body: Column(
+        children: [
+          const SyncStatusBar(),
+          Expanded(
+            child: _ListePage(
+              kind: SettingKind.product,
+              fournisseur: fournisseur,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Une liste, et les gestes qui la modifient.
+///
+/// Pour [SettingKind.product], la liste est celle d'**un** [fournisseur] ;
+/// sans lui, ce sont les produits restés sans fournisseur, qu'on ne peut que
+/// rattacher, renommer ou retirer — pas en créer d'autres.
 class _ListePage extends ConsumerWidget {
-  const _ListePage({required this.kind});
+  const _ListePage({required this.kind, this.fournisseur});
 
   final SettingKind kind;
+  final SettingOption? fournisseur;
+
+  bool get _produits => kind == SettingKind.product;
+  bool get _orphelins => _produits && fournisseur == null;
+
+  String get _aide {
+    final fournisseur = this.fournisseur;
+    // Seule la liste des produits sans fournisseur garde une consigne : sans
+    // elle, rien ne dit pourquoi ces produits sont là ni quoi en faire.
+    if (_produits && fournisseur == null) {
+      return 'Ces produits ne désignent aucun fournisseur : ils ne sont '
+          'proposés sur aucune fiche. Rattachez chacun au sien.';
+    }
+    return kind.aide;
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final options = ref.watch(settingOptionsProvider(kind));
+    final options = _produits
+        ? ref.watch(productsOfSupplierProvider(fournisseur?.id))
+        : ref.watch(settingOptionsProvider(kind));
+
+    // Sur l'onglet des fournisseurs, chaque ligne annonce son nombre de
+    // produits, et l'en-tête signale ceux qui n'ont pas de fournisseur.
+    final tousLesProduits = kind == SettingKind.supplier
+        ? ref.watch(settingOptionsProvider(SettingKind.product)).valueOrNull ??
+            const <SettingOption>[]
+        : const <SettingOption>[];
+    final parFournisseur = <String?, int>{};
+    for (final produit in tousLesProduits) {
+      parFournisseur.update(produit.parentId, (n) => n + 1, ifAbsent: () => 1);
+    }
+    final sansFournisseur = parFournisseur[null] ?? 0;
 
     return Scaffold(
       body: options.when(
@@ -131,10 +200,12 @@ class _ListePage extends ConsumerWidget {
         data: (liste) => ReadableWidth(
           child: liste.isEmpty
               ? EmptyState(
-                  title: 'Liste vide',
-                  body: '${kind.aide}\n\nAjoutez une première entrée : tant '
-                      'que la liste est vide, le champ correspondant de la '
-                      'fiche de traversée ne propose rien.',
+                  title: _orphelins ? 'Tout est rattaché' : 'Liste vide',
+                  body: _orphelins
+                      ? 'Chaque produit désigne un fournisseur.'
+                      : '$_aide\n\nAjoutez une première entrée : tant '
+                          'que la liste est vide, le champ correspondant de '
+                          'la fiche de traversée ne propose rien.',
                   icon: Icons.list_alt_outlined,
                 )
               // `ReorderableListView` plutôt qu'une paire de flèches : l'ordre
@@ -148,16 +219,41 @@ class _ListePage extends ConsumerWidget {
                   // déplaçables : `header` est rendu hors de la zone de tri.
                   header: Padding(
                     padding: const EdgeInsets.only(bottom: Fs.lg),
-                    child: Text(kind.aide, style: Fs.metaOf(context)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(_aide, style: Fs.metaOf(context)),
+                        if (sansFournisseur > 0) ...[
+                          const SizedBox(height: Fs.md),
+                          _SansFournisseurPlate(
+                            nombre: sansFournisseur,
+                            onTap: () => _ouvrirProduits(context, null),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                   itemBuilder: (context, index) {
                     final option = liste[index];
+                    final estFournisseur = kind == SettingKind.supplier;
                     return Padding(
                       key: ValueKey(option.id),
                       padding: const EdgeInsets.only(bottom: Fs.sm),
                       child: _OptionPlate(
                         option: option,
                         rang: index,
+                        detail: estFournisseur
+                            ? _nombreDeProduits(parFournisseur[option.id] ?? 0)
+                            : null,
+                        // Un fournisseur s'ouvre sur ses produits ; le
+                        // renommer passe alors par le crayon. Partout
+                        // ailleurs, toucher la ligne la renomme.
+                        onOuvrir: estFournisseur
+                            ? () => _ouvrirProduits(context, option)
+                            : null,
+                        onRattacher: _produits
+                            ? () => _rattacher(context, ref, option)
+                            : null,
                         onRenommer: () => _renommer(context, ref, option),
                         onRetirer: () => _retirer(context, ref, option),
                       ),
@@ -178,10 +274,28 @@ class _ListePage extends ConsumerWidget {
                 ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _ajouter(context, ref),
-        icon: const Icon(Icons.add, size: 24),
-        label: Text(kind.nouveau),
+      // Pas d'ajout parmi les produits sans fournisseur : on n'en crée pas
+      // d'autres, on vide cette liste.
+      floatingActionButton: _orphelins
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => _ajouter(context, ref),
+              icon: const Icon(Icons.add, size: 24),
+              label: Text(kind.nouveau),
+            ),
+    );
+  }
+
+  static String _nombreDeProduits(int n) => switch (n) {
+        0 => 'Aucun produit',
+        1 => '1 produit',
+        _ => '$n produits',
+      };
+
+  void _ouvrirProduits(BuildContext context, SettingOption? fournisseur) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _ProduitsScreen(fournisseur: fournisseur),
       ),
     );
   }
@@ -193,7 +307,57 @@ class _ListePage extends ConsumerWidget {
       initial: '',
     );
     if (libelle == null) return;
-    await ref.read(settingsDaoProvider).create(kind: kind, label: libelle);
+    await ref.read(settingsDaoProvider).create(
+          kind: kind,
+          label: libelle,
+          supplierId: fournisseur?.id,
+        );
+  }
+
+  /// Rattache un produit à un fournisseur, ou le change de fournisseur.
+  Future<void> _rattacher(
+    BuildContext context,
+    WidgetRef ref,
+    SettingOption produit,
+  ) async {
+    final dao = ref.read(settingsDaoProvider);
+    // Une lecture ponctuelle, pas `watchKind(...).first` : voir « Un flux
+    // vivant n'est pas une lecture ponctuelle » dans CLAUDE.md.
+    final fournisseurs = [
+      for (final f in await dao.ofKind(SettingKind.supplier))
+        if (f.id != produit.parentId) f,
+    ];
+    if (!context.mounted) return;
+
+    final choisi = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: Text('Fournisseur de « ${produit.label} »'),
+        children: [
+          if (fournisseurs.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: Fs.sm),
+              child: Text(
+                'Aucun autre fournisseur. Créez-le d\'abord dans l\'onglet '
+                'Fournisseurs.',
+              ),
+            ),
+          for (final f in fournisseurs)
+            SimpleDialogOption(
+              onPressed: () => Navigator.of(context).pop(f.id),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 36),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(f.label, style: const TextStyle(fontSize: 16.5)),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (choisi == null) return;
+    await dao.attach(produit.id, choisi);
   }
 
   Future<void> _renommer(
@@ -210,7 +374,7 @@ class _ListePage extends ConsumerWidget {
       // y compris sur un rapport régénéré. Corriger une faute de frappe, oui ;
       // recycler une entrée pour un autre produit, non.
       note: 'Les traversées déjà relevées porteront le nouveau libellé, y '
-          'compris sur un rapport régénéré. Pour un autre produit, créez une '
+          'compris dans un export refait. Pour un autre produit, créez une '
           'entrée.',
     );
     if (libelle == null) return;
@@ -226,9 +390,11 @@ class _ListePage extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Retirer « ${option.label} » ?'),
-        content: const Text(
+        content: Text(
           'L\'entrée ne sera plus proposée à la saisie. Les traversées qui la '
-          'désignent déjà la conservent, et leur rapport reste identique.',
+          'désignent déjà la conservent, et leur fiche reste identique.'
+          '${kind == SettingKind.supplier ? '\n\nSes produits ne seront plus '
+              'proposés non plus.' : ''}',
         ),
         actions: [
           TextButton(
@@ -346,12 +512,49 @@ class _LibelleDialogState extends State<_LibelleDialog> {
   }
 }
 
+/// Signale, en tête des fournisseurs, les produits qui n'en désignent aucun.
+///
+/// N'apparaît que s'il y en a : c'est un reliquat du catalogue d'avant le
+/// rattachement, pas une rubrique.
+class _SansFournisseurPlate extends StatelessWidget {
+  const _SansFournisseurPlate({required this.nombre, required this.onTap});
+
+  final int nombre;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Plate(
+      padding: const EdgeInsets.fromLTRB(Fs.lg, Fs.md, Fs.sm, Fs.md),
+      onTap: onTap,
+      child: Row(
+        children: [
+          const Icon(Icons.link_off, size: 21, color: Fs.signal),
+          const SizedBox(width: Fs.md),
+          Expanded(
+            child: Text(
+              nombre == 1
+                  ? '1 produit sans fournisseur — à rattacher'
+                  : '$nombre produits sans fournisseur — à rattacher',
+              style: const TextStyle(fontSize: 16.5, color: Fs.ink),
+            ),
+          ),
+          const Icon(Icons.chevron_right, color: Fs.inkMuted),
+        ],
+      ),
+    );
+  }
+}
+
 class _OptionPlate extends StatelessWidget {
   const _OptionPlate({
     required this.option,
     required this.rang,
     required this.onRenommer,
     required this.onRetirer,
+    this.detail,
+    this.onOuvrir,
+    this.onRattacher,
   });
 
   final SettingOption option;
@@ -359,11 +562,21 @@ class _OptionPlate extends StatelessWidget {
   final VoidCallback onRenommer;
   final VoidCallback onRetirer;
 
+  /// Ligne secondaire, sous le libellé.
+  final String? detail;
+
+  /// Si fourni, toucher la ligne l'ouvre, et renommer passe par un bouton.
+  final VoidCallback? onOuvrir;
+
+  /// Si fourni, offre de changer le fournisseur du produit.
+  final VoidCallback? onRattacher;
+
   @override
   Widget build(BuildContext context) {
+    final detail = this.detail;
     return Plate(
       padding: const EdgeInsets.fromLTRB(Fs.lg, Fs.sm, Fs.sm, Fs.sm),
-      onTap: onRenommer,
+      onTap: onOuvrir ?? onRenommer,
       child: Row(
         children: [
           SizedBox(
@@ -371,11 +584,31 @@ class _OptionPlate extends StatelessWidget {
             child: Text('${rang + 1}', style: Fs.metaOf(context)),
           ),
           Expanded(
-            child: Text(
-              option.label,
-              style: const TextStyle(fontSize: 16.5, color: Fs.ink),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  option.label,
+                  style: const TextStyle(fontSize: 16.5, color: Fs.ink),
+                ),
+                if (detail != null) Text(detail, style: Fs.metaOf(context)),
+              ],
             ),
           ),
+          if (onOuvrir != null)
+            IconButton(
+              tooltip: 'Renommer',
+              icon: const Icon(Icons.edit_outlined, size: 21),
+              color: Fs.inkMuted,
+              onPressed: onRenommer,
+            ),
+          if (onRattacher != null)
+            IconButton(
+              tooltip: 'Changer de fournisseur',
+              icon: const Icon(Icons.swap_horiz, size: 21),
+              color: Fs.inkMuted,
+              onPressed: onRattacher,
+            ),
           IconButton(
             tooltip: 'Retirer',
             icon: const Icon(Icons.delete_outline, size: 21),

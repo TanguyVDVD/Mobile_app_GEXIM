@@ -35,10 +35,10 @@ class SyncStatusBar extends ConsumerWidget {
             'pour réessayer',
       SyncState.syncing => 'Envoi en cours',
       SyncState.offline when pending > 0 =>
-        'Hors ligne — $pending relevé${pending > 1 ? 's' : ''} en attente',
+        'Hors ligne — $pending synchronisation${pending > 1 ? 's' : ''} en attente',
       SyncState.offline => 'Hors ligne',
       SyncState.idle when pending > 0 =>
-        '$pending relevé${pending > 1 ? 's' : ''} en attente d\'envoi',
+        '$pending synchronisation${pending > 1 ? 's' : ''} en attente',
       SyncState.idle => 'Tout est envoyé',
     };
 
@@ -76,8 +76,9 @@ class SyncStatusBar extends ConsumerWidget {
                   style: TextStyle(
                     fontSize: 14,
                     color: tone,
-                    fontWeight:
-                        attention || waiting ? FontWeight.w600 : FontWeight.w400,
+                    fontWeight: attention || waiting
+                        ? FontWeight.w600
+                        : FontWeight.w400,
                   ),
                 ),
               ),

@@ -1088,3 +1088,373 @@ create policy reports_update_admin on storage.objects
   for update to authenticated
   using (bucket_id = 'reports' and public.is_admin())
   with check (bucket_id = 'reports' and public.is_admin());
+
+-- >>>>>>>>>>>>>>>>>>>>  supabase/migrations/20261003100000_product_supplier.sql  <<<<<<<<<<<<<<<<<<<<
+
+-- =============================================================================
+-- Un produit appartient à un fournisseur
+-- =============================================================================
+--
+-- Jusqu'ici « fournisseur » et « produit » étaient deux listes indépendantes :
+-- la fiche laissait choisir Promat puis un produit d'un autre fabricant. Le
+-- produit désigne désormais son fournisseur, et la fiche ne propose que les
+-- produits du fournisseur choisi.
+--
+-- Une colonne sur `setting_options` et non une table d'association : un
+-- produit n'a qu'un fabricant, et la relation suit ainsi le même chemin de
+-- synchronisation, les mêmes policies et le même last-write-wins que la ligne
+-- qui la porte.
+--
+-- Fichier séparé, contrairement aux trois précédents : le schéma est déjà
+-- installé sur le projet en ligne, il faut pouvoir le faire évoluer.
+
+alter table public.setting_options
+  add column parent_id uuid references public.setting_options (id);
+
+alter table public.setting_options
+  add constraint setting_options_parent_only_product
+  check (parent_id is null or kind = 'product');
+
+comment on column public.setting_options.parent_id is
+  'Fournisseur d''un produit. Nul pour toute autre liste. Un produit sans '
+  'fournisseur n''est proposé sur aucune fiche : l''écran Paramètres le '
+  'signale et permet de le rattacher.';
+
+create index setting_options_parent_idx
+  on public.setting_options (parent_id, sort_order)
+  where deleted_at is null;
+
+-- La contrainte CHECK ne voit que la ligne ; que le parent soit bien un
+-- fournisseur demande une lecture, donc un trigger.
+--
+-- `security invoker`, par défaut : la lecture de `setting_options` est ouverte
+-- à tout compte authentifié, il n'y a rien à contourner.
+create or replace function public.guard_option_parent()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.parent_id is not null and not exists (
+    select 1 from public.setting_options s
+     where s.id = new.parent_id
+       and s.kind = 'supplier'
+  ) then
+    raise exception 'Le parent d''un produit doit être un fournisseur'
+      using errcode = '23514';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger setting_options_guard_parent
+  before insert or update on public.setting_options
+  for each row execute function public.guard_option_parent();
+
+-- Rattachement de l'existant. Tant qu'il n'existe qu'un fournisseur, tout
+-- produit est forcément le sien — c'est le cas du catalogue initial, tout
+-- entier chez Promat. Avec plusieurs fournisseurs, rien ne permet de deviner :
+-- les produits restent sans parent, et l'administrateur les rattache depuis
+-- l'écran Paramètres.
+--
+-- `updated_at = now()` : sans lui `reject_stale_write` laisserait passer, mais
+-- le last-write-wins des tablettes écarterait la ligne redescendue. Le trigger
+-- `_touch_synced` réestampille `synced_at`, donc les produits redescendent.
+update public.setting_options p
+   set parent_id  = s.id,
+       updated_at = now()
+  from public.setting_options s
+ where p.kind = 'product'
+   and p.parent_id is null
+   and s.kind = 'supplier'
+   and s.deleted_at is null
+   and (select count(*) from public.setting_options
+         where kind = 'supplier' and deleted_at is null) = 1;
+
+-- >>>>>>>>>>>>>>>>>>>>  supabase/migrations/20261003110000_project_fields_point_number.sql  <<<<<<<<<<<<<<<<<<<<
+
+-- =============================================================================
+-- Bon de commande et bâtiment au chantier ; numéro de point saisi
+-- =============================================================================
+
+-- -----------------------------------------------------------------------------
+-- 1. Deux champs de la fiche remontent à la définition du chantier
+-- -----------------------------------------------------------------------------
+--
+-- Le bon de commande est celui du chantier : saisi une fois, repris sur chaque
+-- fiche, comme le numéro de projet. `points.purchase_order` reste en place
+-- pour les relevés antérieurs, que le rapport relit à défaut.
+--
+-- Le bâtiment du chantier n'est qu'une **valeur de départ** : chaque nouvelle
+-- traversée le reçoit dans `points.building`, où il reste modifiable — un
+-- chantier couvre parfois plusieurs bâtiments.
+
+alter table public.projects
+  add column purchase_order text,
+  add column building       text;
+
+comment on column public.projects.purchase_order is
+  'Bon de commande du client, reporté sur chaque fiche du rapport.';
+comment on column public.projects.building is
+  'Bâtiment proposé par défaut à chaque nouvelle traversée, qui peut le '
+  'modifier (points.building).';
+
+-- -----------------------------------------------------------------------------
+-- 2. Le numéro d'une traversée est saisi par le technicien
+-- -----------------------------------------------------------------------------
+--
+-- Il était attribué ici, dans l'ordre d'arrivée des synchronisations. Il suit
+-- désormais le repérage du chantier — plans, étiquettes posées sur place — et
+-- seul le technicien le connaît. Le client l'envoie comme n'importe quel champ.
+--
+-- La contrainte d'unicité tombe avec le trigger, et c'est délibéré. Deux
+-- techniciens hors ligne peuvent saisir le même numéro ; avec la contrainte,
+-- le second relevé serait **refusé** à la synchronisation et resterait bloqué
+-- sur sa tablette. Un doublon se voit et se corrige — l'application le
+-- signale sur la fiche — alors qu'un relevé refusé ne figure dans aucun
+-- rapport.
+
+drop trigger points_assign_ref_number on public.points;
+drop function public.assign_point_ref_number();
+
+alter table public.points
+  drop constraint points_project_id_ref_number_key;
+
+comment on column public.points.ref_number is
+  'Numéro de la traversée, saisi par le technicien. Ni attribué ni garanti '
+  'unique par le serveur : voir la migration qui a retiré le trigger.';
+
+-- >>>>>>>>>>>>>>>>>>>>  supabase/migrations/20261003120000_revoke_anon_helpers.sql  <<<<<<<<<<<<<<<<<<<<
+
+-- =============================================================================
+-- Les fonctions d'aide des policies ne sont pas une API publique
+-- =============================================================================
+--
+-- `is_admin`, `point_project`, `project_is_open`… sont en `security definer` :
+-- elles lisent des tables protégées avec les droits de leur propriétaire, pour
+-- que les policies RLS puissent s'en servir sans récursion.
+--
+-- Or PostgREST expose toute fonction du schéma `public` sous `/rpc/`, et
+-- Supabase en accorde l'exécution au rôle `anon` par défaut. Constaté le
+-- 3 octobre 2026 sur le projet en ligne : `POST /rpc/point_project` répondait
+-- **sans session**, avec la seule clé publique embarquée dans l'APK. Qui
+-- connaît l'identifiant d'une traversée obtenait celui de son chantier, et
+-- `project_is_open` disait si un chantier existe et s'il est clôturé — en
+-- contournant RLS, puisque c'est précisément ce que fait `security definer`.
+--
+-- Les identifiants sont des UUID, donc non devinables : la fuite est mince.
+-- Mais rien ne justifie qu'elle existe. Toutes les policies sont déclarées
+-- `to authenticated` : un visiteur anonyme n'en évalue aucune, et n'a aucun
+-- besoin de ces fonctions.
+--
+-- `from public` en plus de `from anon` : Postgres accorde aussi l'exécution à
+-- tout le monde par défaut, et retirer l'un sans l'autre ne retire rien.
+
+do $$
+declare
+  f text;
+begin
+  foreach f in array array[
+    'public.is_admin()',
+    'public.is_project_member(uuid)',
+    'public.project_is_open(uuid)',
+    'public.point_project(uuid)',
+    'public.can_write_project(uuid)',
+    'public.can_see_client(uuid)',
+    'public.can_see_profile(uuid)'
+  ] loop
+    execute format('revoke execute on function %s from public, anon', f);
+    execute format('grant execute on function %s to authenticated, service_role', f);
+  end loop;
+end
+$$;
+
+-- >>>>>>>>>>>>>>>>>>>>  supabase/migrations/20261003130000_point_project_overrides.sql  <<<<<<<<<<<<<<<<<<<<
+
+-- =============================================================================
+-- Une traversée peut s'écarter de ce que dit son chantier
+-- =============================================================================
+--
+-- Numéro de projet, intitulé et Purchase Order se saisissent sur le chantier
+-- et se reportent sur chaque fiche. Ils doivent rester **modifiables fiche par
+-- fiche**, au cas où : un point rattaché à un autre bon de commande, un
+-- intitulé à préciser pour une zone.
+--
+-- Trois colonnes d'écart sur `points`, toutes nullables :
+--
+--   nul        ⇒ la fiche suit le chantier, y compris s'il est corrigé après ;
+--   renseigné  ⇒ la fiche porte cette valeur, quoi que dise le chantier.
+--
+-- Un écart et non une copie, à la différence du bâtiment (`points.building`,
+-- recopié à la création) : corriger une faute de frappe dans le numéro de
+-- projet doit atteindre toutes les fiches qui ne s'en sont pas écartées
+-- volontairement, sans les rouvrir une à une.
+--
+-- `purchase_order` existait déjà : il portait la saisie d'avant le passage du
+-- champ au chantier, et prend désormais ce rôle d'écart.
+
+alter table public.points
+  add column project_code text,
+  add column project_name text;
+
+comment on column public.points.project_code is
+  'Écart au numéro de projet du chantier. Nul : la fiche suit projects.code.';
+comment on column public.points.project_name is
+  'Écart à l''intitulé du chantier. Nul : la fiche suit projects.name.';
+comment on column public.points.purchase_order is
+  'Écart au Purchase Order du chantier. Nul : la fiche suit '
+  'projects.purchase_order.';
+
+-- >>>>>>>>>>>>>>>>>>>>  supabase/migrations/20261003140000_delete_project.sql  <<<<<<<<<<<<<<<<<<<<
+
+-- =============================================================================
+-- Supprimer un chantier l'efface pour de bon
+-- =============================================================================
+--
+-- Partout ailleurs la suppression est logique (`deleted_at`). Pas ici, à la
+-- demande du bureau : supprimer un chantier retire **définitivement** le
+-- chantier, ses affectations, ses traversées et leurs clichés.
+--
+-- Un DELETE physique a deux conséquences que `deleted_at` évitait, et cette
+-- migration les traite toutes les deux :
+--
+--  1. Une ligne effacée ne redescend plus. Les autres appareils, qui tirent
+--     par `synced_at`, ne sauraient jamais que le chantier a disparu et le
+--     garderaient affiché. D'où `deleted_projects`, la **trace** de chaque
+--     suppression : elle descend comme une entité ordinaire, et l'appareil
+--     qui la reçoit efface le chantier de sa base locale.
+--
+--  2. Un appareil resté hors ligne repousserait sa copie, et le chantier
+--     ressusciterait. La même trace l'interdit : un chantier ou une traversée
+--     qui la désigne est écarté à l'arrivée, sans erreur.
+
+create table public.deleted_projects (
+  id         uuid primary key,
+  deleted_at timestamptz not null default now(),
+  synced_at  timestamptz not null default clock_timestamp()
+);
+
+comment on table public.deleted_projects is
+  'Trace des chantiers supprimés définitivement. Descend vers les appareils, '
+  'qui purgent alors leur copie ; interdit aussi le retour du chantier.';
+
+create index deleted_projects_synced_at_idx
+  on public.deleted_projects (synced_at);
+
+alter table public.deleted_projects enable row level security;
+
+-- Lisible par tout compte connecté : la ligne ne porte qu'un identifiant, et
+-- un technicien doit l'obtenir pour un chantier dont il vient d'être écarté
+-- par la suppression même. Aucune policy d'écriture : seule `delete_project`,
+-- en `security definer`, y inscrit quelque chose.
+create policy deleted_projects_select on public.deleted_projects
+  for select to authenticated
+  using (true);
+
+-- -----------------------------------------------------------------------------
+-- La suppression
+-- -----------------------------------------------------------------------------
+--
+-- Une fonction et non des DELETE envoyés par le client : cinq tables à vider
+-- dans l'ordre des clés étrangères, en **une** transaction. Interrompue au
+-- milieu, une suite de requêtes laisserait un chantier à moitié effacé.
+--
+-- `security definer` parce qu'aucune policy DELETE n'existe, et qu'il n'en
+-- faut pas : effacer reste impossible par toute autre voie. Le contrôle du
+-- rôle est donc fait ici, à la main.
+--
+-- Les fichiers des clichés ne sont pas des lignes : le client les retire du
+-- bucket **avant** d'appeler cette fonction, tant que `photos` dit encore
+-- lesquels ils sont.
+
+create or replace function public.delete_project(p_project uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Seul un administrateur peut supprimer un chantier'
+      using errcode = 'insufficient_privilege';
+  end if;
+
+  -- La trace d'abord : dès cet instant, rien ne peut plus réinscrire le
+  -- chantier ni ses traversées.
+  insert into public.deleted_projects (id) values (p_project)
+  on conflict (id) do nothing;
+
+  delete from public.photos
+   where point_id in (select id from public.points where project_id = p_project);
+  delete from public.points          where project_id = p_project;
+  delete from public.project_members where project_id = p_project;
+  delete from public.reports         where project_id = p_project;
+  delete from public.projects        where id = p_project;
+end;
+$$;
+
+-- Voir la migration `revoke_anon_helpers` : une fonction `security definer`
+-- de `public` est une route `/rpc/` ouverte à `anon` par défaut.
+revoke execute on function public.delete_project(uuid) from public, anon;
+grant  execute on function public.delete_project(uuid) to authenticated, service_role;
+
+-- -----------------------------------------------------------------------------
+-- Pas de retour d'un chantier supprimé
+-- -----------------------------------------------------------------------------
+--
+-- `return null` et non une exception : l'écriture est écartée en silence,
+-- comme une écriture périmée (`reject_stale_write`). L'appareil qui la
+-- poussait la tient pour envoyée, sa file avance, et la trace qu'il reçoit à
+-- la descente suivante efface le reste. Une exception laisserait l'envoi en
+-- échec définitif sur la tablette, à réclamer une intervention pour un relevé
+-- qui n'a plus lieu d'être.
+
+create or replace function public.drop_if_project_deleted()
+returns trigger
+language plpgsql
+-- `security invoker` : la lecture de `deleted_projects` est ouverte à tout
+-- compte connecté.
+as $$
+declare
+  -- Par le JSON de la ligne et non `new.project_id` : PL/pgSQL résout chaque
+  -- champ nommé à l'exécution, y compris dans la branche non prise, et
+  -- `projects` n'a pas de colonne `project_id`. Le banc d'essai l'a montré.
+  chantier uuid := (to_jsonb(new) ->> case tg_table_name
+                                        when 'projects' then 'id'
+                                        else 'project_id'
+                                      end)::uuid;
+begin
+  if exists (select 1 from public.deleted_projects where id = chantier) then
+    return null;
+  end if;
+  return new;
+end;
+$$;
+
+-- Noms choisis pour passer **avant** les autres triggers de la table, qui se
+-- déclenchent par ordre alphabétique : inutile de vérifier l'auteur d'une
+-- traversée qu'on va écarter.
+create trigger projects_drop_if_deleted
+  before insert on public.projects
+  for each row execute function public.drop_if_project_deleted();
+create trigger points_drop_if_project_deleted
+  before insert on public.points
+  for each row execute function public.drop_if_project_deleted();
+create trigger project_members_drop_if_project_deleted
+  before insert on public.project_members
+  for each row execute function public.drop_if_project_deleted();
+
+-- -----------------------------------------------------------------------------
+-- Les fichiers
+-- -----------------------------------------------------------------------------
+--
+-- Aucune policy DELETE n'existait sur le stockage : les fichiers ne
+-- s'effaçaient jamais. Un administrateur peut désormais retirer les clichés
+-- et l'ancien rapport PDF d'un chantier — et lui seul.
+
+create policy point_photos_delete_admin on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'point-photos' and public.is_admin());
+
+create policy reports_delete_admin on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'reports' and public.is_admin());

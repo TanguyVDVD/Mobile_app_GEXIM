@@ -49,6 +49,31 @@ class SettingsDao extends DatabaseAccessor<AppDatabase>
       ]);
   }
 
+  /// Produits vivants d'un fournisseur, dans l'ordre voulu par
+  /// l'administrateur.
+  ///
+  /// [supplierId] à `null` rend les produits **sans fournisseur** : ceux d'un
+  /// catalogue antérieur au rattachement, que la fiche ne propose plus nulle
+  /// part et que l'écran Paramètres donne à rattacher.
+  Stream<List<SettingOption>> watchProducts(String? supplierId) =>
+      _productsQuery(supplierId).watch();
+
+  MultiSelectable<SettingOption> _productsQuery(String? supplierId) {
+    return select(settingOptions)
+      ..where(
+        (t) =>
+            t.kind.equalsValue(SettingKind.product) &
+            t.deletedAt.isNull() &
+            (supplierId == null
+                ? t.parentId.isNull()
+                : t.parentId.equals(supplierId)),
+      )
+      ..orderBy([
+        (t) => OrderingTerm.asc(t.sortOrder),
+        (t) => OrderingTerm.asc(t.label),
+      ]);
+  }
+
   /// Libellé de **toutes** les options, y compris supprimées.
   ///
   /// Le rapport passe par ici, et c'est la raison d'être du « y compris
@@ -77,15 +102,33 @@ class SettingsDao extends DatabaseAccessor<AppDatabase>
   // ---------------------------------------------------------------------------
 
   /// Ajoute une option en fin de liste.
+  ///
+  /// [supplierId] est exigé pour un produit et refusé ailleurs : un produit
+  /// sans fournisseur ne serait proposé sur aucune fiche, et le serveur
+  /// rejette un parent sur toute autre liste — mais à la synchronisation
+  /// seulement, bien après le geste.
   Future<String> create({
     required SettingKind kind,
     required String label,
+    String? supplierId,
   }) async {
+    if ((kind == SettingKind.product) != (supplierId != null)) {
+      throw ArgumentError.value(
+        supplierId,
+        'supplierId',
+        'Un produit, et lui seul, désigne un fournisseur',
+      );
+    }
+
     final row = SettingOption(
       id: newId(),
       kind: kind,
       label: label,
+      // Le rang est pris sur toute la liste des produits, tous fournisseurs
+      // confondus : seul l'ordre relatif compte, et il reste juste si le
+      // produit change un jour de fournisseur.
       sortOrder: await _nextSortOrder(kind),
+      parentId: supplierId,
       updatedAt: DateTime.now(),
       deletedAt: null,
     );
@@ -98,7 +141,26 @@ class SettingsDao extends DatabaseAccessor<AppDatabase>
     await _persist(current.copyWith(label: label, updatedAt: DateTime.now()));
   }
 
+  /// Rattache un produit à un fournisseur.
+  ///
+  /// Sert aux produits restés sans fournisseur, et à corriger une erreur de
+  /// rattachement. Les fiches qui désignent ce produit ne sont pas touchées :
+  /// elles gardent leur fournisseur et leur produit, tels que relevés.
+  Future<void> attach(String productId, String supplierId) async {
+    final current = await _byId(productId);
+    if (current.kind != SettingKind.product) {
+      throw ArgumentError.value(productId, 'productId', 'Pas un produit');
+    }
+    await _persist(
+      current.copyWith(parentId: Value(supplierId), updatedAt: DateTime.now()),
+    );
+  }
+
   /// Réordonne une liste entière : l'ordre du tableau devient le `sortOrder`.
+  ///
+  /// Pour les produits, [idsInOrder] est la liste d'**un** fournisseur : les
+  /// rangs se recouvrent d'un fournisseur à l'autre, sans conséquence
+  /// puisqu'ils ne sont jamais affichés ensemble.
   ///
   /// La liste complète plutôt qu'un échange de deux voisins : un « monter d'un
   /// cran » écrit deux lignes et laisse la liste incohérente si l'appareil

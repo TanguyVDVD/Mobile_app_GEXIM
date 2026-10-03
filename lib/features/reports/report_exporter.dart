@@ -2,7 +2,9 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:printing/printing.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/plateforme.dart';
 
@@ -26,28 +28,25 @@ class ExportAnnule extends ResultatExport {
   const ExportAnnule();
 }
 
-/// Le dossier est en lecture seule, le disque plein, le fichier ouvert dans un
-/// lecteur PDF qui le verrouille — cas courant quand on régénère un rapport.
+/// Le dossier est en lecture seule, le disque plein, le fichier ouvert dans
+/// Excel qui le verrouille — cas courant quand on régénère un classeur.
 class ExportEchoue extends ResultatExport {
   const ExportEchoue(this.raison);
 
   final String raison;
 }
 
-/// Sortie du rapport hors de l'application.
+/// Sortie du classeur hors de l'application.
 ///
 /// Deux gestes différents pour deux postes de travail, et non un réglage :
 ///
-///  * sur **tablette**, il n'y a pas d'arborescence à proposer. Le rapport part
-///    par le sélecteur de partage du système — courriel, Drive, l'imprimante du
-///    bureau — c'est le seul geste qui ait un sens là-bas.
-///  * sur **PC**, l'administrateur clôture un chantier et range le document
-///    dans le dossier client, celui que son classement impose. Lui imposer un
+///  * sur **tablette**, il n'y a pas d'arborescence à proposer. Le classeur
+///    part par le sélecteur de partage du système — courriel, Drive — c'est le
+///    seul geste qui ait un sens là-bas.
+///  * sur **PC**, l'administrateur range le document dans le dossier client,
+///    celui que son classement impose, et l'ouvre dans Excel. Lui imposer un
 ///    emplacement, puis lui demander de retrouver le fichier pour le déplacer,
 ///    serait un détour pour rien.
-///
-/// Le dépôt sur le serveur (`ReportService.publish`) reste indépendant des
-/// deux : il vise l'archive, pas le poste de travail.
 abstract interface class ReportExporter {
   /// Vrai si [enregistrer] ouvre un sélecteur d'emplacement.
   ///
@@ -64,6 +63,10 @@ abstract interface class ReportExporter {
       Plateforme.enregistrementLocalDisponible
           ? const ExportVersLeDisque()
           : const ExportParPartage();
+
+  /// Classeur Excel **avec macros** : le modèle du bureau porte du VBA.
+  static const extension = 'xlsm';
+  static const typeMime = 'application/vnd.ms-excel.sheet.macroEnabled.12';
 }
 
 /// Bureau : sélecteur d'emplacement natif, puis écriture.
@@ -85,10 +88,10 @@ class ExportVersLeDisque implements ReportExporter {
       // sans distinguer un disque plein d'une annulation. On écrit donc nous
       // mêmes, pour pouvoir dire ce qui a échoué.
       chemin = await FilePicker.platform.saveFile(
-        dialogTitle: 'Enregistrer le rapport',
+        dialogTitle: 'Enregistrer le classeur',
         fileName: nomPropose,
         type: FileType.custom,
-        allowedExtensions: const ['pdf'],
+        allowedExtensions: const [ReportExporter.extension],
         // Le sélecteur doit rester modal au-dessus de la fenêtre : sans cela il
         // peut s'ouvrir derrière, et l'application paraît figée.
         lockParentWindow: true,
@@ -100,16 +103,18 @@ class ExportVersLeDisque implements ReportExporter {
     if (chemin == null) return const ExportAnnule();
 
     // Certains sélecteurs rendent le nom sans suffixe quand l'utilisateur l'a
-    // effacé. Un rapport de conformité qui n'a pas d'extension ne s'ouvre pas
-    // d'un double-clic, et se retrouve mal à la recherche.
-    if (!chemin.toLowerCase().endsWith('.pdf')) chemin = '$chemin.pdf';
+    // effacé. Sans extension le classeur ne s'ouvre pas d'un double-clic — et
+    // enregistré en `.xlsx`, Excel le refuserait : il contient des macros.
+    if (!chemin.toLowerCase().endsWith('.${ReportExporter.extension}')) {
+      chemin = '$chemin.${ReportExporter.extension}';
+    }
 
     try {
       await File(chemin).writeAsBytes(octets, flush: true);
       return ExportReussi(chemin);
     } on FileSystemException catch (e) {
-      // Cas le plus fréquent en pratique : le rapport précédent est encore
-      // ouvert dans un lecteur PDF, qui verrouille le fichier.
+      // Cas le plus fréquent en pratique : le classeur précédent est encore
+      // ouvert dans Excel, qui verrouille le fichier.
       return ExportEchoue(e.osError?.message ?? e.message);
     }
   }
@@ -128,10 +133,21 @@ class ExportParPartage implements ReportExporter {
     required Uint8List octets,
   }) async {
     try {
-      await Printing.sharePdf(bytes: octets, filename: nomPropose);
-      // Le système ne dit pas ce que l'utilisateur a choisi, ni s'il a
-      // renoncé. Rien à annoncer : la feuille de partage est sa propre
-      // confirmation.
+      // Le partage système veut un fichier, pas des octets. Le dossier
+      // temporaire est le bon endroit : Android le vide de lui-même, et le
+      // classeur se régénère à l'identique.
+      final dossier = await getTemporaryDirectory();
+      final fichier = File(p.join(dossier.path, nomPropose));
+      await fichier.writeAsBytes(octets, flush: true);
+
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(fichier.path, mimeType: ReportExporter.typeMime)],
+        ),
+      );
+      // Le système ne dit pas de façon fiable ce que l'utilisateur a choisi,
+      // ni s'il a renoncé. Rien à annoncer : la feuille de partage est sa
+      // propre confirmation.
       return const ExportAnnule();
     } on Object catch (e) {
       return ExportEchoue('$e');

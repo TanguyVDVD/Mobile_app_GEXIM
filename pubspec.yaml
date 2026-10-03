@@ -1,7 +1,7 @@
 name: firestop_tracker
 description: Recensement, photographie et documentation des calfeutrements sur chantier.
 publish_to: none
-version: 0.1.0+1
+version: 0.2.3+5
 
 environment:
   sdk: ^3.5.0
@@ -10,14 +10,11 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # --- Rendu des rapports ---
-  # Package Dart pur : la mise en page n'est écrite qu'une fois, et le même
-  # code pourra tourner dans un conteneur serveur.
-  firestop_report:
-    path: packages/firestop_report
-  # Plugin Flutter, complément de `pdf` : aperçu, impression et partage. Il
-  # reste ici, hors du package, qui doit pouvoir tourner sans Flutter.
-  printing: ^5.13.0
+  # --- Classeur Excel des fiches AS BUILT ---
+  # Package Dart pur : il remplit le modèle du bureau, une feuille par
+  # traversée, sans rien connaître de Flutter ni de la base.
+  firestop_excel:
+    path: packages/firestop_excel
 
   # --- Base locale : source de vérité de l'application ---
   drift: ^2.20.0
@@ -52,14 +49,14 @@ dependencies:
   flutter_image_compress: ^2.3.0
 
   # Repli de réduction JPEG pour Windows et Linux : Dart pur, donc partout.
-  # Déjà présent en dépendance transitive de `printing` ; déclaré ici parce que
-  # `ReductionDart` l'importe directement. Voir `lib/features/capture/reduction_jpeg.dart`.
+  # Voir `lib/features/capture/reduction_jpeg.dart`.
   image: ^4.5.0
 
   # --- Utilitaires ---
   uuid: ^4.5.1
   connectivity_plus: ^6.0.5
   crypto: ^3.0.5
+  share_plus: ^12.0.2
 
 dev_dependencies:
   flutter_test:
@@ -70,19 +67,16 @@ dev_dependencies:
   # `MockClient` : simuler une panne réseau sous `GoTrueClient`, sans réseau.
   # Déjà présent en dépendance transitive de `supabase_flutter`.
   http: ^1.2.0
+  archive: ^4.3.0
 
 flutter:
   uses-material-design: true
 
   assets:
-    # Polices Unicode du rapport PDF. Le dossier est déclaré même s'il ne
-    # contient encore que sa notice : `ReportService` cherche les TTF et se
-    # rabat sur Helvetica si elles manquent. Voir assets/fonts/README.md.
-    - assets/fonts/
-
-    # Formulaire « Resserrage RF — Fiche AS BUILT », fond de chaque page du
-    # rapport. Déclaré à la racine plutôt que recopié sous assets/ : deux
-    # exemplaires du même document finiraient par diverger, et c'est celui-ci
-    # que l'on retouche. Les coordonnées des cases sont relevées dessus, dans
-    # `AsBuiltBuilder` — toute modification de l'image impose de les reprendre.
-    - template_rapport.png
+    # Modèle du classeur « AS BUILT Resserrages RF », avec ses macros et ses
+    # listes déroulantes. Déclaré à la racine plutôt que recopié sous assets/ :
+    # deux exemplaires du même document finiraient par diverger, et c'est
+    # celui-ci que le bureau retouche. Les emplacements des valeurs y sont
+    # relevés, dans `AsBuiltWorkbook` — toute modification du modèle impose de
+    # relancer les tests du package `firestop_excel`.
+    - AS_BUILT_Resserages_RF_model_vierge.xlsm

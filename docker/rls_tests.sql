@@ -235,8 +235,16 @@ rollback;
 \echo '=== Numerotation des points ==='
 
 -- -----------------------------------------------------------------------------
--- 7. Numéros attribués par le serveur, stables au rejeu
+-- 7. Le numéro de point est celui que le technicien a saisi
 -- -----------------------------------------------------------------------------
+--
+-- Il etait attribue ici par un trigger. S'il en restait un, le numero saisi
+-- sur la tablette serait ecrase a l'arrivee, sans erreur : la fiche et le
+-- rapport ne porteraient plus le reperage du chantier.
+--
+-- Et un doublon doit **passer**. Deux techniciens hors ligne peuvent saisir le
+-- meme numero ; une contrainte d'unicite ferait refuser le second releve, qui
+-- resterait bloque sur sa tablette. L'application signale le doublon.
 
 begin;
 select set_config('request.jwt.claims',
@@ -247,39 +255,48 @@ do $$
 declare
   p1 uuid := gen_random_uuid();
   p2 uuid := gen_random_uuid();
-  numeros integer[];
-  apres integer;
+  p3 uuid := gen_random_uuid();
+  lu integer;
 begin
   insert into public.points
-    (id, project_id, author_id, captured_at, updated_at)
+    (id, project_id, ref_number, author_id, captured_at, updated_at)
   values
-    (p1, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    (p1, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 47,
      '22222222-2222-4222-8222-222222222222', now(), now()),
-    (p2, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    (p2, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', null,
      '22222222-2222-4222-8222-222222222222', now(), now());
 
-  select array_agg(ref_number order by ref_number)
-    into numeros from public.points where id in (p1, p2);
+  select ref_number into lu from public.points where id = p1;
+  assert lu = 47,
+    format('REGRESSION: numero saisi 47, enregistre %s', lu);
 
-  assert numeros = array[1, 2],
-    format('REGRESSION: numeros attribues = %s', numeros);
+  select ref_number into lu from public.points where id = p2;
+  assert lu is null,
+    format('REGRESSION: une fiche sans numero en a recu un (%s)', lu);
 
-  -- Rejeu d'un upsert dont l'accuse de reception s'est perdu.
+  -- La correction du technicien arrive par upsert, comme tout le reste.
   insert into public.points
-    (id, project_id, author_id, description, captured_at, updated_at)
+    (id, project_id, ref_number, author_id, captured_at, updated_at)
   values
-    (p1, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-     '22222222-2222-4222-8222-222222222222',
-     'Description corrigee', now(), now() + interval '1 minute')
+    (p1, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 12,
+     '22222222-2222-4222-8222-222222222222', now(),
+     now() + interval '1 minute')
   on conflict (id) do update set
-    description = excluded.description,
-    updated_at  = excluded.updated_at;
+    ref_number = excluded.ref_number,
+    updated_at = excluded.updated_at;
 
-  select ref_number into apres from public.points where id = p1;
-  assert apres = 1,
-    format('REGRESSION: le rejeu a renumerote le point (%s au lieu de 1)', apres);
+  select ref_number into lu from public.points where id = p1;
+  assert lu = 12,
+    format('REGRESSION: numero corrige en 12, enregistre %s', lu);
 
-  raise notice 'OK   numeros sequentiels, stables au rejeu';
+  -- Le doublon passe.
+  insert into public.points
+    (id, project_id, ref_number, author_id, captured_at, updated_at)
+  values
+    (p3, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 12,
+     '22222222-2222-4222-8222-222222222222', now(), now());
+
+  raise notice 'OK   numero de point : saisi, corrigeable, doublon accepte';
 end
 $$;
 rollback;
@@ -1025,6 +1042,232 @@ begin
   raise notice 'OK   logos clients : PNG et JPEG uniquement';
 end
 $$;
+
+-- -----------------------------------------------------------------------------
+-- 27. Le parent d'un produit est un fournisseur, et rien d'autre n'a de parent
+-- -----------------------------------------------------------------------------
+--
+-- La fiche ne propose que les produits du fournisseur choisi. Un produit
+-- rattache a un niveau EI, ou un niveau EI rattache a un fournisseur, ne
+-- leverait aucune erreur cote application : il ne serait simplement propose
+-- nulle part.
+
+begin;
+
+do $$
+declare
+  fournisseur uuid;
+  niveau      uuid;
+  refuse      boolean;
+begin
+  select id into fournisseur from public.setting_options
+   where kind = 'supplier' limit 1;
+  select id into niveau from public.setting_options
+   where kind = 'ei_level' limit 1;
+
+  -- Le cas nominal passe.
+  insert into public.setting_options
+    (id, kind, label, sort_order, parent_id, updated_at)
+  values ('f5f5f5f5-f5f5-4f5f-8f5f-f5f5f5f5f5f5', 'product', 'Produit Test',
+          0, fournisseur, now());
+
+  refuse := false;
+  begin
+    insert into public.setting_options
+      (id, kind, label, sort_order, parent_id, updated_at)
+    values ('f6f6f6f6-f6f6-4f6f-8f6f-f6f6f6f6f6f6', 'product', 'Mal range',
+            0, niveau, now());
+  exception when check_violation then
+    refuse := true;
+  end;
+  assert refuse,
+    'REGRESSION: un produit a pu designer autre chose qu''un fournisseur';
+
+  refuse := false;
+  begin
+    insert into public.setting_options
+      (id, kind, label, sort_order, parent_id, updated_at)
+    values ('f7f7f7f7-f7f7-4f7f-8f7f-f7f7f7f7f7f7', 'ei_level', 'EI45',
+            0, fournisseur, now());
+  exception when check_violation then
+    refuse := true;
+  end;
+  assert refuse,
+    'REGRESSION: une option qui n''est pas un produit a recu un fournisseur';
+
+  raise notice 'OK   produit : son parent est un fournisseur';
+end
+$$;
+rollback;
+
+-- -----------------------------------------------------------------------------
+-- 28. Le catalogue initial est rattache a son fournisseur
+-- -----------------------------------------------------------------------------
+--
+-- Un produit sans fournisseur n'est propose sur aucune fiche. Si la migration
+-- laissait le catalogue initial orphelin, une installation neuve offrirait
+-- cinq listes « Produit utilise » vides, sans le moindre message.
+
+do $$
+declare orphelins integer; rattaches integer;
+begin
+  select count(*) filter (where parent_id is null),
+         count(*) filter (where parent_id is not null)
+    into orphelins, rattaches
+    from public.setting_options
+   where kind = 'product';
+
+  assert orphelins = 0 and rattaches > 0,
+    format('REGRESSION: %s produits du catalogue initial sans fournisseur '
+           '(%s rattaches)', orphelins, rattaches);
+  raise notice 'OK   catalogue initial rattache a son fournisseur';
+end
+$$;
+
+-- -----------------------------------------------------------------------------
+-- 29. Un visiteur sans session n'appelle pas les fonctions des policies
+-- -----------------------------------------------------------------------------
+--
+-- Elles sont en `security definer` et exposees sous /rpc/ : sans ce retrait,
+-- la seule cle publique de l'APK suffit a demander le chantier d'une
+-- traversee, RLS contournee. Un compte connecte, lui, doit garder l'acces :
+-- ses policies en dependent, et le refus couperait toute lecture.
+
+begin;
+set local role anon;
+
+do $$
+declare
+  f text;
+  refuse boolean;
+begin
+  foreach f in array array[
+    'select public.is_admin()',
+    'select public.point_project(''cafe4444-4444-4444-8444-444444444444'')',
+    'select public.project_is_open(''bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'')',
+    'select public.is_project_member(''bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'')',
+    'select public.can_write_project(''bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'')',
+    'select public.can_see_client(''aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'')',
+    'select public.can_see_profile(''11111111-1111-4111-8111-111111111111'')'
+  ] loop
+    refuse := false;
+    begin
+      execute f;
+    exception when insufficient_privilege then
+      refuse := true;
+    end;
+    assert refuse, format('FAILLE: un visiteur anonyme a execute « %s »', f);
+  end loop;
+  raise notice 'OK   fonctions des policies : fermees au role anon';
+end
+$$;
+rollback;
+
+begin;
+select set_config('request.jwt.claims',
+  '{"sub":"22222222-2222-4222-8222-222222222222"}', true);
+set local role authenticated;
+
+do $$
+begin
+  assert public.is_project_member('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
+    'REGRESSION: un technicien affecte ne peut plus evaluer ses policies';
+  raise notice 'OK   fonctions des policies : ouvertes aux comptes connectes';
+end
+$$;
+rollback;
+
+-- -----------------------------------------------------------------------------
+-- 30. Supprimer un chantier l'efface pour de bon, et il ne revient pas
+-- -----------------------------------------------------------------------------
+--
+-- Le seul DELETE physique de l'application. Trois choses a prouver : tout est
+-- parti, un technicien ne peut pas le declencher, et un appareil reste hors
+-- ligne ne ressuscite ni le chantier ni ses traversees.
+
+begin;
+
+insert into public.points
+  (id, project_id, author_id, captured_at, updated_at)
+values
+  ('dead1111-1111-4111-8111-111111111111',
+   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+   '22222222-2222-4222-8222-222222222222', now(), now());
+
+-- Un technicien affecte : refuse.
+select set_config('request.jwt.claims',
+  '{"sub":"22222222-2222-4222-8222-222222222222"}', true);
+set local role authenticated;
+
+do $$
+declare refuse boolean := false;
+begin
+  begin
+    perform public.delete_project('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+  exception when insufficient_privilege then
+    refuse := true;
+  end;
+  assert refuse, 'FAILLE: un technicien a supprime un chantier';
+  assert exists (select 1 from public.projects
+                  where id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
+    'FAILLE: le chantier a disparu malgre le refus';
+  raise notice 'OK   suppression de chantier : refusee a un technicien';
+end
+$$;
+
+-- L'administrateur : tout part.
+reset role;
+select set_config('request.jwt.claims',
+  '{"sub":"11111111-1111-4111-8111-111111111111"}', true);
+set local role authenticated;
+
+do $$
+declare restes integer; revenus integer;
+begin
+  perform public.delete_project('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+
+  select (select count(*) from public.projects
+           where id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
+       + (select count(*) from public.points
+           where project_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
+       + (select count(*) from public.project_members
+           where project_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
+    into restes;
+  assert restes = 0,
+    format('REGRESSION: %s lignes du chantier subsistent', restes);
+
+  assert exists (select 1 from public.deleted_projects
+                  where id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
+    'REGRESSION: aucune trace de la suppression — les autres appareils '
+    'garderaient le chantier';
+
+  -- Un appareil reste hors ligne repousse sa copie : ecartee, sans erreur.
+  insert into public.projects
+    (id, client_id, name, created_at, updated_at)
+  values
+    ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Revenant', now(), now())
+  on conflict (id) do update set name = excluded.name;
+  insert into public.points
+    (id, project_id, author_id, captured_at, updated_at)
+  values
+    ('dead2222-2222-4222-8222-222222222222',
+     'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+     '11111111-1111-4111-8111-111111111111', now(), now())
+  on conflict (id) do update set updated_at = excluded.updated_at;
+
+  select (select count(*) from public.projects
+           where id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
+       + (select count(*) from public.points
+           where project_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
+    into revenus;
+  assert revenus = 0,
+    'REGRESSION: un chantier supprime est revenu par une ecriture tardive';
+
+  raise notice 'OK   suppression de chantier : definitive, sans retour';
+end
+$$;
+rollback;
 
 \echo ''
 \echo 'Tous les tests sont passes.'

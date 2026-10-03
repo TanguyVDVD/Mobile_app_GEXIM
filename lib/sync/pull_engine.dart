@@ -3,6 +3,7 @@ import 'package:sqlite3/common.dart' show SqliteException;
 
 import '../database/database.dart';
 import '../database/tables/enums.dart';
+import '../features/capture/photo_storage.dart';
 import 'payloads.dart';
 import 'remote_gateway.dart';
 
@@ -141,7 +142,14 @@ class PullEngine {
         _upsert(_db.projectMembers, projectMemberFromRemote(row)),
       PullEntity.point => _upsert(_db.points, pointFromRemote(row)),
       PullEntity.photo => _upsert(_db.photos, photoFromRemote(row)),
+      PullEntity.deletedProject => _purger(row['id'] as String),
     };
+  }
+
+  /// Un chantier a été supprimé définitivement : cet appareil efface sa copie,
+  /// fichiers de clichés compris. Sans effet si le chantier n'y est pas.
+  Future<void> _purger(String projectId) async {
+    await PhotoStorage.effacer(await _db.projectDao.purgeProject(projectId));
   }
 
   /// Insère, ou met à jour **seulement si la version reçue est plus récente**.

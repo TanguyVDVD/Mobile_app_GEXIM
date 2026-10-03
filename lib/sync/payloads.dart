@@ -68,6 +68,8 @@ Map<String, Object?> projectPayload(Project row) => {
       'id': row.id,
       'client_id': row.clientId,
       'code': row.code,
+      'purchase_order': row.purchaseOrder,
+      'building': row.building,
       'name': row.name,
       'description': row.description,
       'started_on': _isoOrNull(row.startedOn),
@@ -92,6 +94,7 @@ Map<String, Object?> settingOptionPayload(SettingOption row) => {
       'kind': row.kind.wire,
       'label': row.label,
       'sort_order': row.sortOrder,
+      'parent_id': row.parentId,
       'updated_at': _iso(row.updatedAt),
       'deleted_at': _isoOrNull(row.deletedAt),
     };
@@ -99,6 +102,8 @@ Map<String, Object?> settingOptionPayload(SettingOption row) => {
 Map<String, Object?> pointPayload(Point row) => {
       'id': row.id,
       'project_id': row.projectId,
+      'project_code': row.projectCode,
+      'project_name': row.projectName,
       'purchase_order': row.purchaseOrder,
       'building': row.building,
       'floor_level': row.floorLevel,
@@ -118,9 +123,9 @@ Map<String, Object?> pointPayload(Point row) => {
       'captured_at': _iso(row.capturedAt),
       'updated_at': _iso(row.updatedAt),
       'deleted_at': _isoOrNull(row.deletedAt),
-      // `ref_number` est délibérément absent : le numéro définitif est attribué
-      // par une séquence Postgres au moment de la synchro. L'envoyer laisserait
-      // deux appareils hors-ligne écraser mutuellement leur « point 47 ».
+      // Saisi par le technicien, donc transmis comme tout autre champ. Il
+      // était auparavant attribué par le serveur et absent d'ici.
+      'ref_number': row.refNumber,
     };
 
 /// Métadonnée d'une photo — jamais son binaire.
@@ -226,6 +231,8 @@ ProjectsCompanion projectFromRemote(Map<String, dynamic> row) =>
       id: Value(row['id'] as String),
       clientId: Value(row['client_id'] as String),
       code: Value(row['code'] as String?),
+      purchaseOrder: Value(row['purchase_order'] as String?),
+      building: Value(row['building'] as String?),
       name: Value(row['name'] as String),
       description: Value(row['description'] as String?),
       startedOn: Value(_parseTsOrNull(row['started_on'])),
@@ -251,6 +258,7 @@ SettingOptionsCompanion settingOptionFromRemote(Map<String, dynamic> row) =>
       kind: Value(settingKindFromWire(row['kind'] as String)),
       label: Value(row['label'] as String),
       sortOrder: Value(row['sort_order'] as int? ?? 0),
+      parentId: Value(row['parent_id'] as String?),
       updatedAt: Value(_parseTs(row['updated_at'])),
       deletedAt: Value(_parseTsOrNull(row['deleted_at'])),
     );
@@ -258,8 +266,9 @@ SettingOptionsCompanion settingOptionFromRemote(Map<String, dynamic> row) =>
 PointsCompanion pointFromRemote(Map<String, dynamic> row) => PointsCompanion(
       id: Value(row['id'] as String),
       projectId: Value(row['project_id'] as String),
-      // Le numéro définitif redescend ici, et remplace le provisoire affiché.
       refNumber: Value(row['ref_number'] as int?),
+      projectCode: Value(row['project_code'] as String?),
+      projectName: Value(row['project_name'] as String?),
       purchaseOrder: Value(row['purchase_order'] as String?),
       building: Value(row['building'] as String?),
       floorLevel: Value(row['floor_level'] as int?),

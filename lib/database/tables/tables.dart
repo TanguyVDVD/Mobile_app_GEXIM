@@ -88,6 +88,18 @@ class Projects extends Table {
   /// chantier se crée sur le terrain avant que l'administratif ne suive.
   TextColumn get code => text().nullable()();
 
+  /// Bon de commande du client, reporté sur chaque fiche du rapport (ligne
+  /// « Purchase Order »). Saisi ici et non sur les traversées, pour la même
+  /// raison que [code] : un seul endroit où le corriger.
+  TextColumn get purchaseOrder => text().nullable()();
+
+  /// Bâtiment proposé **par défaut** à chaque nouvelle traversée.
+  ///
+  /// Une valeur de départ, pas une valeur partagée : elle est recopiée dans
+  /// `Points.building` à la création, où elle reste modifiable. La changer ici
+  /// ne réécrit donc pas les traversées déjà relevées.
+  TextColumn get building => text().nullable()();
+
   TextColumn get name => text().withLength(min: 1, max: 200)();
   TextColumn get description => text().nullable()();
   DateTimeColumn get startedOn => dateTime().nullable()();
@@ -148,6 +160,18 @@ class SettingOptions extends Table {
   /// et les configurations ont un ordre métier que l'administrateur connaît.
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
+  /// Fournisseur d'un produit ; `null` pour toute autre liste.
+  ///
+  /// **Sans clause `REFERENCES`, et c'est délibéré** — la seule colonne du
+  /// schéma dans ce cas. La descente trie par `synced_at`, et un fournisseur
+  /// renommé après la création de ses produits porte un `synced_at` plus récent
+  /// qu'eux : sur une tablette neuve, le produit arriverait toujours avant son
+  /// parent. `PullEngine._parentManquant` le différerait, le curseur
+  /// n'avancerait pas, et le cycle suivant buterait sur la même ligne — la
+  /// descente des listes serait figée pour de bon. Le serveur, lui, porte la
+  /// clé étrangère.
+  TextColumn get parentId => text().nullable()();
+
   DateTimeColumn get updatedAt => dateTime()();
   DateTimeColumn get deletedAt => dateTime().nullable()();
 
@@ -162,17 +186,39 @@ class Points extends Table {
   TextColumn get projectId =>
       text().customConstraint('NOT NULL REFERENCES projects(id)')();
 
-  /// Numéro **définitif**, attribué par une séquence Postgres à la synchro.
+  /// Numéro de la traversée, **saisi par le technicien**.
   ///
-  /// Volontairement nullable. Deux opérateurs hors-ligne créeraient tous deux
-  /// le « point 47 » : impossible de trancher localement. Tant que ce champ est
-  /// `null`, l'UI affiche un numéro provisoire déduit du rang de création dans
-  /// le projet — l'ordre par `id` suffit, les UUID v7 étant chronologiques.
-  /// Aucune colonne supplémentaire n'est donc nécessaire.
+  /// Il suit le repérage du chantier — plans, étiquettes posées sur place. La
+  /// création propose le suivant du plus grand numéro connu de l'appareil,
+  /// modifiable. Nullable : une fiche peut rester sans numéro le temps de la
+  /// saisie.
+  ///
+  /// **Aucune unicité n'est imposée**, ni ici ni sur le serveur. Deux
+  /// techniciens hors ligne peuvent saisir le même numéro ; une contrainte
+  /// ferait refuser le second relevé à la synchronisation. Le doublon est
+  /// signalé sur la fiche (`PointDao.watchRefNumberTaken`).
   IntColumn get refNumber => integer().nullable()();
 
-  /// Bon de commande du client. Terme anglais conservé : c'est celui qui figure
-  /// sur les pièces contractuelles comme sur le gabarit du rapport.
+  // ---------------------------------------------------------------------------
+  // Écarts au chantier
+  // ---------------------------------------------------------------------------
+  //
+  // Numéro de projet, intitulé et Purchase Order se saisissent sur le chantier
+  // et se reportent sur chaque fiche — où ils restent modifiables, au cas où.
+  //
+  //   nul        ⇒ la fiche suit le chantier, même corrigé après coup ;
+  //   renseigné  ⇒ la fiche porte cette valeur, quoi que dise le chantier.
+  //
+  // Un écart et non une copie, à la différence de [building] : corriger une
+  // faute de frappe sur le chantier doit atteindre toutes les fiches qui ne
+  // s'en sont pas écartées volontairement. La règle de lecture est dans
+  // `PointDao.identification`, et nulle part ailleurs.
+
+  TextColumn get projectCode => text().nullable()();
+  TextColumn get projectName => text().nullable()();
+
+  /// Terme anglais conservé : c'est celui de la fiche et des pièces
+  /// contractuelles.
   TextColumn get purchaseOrder => text().nullable()();
 
   /// Bâtiment(s) concerné(s). Champ libre : aucune nomenclature ne s'impose

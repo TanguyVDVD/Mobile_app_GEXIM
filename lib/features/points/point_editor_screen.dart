@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -38,9 +39,15 @@ class PointEditorScreen extends ConsumerStatefulWidget {
 }
 
 class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
+  final _refNumber = TextEditingController();
+  final _projectCode = TextEditingController();
+  final _projectName = TextEditingController();
   final _purchaseOrder = TextEditingController();
+
+  /// Le chantier tel qu'il était au chargement de la fiche : ce à quoi la
+  /// saisie est comparée pour savoir si la traversée s'en écarte.
+  Project? _project;
   final _building = TextEditingController();
-  final _room = TextEditingController();
   final _description = TextEditingController();
 
   Timer? _debounce;
@@ -59,7 +66,14 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
     // est purement locale, elle aboutira même si l'écran a disparu.
     unawaited(_persist());
 
-    for (final c in [_purchaseOrder, _building, _room, _description]) {
+    for (final c in [
+      _refNumber,
+      _projectCode,
+      _projectName,
+      _purchaseOrder,
+      _building,
+      _description,
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -90,9 +104,13 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
 
     await ref.read(pointDaoProvider).updatePoint(
           widget.pointId,
-          purchaseOrder: Value(_texteOuNull(_purchaseOrder)),
+          // Champ vidé ⇒ numéro effacé. Le filtre de saisie ne laisse passer
+          // que des chiffres, `tryParse` ne rend donc `null` que sur le vide.
+          refNumber: Value(int.tryParse(_refNumber.text.trim())),
+          projectCode: Value(_ecart(_projectCode, _project?.code)),
+          projectName: Value(_ecart(_projectName, _project?.name)),
+          purchaseOrder: Value(_ecart(_purchaseOrder, _project?.purchaseOrder)),
           building: Value(_texteOuNull(_building)),
-          room: Value(_texteOuNull(_room)),
           description: Value(_texteOuNull(_description)),
         );
     _dirty = false;
@@ -100,6 +118,17 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
 
   static String? _texteOuNull(TextEditingController c) =>
       c.text.trim().isEmpty ? null : c.text.trim();
+
+  /// Ce que la traversée doit enregistrer pour un champ repris du chantier.
+  ///
+  /// `null` tant que la saisie dit la même chose que le chantier — ou rien :
+  /// la fiche continue alors de le suivre, y compris s'il est corrigé plus
+  /// tard. Une valeur seulement quand le technicien s'en est écarté. Voir
+  /// « Écarts au chantier » dans `Points`.
+  static String? _ecart(TextEditingController c, String? duChantier) {
+    final saisi = _texteOuNull(c);
+    return saisi == null || saisi == duChantier?.trim() ? null : saisi;
+  }
 
   /// Écriture immédiate d'un champ choisi, sans passer par la temporisation.
   ///
@@ -135,8 +164,10 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
           dao.updatePoint(widget.pointId, configurationDetailId: valeur),
         (SettingKind.eiLevel, _) =>
           dao.updatePoint(widget.pointId, eiLevelId: valeur),
+        // Changer de fournisseur vide les produits qui ne sont pas les
+        // siens, dans la même écriture. Voir `PointDao.setSupplier`.
         (SettingKind.supplier, _) =>
-          dao.updatePoint(widget.pointId, supplierId: valeur),
+          dao.setSupplier(widget.pointId, optionId),
         (SettingKind.productType, _) =>
           dao.updatePoint(widget.pointId, productTypeId: valeur),
         (SettingKind.product, 0) =>
@@ -189,7 +220,7 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
         title: const Text('Supprimer cette traversée ?'),
         content: const Text(
           'Ses clichés et ses caractéristiques disparaîtront avec elle, et elle '
-          'ne figurera pas au rapport de conformité.',
+          'ne figurera pas dans l\'export.',
         ),
         actions: [
           TextButton(
@@ -265,10 +296,22 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
           if (row == null) {
             return const Center(child: Text('Traversée introuvable.'));
           }
+          // Trois champs sont préremplis depuis le chantier : la fiche attend
+          // de le connaître. Il est toujours là — une traversée ne descend pas
+          // sans lui, la clé étrangère y veille.
+          final project =
+              ref.watch(projectProvider(row.projectId)).valueOrNull;
+          if (project == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
           if (!_loaded) {
-            _purchaseOrder.text = row.purchaseOrder ?? '';
+            final id = PointDao.identification(row, project);
+            _project = project;
+            _projectCode.text = id.code ?? '';
+            _projectName.text = id.name;
+            _purchaseOrder.text = id.purchaseOrder ?? '';
+            _refNumber.text = row.refNumber?.toString() ?? '';
             _building.text = row.building ?? '';
-            _room.text = row.room ?? '';
             _description.text = row.description ?? '';
             _loaded = true;
           }
@@ -284,6 +327,9 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
                       const SectionHeading('Identification'),
                       _Identification(
                         point: row,
+                        refNumber: _refNumber,
+                        projectCode: _projectCode,
+                        projectName: _projectName,
                         purchaseOrder: _purchaseOrder,
                         building: _building,
                         onEdit: _scheduleSave,
@@ -316,18 +362,8 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
                       // du client et ce qui reste un repère interne.
                       const SectionHeading('Repères internes'),
                       Text(
-                        'Ces deux champs ne figurent pas sur la fiche du '
-                        'rapport.',
+                        'Ce champ ne figure pas sur la fiche exportée.',
                         style: Fs.metaOf(context),
-                      ),
-                      const SizedBox(height: Fs.md),
-                      TextField(
-                        controller: _room,
-                        decoration: const InputDecoration(
-                          labelText: 'Local',
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: (_) => _scheduleSave(),
                       ),
                       const SizedBox(height: Fs.md),
                       TextField(
@@ -335,8 +371,7 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
                         minLines: 3,
                         maxLines: 6,
                         decoration: const InputDecoration(
-                          labelText: 'Observations',
-                          hintText: 'Remarques, réserves, particularités…',
+                          labelText: 'Note(s)',
                           border: OutlineInputBorder(),
                         ),
                         onChanged: (_) => _scheduleSave(),
@@ -371,6 +406,9 @@ typedef ChoixOption = Future<void> Function({
 class _Identification extends ConsumerWidget {
   const _Identification({
     required this.point,
+    required this.refNumber,
+    required this.projectCode,
+    required this.projectName,
     required this.purchaseOrder,
     required this.building,
     required this.onEdit,
@@ -379,6 +417,9 @@ class _Identification extends ConsumerWidget {
   });
 
   final Point point;
+  final TextEditingController refNumber;
+  final TextEditingController projectCode;
+  final TextEditingController projectName;
   final TextEditingController purchaseOrder;
   final TextEditingController building;
   final VoidCallback onEdit;
@@ -387,7 +428,8 @@ class _Identification extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final project = ref.watch(projectProvider(point.projectId)).valueOrNull;
+    final doublon =
+        ref.watch(refNumberTakenProvider(point.id)).valueOrNull ?? false;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -395,30 +437,58 @@ class _Identification extends ConsumerWidget {
         _ChampDate(valeur: point.capturedAt, onTap: onDate),
         const SizedBox(height: Fs.md),
 
-        // Le numéro de la traversée, et son caractère provisoire.
+        // Saisi par le technicien : il suit le repérage du chantier. La
+        // création a proposé le suivant du plus grand numéro connu.
         //
-        // Affiché et non saisissable : il est attribué par une séquence
-        // Postgres à la synchronisation. Tant qu'il est nul, le dire plutôt que
-        // d'inventer — il figurera dans un rapport de conformité.
-        _ChampLu(
-          libelle: 'Numéro du point',
-          valeur: point.refNumber?.toString() ??
-              'attribué à la prochaine synchronisation',
-          attenue: point.refNumber == null,
+        // Le doublon est signalé, pas interdit — voir `Points.refNumber`. Il
+        // porte sur la valeur **enregistrée**, donc apparaît à la fin de la
+        // temporisation, pas à chaque frappe.
+        TextField(
+          controller: refNumber,
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            // Six chiffres : loin sous la borne d'un entier Postgres, qu'un
+            // doigt resté appuyé dépasserait sinon — et le serveur refuserait
+            // alors la fiche entière.
+            LengthLimitingTextInputFormatter(6),
+          ],
+          decoration: InputDecoration(
+            labelText: 'Numéro du point',
+            border: const OutlineInputBorder(),
+            helperText: point.refNumber == null
+                ? 'À saisir : il figure sur la fiche.'
+                : null,
+            errorText: doublon
+                ? 'Numéro déjà porté par une autre traversée du chantier.'
+                : null,
+          ),
+          onChanged: (_) => onEdit(),
         ),
         const SizedBox(height: Fs.md),
 
-        // Repris du chantier, pas ressaisis : deux endroits où corriger un
-        // numéro de projet, c'est un rapport sur deux qui porte l'ancien.
-        _ChampLu(
-          libelle: 'Numéro projet',
-          valeur: project?.code ?? '—',
-          attenue: project?.code == null,
+        // Préremplis depuis le chantier, et modifiables au cas où. Tant que
+        // la saisie dit la même chose que lui, la traversée n'enregistre rien
+        // et continue de le suivre — voir `_ecart`.
+        TextField(
+          controller: projectCode,
+          decoration: const InputDecoration(
+            labelText: 'Numéro projet',
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (_) => onEdit(),
         ),
         const SizedBox(height: Fs.md),
-        _ChampLu(libelle: 'Intitulé projet', valeur: project?.name ?? '…'),
+        TextField(
+          controller: projectName,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            labelText: 'Intitulé projet',
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (_) => onEdit(),
+        ),
         const SizedBox(height: Fs.md),
-
         TextField(
           controller: purchaseOrder,
           decoration: const InputDecoration(
@@ -456,44 +526,6 @@ class _Identification extends ConsumerWidget {
           onChanged: onFloor,
         ),
       ],
-    );
-  }
-}
-
-/// Une valeur que l'écran affiche sans permettre de la modifier.
-///
-/// Présentée comme un champ et non comme une ligne de texte : elle occupe la
-/// même place dans le formulaire que sur la fiche imprimée, et un technicien
-/// qui la cherche la trouve là où il l'attend.
-class _ChampLu extends StatelessWidget {
-  const _ChampLu({
-    required this.libelle,
-    required this.valeur,
-    this.attenue = false,
-  });
-
-  final String libelle;
-  final String valeur;
-  final bool attenue;
-
-  @override
-  Widget build(BuildContext context) {
-    return InputDecorator(
-      decoration: InputDecoration(
-        labelText: libelle,
-        border: const OutlineInputBorder(),
-        // Fond neutre plutôt que blanc : ce qui ne se touche pas ne doit pas
-        // ressembler à ce qui se touche.
-        fillColor: Fs.ground,
-      ),
-      child: Text(
-        valeur,
-        style: TextStyle(
-          fontSize: 16.5,
-          color: attenue ? Fs.inkMuted : Fs.ink,
-          fontStyle: attenue ? FontStyle.italic : FontStyle.normal,
-        ),
-      ),
     );
   }
 }
@@ -591,11 +623,12 @@ class _Caracteristiques extends StatelessWidget {
         // Les cinq emplacements sont tous affichés, même vides : leur numéro
         // est celui du rapport, et un « Produit utilisé (3) » qui apparaîtrait
         // seulement une fois le (2) rempli laisserait croire que l'ordre se
-        // tasse tout seul. Il ne se tasse pas — voir `PointDao.setProducts`.
+        // tasse tout seul. Il ne se tasse pas.
         for (var i = 0; i < 5; i++) ...[
           if (i > 0) const SizedBox(height: Fs.md),
           _ListeOptions(
             kind: SettingKind.product,
+            fournisseurId: point.supplierId,
             libelle: 'Produit utilisé (${i + 1})',
             selection: produits[i],
             onChanged: (id) => onChoisir(
@@ -625,12 +658,19 @@ class _Caracteristiques extends StatelessWidget {
 ///    autre cause : la traversée vient d'un collègue et le catalogue local est
 ///    en retard. Même traitement, libellé différent — dire « retiré » là où
 ///    c'est « pas encore reçu » enverrait chercher au mauvais endroit.
+///
+/// Les **produits** dépendent du fournisseur choisi sur la fiche
+/// ([fournisseurId]) : la liste ne propose que les siens, et rien tant
+/// qu'aucun fournisseur n'est choisi. Un quatrième cas en découle — le produit
+/// enregistré existe toujours mais appartient à un autre fournisseur (fiche
+/// antérieure au rattachement). Il reste affiché, signalé comme tel.
 class _ListeOptions extends ConsumerWidget {
   const _ListeOptions({
     required this.kind,
     required this.libelle,
     required this.selection,
     required this.onChanged,
+    this.fournisseurId,
   });
 
   final SettingKind kind;
@@ -638,10 +678,28 @@ class _ListeOptions extends ConsumerWidget {
   final String? selection;
   final ValueChanged<String?> onChanged;
 
+  /// Fournisseur de la fiche. Lu seulement pour [SettingKind.product].
+  final String? fournisseurId;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final options =
-        ref.watch(settingOptionsProvider(kind)).valueOrNull;
+    final produits = kind == SettingKind.product;
+    final sansFournisseur = produits && fournisseurId == null;
+
+    final options = switch ((produits, fournisseurId)) {
+      (false, _) => ref.watch(settingOptionsProvider(kind)).valueOrNull,
+      // Pas la liste des produits sans fournisseur : ceux-là ne sont proposés
+      // nulle part tant qu'un administrateur ne les a pas rattachés.
+      (true, null) => const <SettingOption>[],
+      (true, final String id) =>
+        ref.watch(productsOfSupplierProvider(id)).valueOrNull,
+    };
+    // Tous les produits vivants, pour distinguer « d'un autre fournisseur » de
+    // « retiré » quand la sélection n'est pas dans la liste.
+    final vivants = produits
+        ? ref.watch(settingOptionsProvider(kind)).valueOrNull ??
+            const <SettingOption>[]
+        : const <SettingOption>[];
     final libelles =
         ref.watch(settingOptionLabelsProvider).valueOrNull ??
             const <String, String>{};
@@ -665,9 +723,13 @@ class _ListeOptions extends ConsumerWidget {
       decoration: InputDecoration(
         labelText: libelle,
         border: const OutlineInputBorder(),
-        helperText: options.isEmpty
-            ? 'Liste vide — à remplir dans Paramètres.'
-            : null,
+        helperText: switch ((sansFournisseur, produits, options.isEmpty)) {
+          (true, _, _) => 'Choisissez d\'abord un fournisseur.',
+          (_, true, true) =>
+            'Aucun produit pour ce fournisseur — à ajouter dans Paramètres.',
+          (_, false, true) => 'Liste vide — à remplir dans Paramètres.',
+          _ => null,
+        },
       ),
       items: [
         const DropdownMenuItem<String?>(child: Text('—')),
@@ -680,15 +742,19 @@ class _ListeOptions extends ConsumerWidget {
           DropdownMenuItem<String?>(
             value: courant,
             child: Text(
-              libelles.containsKey(courant)
-                  ? '${libelles[courant]} (retiré)'
-                  : 'Entrée pas encore synchronisée',
+              !libelles.containsKey(courant)
+                  ? 'Entrée pas encore synchronisée'
+                  : vivants.any((o) => o.id == courant)
+                      ? '${libelles[courant]} (autre fournisseur)'
+                      : '${libelles[courant]} (retiré)',
               style: const TextStyle(color: Fs.signal),
               overflow: TextOverflow.ellipsis,
             ),
           ),
       ],
-      onChanged: onChanged,
+      // Sans fournisseur, le champ est inerte — sauf s'il porte déjà une
+      // valeur, qu'il faut pouvoir effacer.
+      onChanged: sansFournisseur && courant == null ? null : onChanged,
     );
   }
 }

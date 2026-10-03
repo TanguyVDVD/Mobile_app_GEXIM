@@ -29,7 +29,7 @@ abstract interface class PhotoProcessor {
 /// **Principal levier de coût du projet.**
 ///
 /// Un JPEG 12 MP sorti du capteur pèse 3 à 5 Mo ; réduit ici, il tombe autour
-/// de 400 Ko — sans perte utile, un rapport PDF à 150 DPI ne restituant pas
+/// de 400 Ko — sans perte utile, une fiche imprimée à 150 DPI ne restituant pas
 /// davantage. Sur un chantier de 2 000 points à trois photos, cela fait 24 Go
 /// contre 2,4 Go : le facteur dix qui rend la facture de stockage négligeable,
 /// quel que soit le fournisseur.

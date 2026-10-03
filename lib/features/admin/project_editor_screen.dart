@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../database/database.dart';
 import '../../database/tables/enums.dart';
+import '../../sync/backoff.dart';
 
 /// Création ou pilotage d'un chantier. `projectId` nul ⇒ création.
 class ProjectEditorScreen extends ConsumerStatefulWidget {
@@ -22,6 +23,8 @@ class ProjectEditorScreen extends ConsumerStatefulWidget {
 class _ProjectEditorScreenState extends ConsumerState<ProjectEditorScreen> {
   final _name = TextEditingController();
   final _code = TextEditingController();
+  final _purchaseOrder = TextEditingController();
+  final _building = TextEditingController();
   final _description = TextEditingController();
 
   String? _clientId;
@@ -35,6 +38,8 @@ class _ProjectEditorScreenState extends ConsumerState<ProjectEditorScreen> {
   void dispose() {
     _name.dispose();
     _code.dispose();
+    _purchaseOrder.dispose();
+    _building.dispose();
     _description.dispose();
     super.dispose();
   }
@@ -55,6 +60,10 @@ class _ProjectEditorScreenState extends ConsumerState<ProjectEditorScreen> {
     final description =
         _description.text.trim().isEmpty ? null : _description.text.trim();
     final code = _code.text.trim().isEmpty ? null : _code.text.trim();
+    final purchaseOrder =
+        _purchaseOrder.text.trim().isEmpty ? null : _purchaseOrder.text.trim();
+    final building =
+        _building.text.trim().isEmpty ? null : _building.text.trim();
 
     // `finally` et non une remise à zéro après coup : sans lui, une écriture
     // qui échouait laissait « Enregistrer » grisé pour toujours, sans message —
@@ -65,6 +74,8 @@ class _ProjectEditorScreenState extends ConsumerState<ProjectEditorScreen> {
           clientId: clientId,
           name: name,
           code: code,
+          purchaseOrder: purchaseOrder,
+          building: building,
           description: description,
           startedOn: _startedOn,
         );
@@ -74,6 +85,8 @@ class _ProjectEditorScreenState extends ConsumerState<ProjectEditorScreen> {
           name: name,
           clientId: clientId,
           code: code,
+          purchaseOrder: purchaseOrder,
+          building: building,
           description: description,
           startedOn: _startedOn,
         );
@@ -90,7 +103,7 @@ class _ProjectEditorScreenState extends ConsumerState<ProjectEditorScreen> {
     }
   }
 
-  /// Clôture : gèle le chantier et ouvre la génération du rapport.
+  /// Clôture : gèle le chantier et ouvre l'export du classeur Excel.
   ///
   /// Confirmation explicite parce que le geste est visible depuis toutes les
   /// tablettes : les opérateurs perdent instantanément le droit d'écrire, y
@@ -124,12 +137,16 @@ class _ProjectEditorScreenState extends ConsumerState<ProjectEditorScreen> {
 
     await ref.read(projectDaoProvider).closeProject(project.id);
 
-    // Le rapport s'enchaîne immédiatement : c'est le geste attendu après une
+    // L'export s'enchaîne immédiatement : c'est le geste attendu après une
     // clôture, et le faire chercher dans un autre écran serait gratuit.
     if (mounted) unawaited(context.push('/projects/${project.id}/report'));
   }
 
-  /// Suppression du chantier — logique, jamais physique.
+  /// Suppression du chantier — **définitive**, et en ligne.
+  ///
+  /// Le seul effacement réel de l'application : le chantier, ses traversées
+  /// et leurs clichés disparaissent du serveur, puis de chaque appareil. Voir
+  /// `ProjectAdminService.deleteProject`.
   Future<void> _delete(Project project) async {
     // Lecture ponctuelle, et non `ref.read(...).valueOrNull ?? []` : un flux
     // pas encore émis aurait annoncé « 0 traversée » dans une boîte de dialogue
@@ -138,20 +155,34 @@ class _ProjectEditorScreenState extends ConsumerState<ProjectEditorScreen> {
     final points = await ref.read(pointDaoProvider).pointSummaries(project.id);
     if (!mounted) return;
 
+    final erreur = Theme.of(context).colorScheme.error;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Supprimer le chantier ?'),
-        content: Text(
-          points.isEmpty
-              ? 'Le chantier disparaîtra des listes, sur cet appareil comme '
-                  'sur ceux des techniciens affectés.'
-              : 'Ce chantier contient ${points.length} traversée'
-                  '${points.length > 1 ? 's' : ''} relevée'
-                  '${points.length > 1 ? 's' : ''}. Elles disparaîtront avec '
-                  'lui.\n\nSi le dossier a déjà été remis à un client, '
-                  'clôturez plutôt que de supprimer : la clôture fige le '
-                  'relevé en le laissant consultable.',
+        title: const Text('Supprimer définitivement le chantier ?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Toutes les données associées à ce chantier seront '
+              'définitivement supprimées'
+              '${switch (points.length) {
+                0 => '',
+                1 => ' : sa traversée et ses photos',
+                final n => ' : ses $n traversées et leurs photos',
+              }}.',
+              style: TextStyle(color: erreur, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'La suppression s\'applique au serveur et à toutes les '
+              'tablettes, y compris à ce qu\'un technicien n\'aurait pas '
+              'encore synchronisé. Elle est irréversible.\n\n'
+              'Si le dossier a déjà été remis à un client, clôturez plutôt : '
+              'la clôture fige le relevé en le laissant consultable.',
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -159,21 +190,39 @@ class _ProjectEditorScreenState extends ConsumerState<ProjectEditorScreen> {
             child: const Text('Annuler'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: erreur),
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Supprimer'),
+            child: const Text('Supprimer définitivement'),
           ),
         ],
       ),
     );
-    if (!(confirmed ?? false)) return;
+    if (!(confirmed ?? false) || !mounted) return;
 
-    await ref.read(projectDaoProvider).deleteProject(project.id);
-    // Retour à l'accueil : les deux écrans précédents — le relevé et cette
-    // fiche — portent sur un chantier qui n'existe plus.
-    if (mounted) context.go('/');
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(projectAdminServiceProvider).deleteProject(project.id);
+      // Retour à l'accueil : les deux écrans précédents — le relevé et cette
+      // fiche — portent sur un chantier qui n'existe plus.
+      if (mounted) context.go('/');
+    } on SyncException catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            e.isTransient
+                // Pas de file d'attente pour un effacement, et c'est voulu :
+                // il s'appliquerait des heures plus tard, sans recours.
+                ? 'Suppression impossible sans réseau. Rien n\'a été '
+                    'supprimé ; réessayez une fois connecté.'
+                : 'Suppression refusée : ${e.message}',
+          ),
+          duration: const Duration(seconds: 8),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -186,6 +235,8 @@ class _ProjectEditorScreenState extends ConsumerState<ProjectEditorScreen> {
     if (!_isNew && project != null && !_loaded) {
       _name.text = project.name;
       _code.text = project.code ?? '';
+      _purchaseOrder.text = project.purchaseOrder ?? '';
+      _building.text = project.building ?? '';
       _description.text = project.description ?? '';
       _clientId = project.clientId;
       _startedOn = project.startedOn;
@@ -212,7 +263,7 @@ class _ProjectEditorScreenState extends ConsumerState<ProjectEditorScreen> {
             textCapitalization: TextCapitalization.sentences,
             decoration: const InputDecoration(
               labelText: 'Nom du chantier *',
-              helperText: 'Ligne « Intitulé Projet » du rapport.',
+              helperText: 'Ligne « Intitulé Projet » de la fiche.',
               border: OutlineInputBorder(),
             ),
           ),
@@ -225,6 +276,29 @@ class _ProjectEditorScreenState extends ConsumerState<ProjectEditorScreen> {
             decoration: const InputDecoration(
               labelText: 'Numéro de projet',
               helperText: 'Ligne « Numéro Projet », reportée sur chaque fiche.',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _purchaseOrder,
+            decoration: const InputDecoration(
+              labelText: 'Purchase Order',
+              helperText:
+                  'Ligne « Purchase Order », reportée sur chaque fiche.',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 20),
+          // Une valeur de départ, à la différence des deux champs précédents :
+          // chaque traversée la reçoit à sa création et peut la changer.
+          TextField(
+            controller: _building,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'Bâtiment(s) concerné(s)',
+              helperText: 'Proposé sur chaque nouvelle traversée, où il reste '
+                  'modifiable. Les traversées déjà relevées ne changent pas.',
               border: OutlineInputBorder(),
             ),
           ),
@@ -279,17 +353,15 @@ class _ProjectEditorScreenState extends ConsumerState<ProjectEditorScreen> {
                 style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
             _MemberPicker(projectId: project.id),
-
             const SizedBox(height: 28),
             if (closed) ...[
-              // Le PDF est une donnée dérivée : le régénérer à tout moment
-              // donne le même document, il n'y a donc rien à archiver côté
-              // appareil.
+              // Le classeur est une donnée dérivée : le régénérer à tout
+              // moment donne le même document, il n'y a donc rien à archiver
+              // côté appareil.
               FilledButton.icon(
-                onPressed: () =>
-                    context.push('/projects/${project.id}/report'),
-                icon: const Icon(Icons.picture_as_pdf),
-                label: const Text('Rapport de conformité'),
+                onPressed: () => context.push('/projects/${project.id}/report'),
+                icon: const Icon(Icons.table_view_outlined),
+                label: const Text('Exporter les fiches (Excel)'),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
@@ -302,11 +374,11 @@ class _ProjectEditorScreenState extends ConsumerState<ProjectEditorScreen> {
               FilledButton.icon(
                 onPressed: () => _close(project),
                 icon: const Icon(Icons.lock),
-                label: const Text('Clôturer et générer le rapport'),
+                label: const Text('Clôturer et exporter les fiches'),
               ),
             const SizedBox(height: 28),
             TextButton.icon(
-              onPressed: () => _delete(project),
+              onPressed: _busy ? null : () => _delete(project),
               style: TextButton.styleFrom(
                 foregroundColor: Theme.of(context).colorScheme.error,
               ),

@@ -13,7 +13,7 @@ import '../features/auth/signup_screen.dart';
 import '../features/points/point_editor_screen.dart';
 import '../features/points/points_list_screen.dart';
 import '../features/projects/project_picker_screen.dart';
-import '../features/reports/report_preview_screen.dart';
+import '../features/reports/report_export_screen.dart';
 import 'providers.dart';
 
 /// Chemins réservés aux administrateurs.
@@ -112,7 +112,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: 'report',
-            builder: (_, state) => ReportPreviewScreen(
+            builder: (_, state) => ReportExportScreen(
               projectId: state.pathParameters['projectId']!,
             ),
           ),

@@ -1,0 +1,18 @@
+name: firestop_excel
+description: >-
+  Classeur Excel des fiches AS BUILT : une feuille par traversée, remplie dans
+  le modèle fourni par le bureau. Dart pur, sans dépendance Flutter.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  # Un classeur Excel est une archive ZIP de fichiers XML. Dart pur.
+  archive: ^4.0.0
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^4.0.0
+  xml: ^7.0.1

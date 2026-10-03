@@ -53,9 +53,8 @@ abstract final class Fs {
   // ---------------------------------------------------------------------------
   //
   // L'échelle est travaillée, pas la famille : embarquer une fonte demanderait
-  // un fichier absent du dépôt — et ce serait le même TTF que celui attendu par
-  // le générateur PDF (voir assets/fonts/README.md). En attendant, la
-  // personnalité vient des sauts de graisse et de l'interlettrage.
+  // un fichier absent du dépôt. En attendant, la personnalité vient des sauts
+  // de graisse et de l'interlettrage.
 
   static const _display = TextStyle(
     fontSize: 29,

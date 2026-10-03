@@ -194,8 +194,6 @@ void main() {
 
       expect(ponctuel.map((s) => s.point.id), flux.map((s) => s.point.id));
       expect(ponctuel.single.photoCount, 2);
-      expect(ponctuel.single.hasBefore, isTrue);
-      expect(ponctuel.single.hasAfter, isFalse);
 
       expect(
         (await db.pointDao.photosOf('pt1')).length,

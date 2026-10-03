@@ -39,8 +39,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     if (_busy) return;
 
     if (_fullName.text.trim().isEmpty) {
-      setState(() => _error = 'Indiquez votre nom : il figurera sur les '
-          'rapports de conformité, en regard de chaque traversée relevée.');
+      setState(() => _error = 'Indiquez votre nom : il identifie vos '
+          'relevés auprès de l\'administrateur.');
       return;
     }
     if (_password.text.length < 8) {

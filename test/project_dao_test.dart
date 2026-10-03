@@ -1,4 +1,5 @@
 import 'package:drift/native.dart';
+import 'package:firestop_tracker/database/daos/project_dao.dart';
 import 'package:firestop_tracker/database/database.dart';
 import 'package:firestop_tracker/database/tables/enums.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -149,16 +150,12 @@ void main() {
 
     test('un chantier supprime sort des affectations', () async {
       await db.projectDao.setMembers(projectId, {alice});
-      expect(await db.projectDao.watchAssignedProjects(alice).first, hasLength(1));
+      expect(
+          await db.projectDao.watchAssignedProjects(alice).first, hasLength(1));
 
-      await db.projectDao.deleteProject(projectId);
+      await db.projectDao.purgeProject(projectId);
 
       expect(await db.projectDao.watchAssignedProjects(alice).first, isEmpty);
-      expect(
-        await db.select(db.points).get(),
-        isEmpty,
-        reason: 'aucun point sur ce chantier de test',
-      );
     });
 
     test('le compteur d\'affectations repere un technicien oublie', () async {
@@ -174,14 +171,98 @@ void main() {
     });
   });
 
-  group('suppression', () {
-    test('est logique : la ligne reste, et part au serveur', () async {
-      await db.projectDao.deleteProject(projectId);
+  group('suppression d\'un chantier', () {
+    // La seule suppression physique de l'application. `purgeProject` n'est
+    // appelée qu'une fois le serveur d'accord : elle efface, et ne dit plus
+    // rien à personne.
 
-      final row = await db.projectDao.projectById(projectId);
-      expect(row.deletedAt, isNotNull);
-      expect(await db.projectDao.watchAllProjects().first, isEmpty);
-      expect(await outboxEntityIds(), contains(projectId));
+    Future<String> photo(String pointId, String id, {String? fichier}) async {
+      await db.into(db.photos).insert(
+            Photo(
+              id: id,
+              pointId: pointId,
+              kind: PhotoKind.before,
+              localPath: fichier,
+              sortOrder: 0,
+              takenAt: DateTime(2026, 10, 3),
+              uploadState: PhotoUploadState.ready,
+              uploadAttempts: 0,
+              updatedAt: DateTime(2026, 10, 3),
+            ),
+          );
+      return id;
+    }
+
+    test('efface le chantier, ses affectations, ses traversees, leurs cliches',
+        () async {
+      await db.projectDao.setMembers(projectId, {alice, bob});
+      final point =
+          await db.pointDao.createPoint(projectId: projectId, authorId: alice);
+      await photo(point, 'ph1', fichier: '/photos/ph1.jpg');
+      await photo(point, 'ph2');
+
+      final fichiers = await db.projectDao.purgeProject(projectId);
+
+      expect(await db.select(db.projects).get(), isEmpty);
+      expect(await db.select(db.projectMembers).get(), isEmpty);
+      expect(await db.select(db.points).get(), isEmpty);
+      expect(await db.select(db.photos).get(), isEmpty);
+      // Les fichiers à retirer du disque : ceux qui en avaient un.
+      expect(fichiers, ['/photos/ph1.jpg']);
+    });
+
+    test('vide la file d\'attente de ce chantier, et rien n\'y ajoute',
+        () async {
+      // Une entrée laissée derrière repousserait une traversée que le
+      // serveur écarte désormais ; en échec, elle bloquerait la déconnexion
+      // pour un travail qui n'existe plus.
+      await db.projectDao.setMembers(projectId, {alice});
+      await db.pointDao.createPoint(projectId: projectId, authorId: alice);
+      expect(await db.select(db.outboxEntries).get(), isNotEmpty);
+
+      await db.projectDao.purgeProject(projectId);
+
+      expect(await db.select(db.outboxEntries).get(), isEmpty);
+    });
+
+    test('ne touche a rien d\'autre', () async {
+      final clientId = (await db.projectDao.projectById(projectId)).clientId;
+      final voisin = await db.projectDao.createProject(
+        clientId: clientId,
+        name: 'Voisin',
+      );
+      await db.projectDao.setMembers(voisin, {alice});
+      final point =
+          await db.pointDao.createPoint(projectId: voisin, authorId: alice);
+      await photo(point, 'ph-voisin', fichier: '/photos/voisin.jpg');
+      final enFile = (await db.select(db.outboxEntries).get()).length;
+
+      final fichiers = await db.projectDao.purgeProject(projectId);
+
+      expect(fichiers, isEmpty);
+      expect(
+        (await db.select(db.projects).get()).map((p) => p.id),
+        [voisin],
+      );
+      expect(await db.select(db.projectMembers).get(), hasLength(1));
+      expect(await db.select(db.points).get(), hasLength(1));
+      expect(await db.select(db.photos).get(), hasLength(1));
+      // Le client reste : il n'appartient pas au chantier.
+      expect(await db.select(db.clients).get(), hasLength(1));
+      // La file du voisin est intacte ; seule l'entrée du chantier purgé,
+      // s'il en avait une, a disparu.
+      expect(
+        (await db.select(db.outboxEntries).get()).length,
+        inInclusiveRange(enFile - 1, enFile),
+      );
+      expect(await outboxEntityIds(), contains(point));
+    });
+
+    test('un chantier deja absent : sans effet, sans erreur', () async {
+      // Le cas de tout appareil qui reçoit la trace d'un chantier qu'il n'a
+      // jamais eu.
+      expect(await db.projectDao.purgeProject('inconnu'), isEmpty);
+      expect(await db.select(db.projects).get(), hasLength(1));
     });
   });
 
@@ -220,6 +301,45 @@ void main() {
       final project = await db.projectDao.projectById(projectId);
       expect(project.status, ProjectStatus.inProgress);
       expect(project.endedOn, isNull);
+    });
+  });
+
+  group('suppression d\'un client', () {
+    Future<String> clientDuChantier() async =>
+        (await db.projectDao.projectById(projectId)).clientId;
+
+    test('refusee tant qu\'un chantier le designe', () async {
+      // Un chantier sans client sortirait des fiches sans logo ni adresse.
+      final clientId = await clientDuChantier();
+
+      expect(await db.projectDao.liveProjectCount(clientId), 1);
+      await expectLater(
+        db.projectDao.deleteClient(clientId),
+        throwsA(
+          isA<ClientEncoreUtilise>().having((e) => e.chantiers, 'chantiers', 1),
+        ),
+      );
+      expect(await db.projectDao.watchClients().first, hasLength(1));
+    });
+
+    test('est logique : la ligne reste, sort des listes, et part au serveur',
+        () async {
+      final clientId = await clientDuChantier();
+      // Un chantier supprime ne retient plus son client.
+      await db.projectDao.purgeProject(projectId);
+      await db.delete(db.outboxEntries).go();
+
+      await db.projectDao.deleteClient(clientId);
+
+      expect(await db.projectDao.watchClients().first, isEmpty);
+      // La ligne reste : un client, lui, se supprime logiquement.
+      final ligne = await db.select(db.clients).getSingle();
+      expect(ligne.deletedAt, isNotNull);
+
+      final entree = await db.select(db.outboxEntries).getSingle();
+      expect(entree.entityType, OutboxEntity.client);
+      expect(entree.entityId, clientId);
+      expect(entree.payload, contains('"deleted_at":"'));
     });
   });
 }

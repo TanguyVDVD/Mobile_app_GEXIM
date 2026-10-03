@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Icône adaptative (Android 8 et suivants) : Android fournit la forme — rond,
+  carré arrondi, selon le lanceur — et rogne les bords. Le premier plan ne
+  porte donc que la traversée ; le fond est l'encre de la plaque.
+
+  Android 7 n'en tient pas compte et prend les ic_launcher.png des dossiers
+  mipmap-*, qui montrent la plaque entière avec ses rivets.
+
+  Images produites par tools/logo.py.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background"/>
+    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
+</adaptive-icon>

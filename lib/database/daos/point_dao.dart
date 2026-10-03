@@ -13,10 +13,21 @@ typedef PointSummary = ({
   Point point,
   String label,
   bool isProvisional,
-  bool hasBefore,
-  bool hasAfter,
   int photoCount,
+
+  /// Nombre de champs de la fiche encore vides. Voir
+  /// [PointDao.valeursManquantes].
+  int missingValues,
 });
+
+/// Une fiche est complète quand il ne lui manque aucune valeur et qu'elle
+/// porte au moins un cliché — la fiche en admet un ou deux.
+extension Completude on PointSummary {
+  bool get isComplete => missingValues == 0 && photoCount > 0;
+}
+
+/// Ce qu'une fiche dit de son chantier, écarts de la traversée appliqués.
+typedef Identification = ({String? code, String name, String? purchaseOrder});
 
 /// Écritures et lectures du domaine « traversée ».
 ///
@@ -25,7 +36,7 @@ typedef PointSummary = ({
 /// deux (kill Android, batterie vide) laisserait sinon une modification visible
 /// à l'écran mais jamais synchronisée — la pire des pannes, parce que
 /// silencieuse : l'opérateur croit son relevé enregistré.
-@DriftAccessor(tables: [Points, Photos])
+@DriftAccessor(tables: [Points, Photos, SettingOptions, Projects])
 class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
   PointDao(super.attachedDatabase);
 
@@ -35,25 +46,26 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
 
   /// Points d'un chantier, avec numéro d'affichage et état de complétude.
   ///
-  /// Le tri par `id` donne l'ordre de création : les UUID v7 sont préfixés d'un
-  /// timestamp, donc chronologiques. C'est ce qui permet de dériver un numéro
-  /// provisoire du simple rang dans la liste, sans stocker de colonne dédiée.
+  /// Triés par **numéro saisi**, les fiches sans numéro à la fin. À numéro
+  /// égal ou absent, l'`id` départage par ordre de création : les UUID v7 sont
+  /// préfixés d'un timestamp, donc chronologiques. Le classeur Excel suit le
+  /// même ordre, feuille après feuille.
   ///
-  /// Tant que `refNumber` est nul, le numéro est marqué provisoire à l'écran :
-  /// mentir sur un identifiant qui figurera dans un rapport de conformité
-  /// serait plus grave que d'afficher une incertitude.
+  /// Une fiche sans numéro est marquée comme telle (`isProvisional`) et
+  /// affiche un tiret : inventer un rang à sa place mettrait sur une fiche de
+  /// conformité un identifiant que personne n'a choisi.
   ///
-  /// `hasBefore` / `hasAfter` sont agrégés dans la même requête plutôt que
-  /// chargés point par point. C'est l'information la plus utile de l'écran :
-  /// avant de quitter le chantier, l'opérateur doit repérer d'un coup d'œil les
-  /// traversées auxquelles il manque un cliché — y revenir coûte une
-  /// demi-journée.
+  /// Le nombre de clichés est agrégé dans la même requête plutôt que chargé
+  /// point par point. Avec le nombre de valeurs manquantes, c'est
+  /// l'information la plus utile de l'écran : avant de quitter le chantier,
+  /// l'opérateur doit repérer d'un coup d'œil les traversées à compléter — y
+  /// revenir coûte une demi-journée.
   Stream<List<PointSummary>> watchPoints(String projectId) =>
       _pointSummaryQuery(projectId).watch().map(_toSummaries);
 
   /// Même relevé, en **une seule lecture**.
   ///
-  /// Pour le rapport PDF, qui est un instantané : il n'a rien à faire abonné à
+  /// Pour l'export Excel, qui est un instantané : il n'a rien à faire abonné à
   /// des flux vivants. Enchaîner des `.first` sur des `watch()` pendant qu'un
   /// cycle de synchronisation écrit dans les mêmes tables invalide et relance
   /// les requêtes sous les pieds de l'appelant, et une souscription peut
@@ -65,36 +77,128 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
     return customSelect(
       '''
       SELECT p.*,
-             MAX(CASE WHEN ph.kind = 'before' THEN 1 ELSE 0 END) AS has_before,
-             MAX(CASE WHEN ph.kind = 'after'  THEN 1 ELSE 0 END) AS has_after,
+             pr.code           AS chantier_code,
+             pr.name           AS chantier_name,
+             pr.purchase_order AS chantier_purchase_order,
              COUNT(ph.id) AS photo_count
         FROM points p
+        JOIN projects pr ON pr.id = p.project_id
         LEFT JOIN photos ph
                ON ph.point_id = p.id AND ph.deleted_at IS NULL
        WHERE p.project_id = ?1 AND p.deleted_at IS NULL
        GROUP BY p.id
-       ORDER BY p.id ASC
+       ORDER BY p.ref_number IS NULL, p.ref_number ASC, p.id ASC
       ''',
       variables: [Variable<String>(projectId)],
-      readsFrom: {points, photos},
+      // `projects` aussi : corriger le chantier change ce qui manque à ses
+      // fiches, et la liste doit se rafraîchir.
+      readsFrom: {points, photos, projects},
     );
   }
 
   List<PointSummary> _toSummaries(List<QueryRow> rows) {
     return [
-      for (final (int index, QueryRow row) in rows.indexed)
+      for (final row in rows)
         () {
           final point = points.map(row.data);
           return (
             point: point,
-            label: point.refNumber?.toString() ?? '${index + 1}',
+            label: point.refNumber?.toString() ?? '—',
             isProvisional: point.refNumber == null,
-            hasBefore: row.read<int>('has_before') == 1,
-            hasAfter: row.read<int>('has_after') == 1,
             photoCount: row.read<int>('photo_count'),
+            missingValues: valeursManquantes(
+              point,
+              // Même règle que `identification` : l'écart de la traversée,
+              // sinon la valeur du chantier.
+              (
+                code: point.projectCode ?? row.read<String?>('chantier_code'),
+                name: point.projectName ?? row.read<String>('chantier_name'),
+                purchaseOrder: point.purchaseOrder ??
+                    row.read<String?>('chantier_purchase_order'),
+              ),
+            ),
           );
         }(),
     ];
+  }
+
+  /// Nombre de champs de la fiche encore vides.
+  ///
+  /// Douze au plus : numéro de projet, intitulé, Purchase Order, numéro du
+  /// point, bâtiment, étage, configuration, configuration détaillée, niveau
+  /// EI, fournisseur, type de produit, et **un** produit — la fiche offre
+  /// cinq emplacements, mais une traversée n'en demande qu'un.
+  ///
+  /// Les trois premiers viennent du chantier, et comptent quand même — c'est
+  /// la valeur **portée par la fiche** qui est jugée ([identification]). Un
+  /// numéro de projet effacé par mégarde sur le chantier doit se voir sur
+  /// chacune de ses fiches, pas se découvrir dans le classeur exporté.
+  ///
+  /// N'y figurent pas : la date, toujours renseignée, et les clichés, comptés
+  /// à part.
+  static int valeursManquantes(Point point, Identification chantier) {
+    bool vide(String? valeur) => valeur == null || valeur.trim().isEmpty;
+
+    final aucunProduit = [
+      point.product1Id,
+      point.product2Id,
+      point.product3Id,
+      point.product4Id,
+      point.product5Id,
+    ].every((id) => id == null);
+
+    return [
+      vide(chantier.code),
+      vide(chantier.name),
+      vide(chantier.purchaseOrder),
+      point.refNumber == null,
+      vide(point.building),
+      point.floorLevel == null,
+      point.configurationId == null,
+      point.configurationDetailId == null,
+      point.eiLevelId == null,
+      point.supplierId == null,
+      point.productTypeId == null,
+      aucunProduit,
+    ].where((manque) => manque).length;
+  }
+
+  /// Numéro de projet, intitulé et Purchase Order **tels que la fiche les
+  /// porte** : l'écart de la traversée s'il y en a un, la valeur du chantier
+  /// sinon. Voir « Écarts au chantier » dans `Points`.
+  ///
+  /// L'écran de saisie et l'export passent tous deux par ici : écrite à deux
+  /// endroits, la règle finirait par différer, et la fiche exportée ne dirait
+  /// plus ce que le technicien avait sous les yeux.
+  static Identification identification(Point point, Project project) => (
+        code: point.projectCode ?? project.code,
+        name: point.projectName ?? project.name,
+        purchaseOrder: point.purchaseOrder ?? project.purchaseOrder,
+      );
+
+  /// Un **autre** point vivant du chantier porte-t-il déjà ce numéro ?
+  ///
+  /// Rien n'interdit le doublon — voir `Points.refNumber` — mais la fiche le
+  /// signale : c'est le seul garde-fou, et il ne vaut que pour ce que
+  /// l'appareil connaît. Le doublon né de deux tablettes hors ligne n'apparaît
+  /// qu'après la synchronisation.
+  Stream<bool> watchRefNumberTaken(String pointId) {
+    return customSelect(
+      '''
+      SELECT EXISTS (
+        SELECT 1
+          FROM points moi
+          JOIN points autre
+            ON autre.project_id = moi.project_id
+           AND autre.ref_number = moi.ref_number
+           AND autre.id <> moi.id
+           AND autre.deleted_at IS NULL
+         WHERE moi.id = ?1
+      ) AS pris
+      ''',
+      variables: [Variable<String>(pointId)],
+      readsFrom: {points},
+    ).watchSingle().map((row) => row.read<bool>('pris'));
   }
 
   Stream<Point?> watchPoint(String pointId) =>
@@ -129,33 +233,53 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
   /// [capturedAt] est la « Date » de la fiche. Paramétrable parce qu'un relevé
   /// se saisit parfois le lendemain, et que la date qui figurera au rapport de
   /// conformité est celle de l'intervention, pas celle de la frappe.
+  ///
+  /// Deux champs arrivent **préremplis**, et restent modifiables sur la fiche :
+  ///
+  ///  * le bâtiment reprend celui que le chantier propose par défaut ;
+  ///  * [refNumber] propose le suivant du plus grand numéro du chantier. Une
+  ///    proposition, pas une attribution : le technicien la corrige si son
+  ///    repérage ne suit pas l'ordre de saisie.
   Future<String> createPoint({
     required String projectId,
     required String authorId,
     DateTime? capturedAt,
-    String? purchaseOrder,
-    String? building,
-    int? floorLevel,
-    String? room,
-    String? description,
-  }) async {
-    final now = DateTime.now();
-    final row = Point(
-      id: newId(),
-      projectId: projectId,
-      refNumber: null, // attribué par le serveur à la synchro
-      purchaseOrder: purchaseOrder,
-      building: building,
-      floorLevel: floorLevel,
-      room: room,
-      description: description,
-      authorId: authorId,
-      capturedAt: capturedAt ?? now,
-      updatedAt: now,
-      deletedAt: null,
-    );
-    await _persistPoint(row);
-    return row.id;
+    int? refNumber,
+  }) {
+    // Une transaction : la lecture du plus grand numéro et l'insertion ne
+    // doivent pas être séparées par une autre création.
+    return transaction(() async {
+      final project = await (select(projects)
+            ..where((t) => t.id.equals(projectId)))
+          .getSingle();
+
+      final now = DateTime.now();
+      final row = Point(
+        id: newId(),
+        projectId: projectId,
+        refNumber: refNumber ?? await _nextRefNumber(projectId),
+        building: project.building,
+        authorId: authorId,
+        capturedAt: capturedAt ?? now,
+        updatedAt: now,
+        deletedAt: null,
+      );
+      await _persistPoint(row);
+      return row.id;
+    });
+  }
+
+  /// Le suivant du plus grand numéro **vivant** du chantier, 1 s'il n'y en a
+  /// pas. Les points supprimés ne comptent pas : leur numéro est libre.
+  Future<int> _nextRefNumber(String projectId) async {
+    final max = points.refNumber.max();
+    final row = await (selectOnly(points)
+          ..addColumns([max])
+          ..where(
+            points.projectId.equals(projectId) & points.deletedAt.isNull(),
+          ))
+        .getSingle();
+    return (row.read(max) ?? 0) + 1;
   }
 
   /// Modifie une fiche, champ par champ.
@@ -173,10 +297,12 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
   Future<void> updatePoint(
     String pointId, {
     Value<DateTime>? capturedAt,
+    Value<int?>? refNumber,
+    Value<String?>? projectCode,
+    Value<String?>? projectName,
     Value<String?>? purchaseOrder,
     Value<String?>? building,
     Value<int?>? floorLevel,
-    Value<String?>? room,
     Value<String?>? description,
     Value<String?>? configurationId,
     Value<String?>? configurationDetailId,
@@ -195,10 +321,12 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
     await _persistPoint(
       current.copyWith(
         capturedAt: capturedAt?.value,
+        refNumber: refNumber ?? Value(current.refNumber),
+        projectCode: projectCode ?? Value(current.projectCode),
+        projectName: projectName ?? Value(current.projectName),
         purchaseOrder: purchaseOrder ?? Value(current.purchaseOrder),
         building: building ?? Value(current.building),
         floorLevel: floorLevel ?? Value(current.floorLevel),
-        room: room ?? Value(current.room),
         description: description ?? Value(current.description),
         configurationId: configurationId ?? Value(current.configurationId),
         configurationDetailId:
@@ -216,25 +344,41 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
     );
   }
 
-  /// Remplace les cinq emplacements « Produit utilisé » d'un coup.
+  /// Change le fournisseur, et **vide les produits qui ne sont pas les siens**.
   ///
-  /// [productIds] est **positionnel** : son premier élément devient « Produit
-  /// utilisé (1) ». Les emplacements au-delà de sa longueur sont vidés — sans
-  /// quoi retirer un produit du milieu de la liste en laisserait un fantôme
-  /// dans la dernière case, et le rapport de conformité mentionnerait un
-  /// produit qui n'a pas été posé.
-  Future<void> setProducts(String pointId, List<String?> productIds) {
-    String? at(int index) =>
-        index < productIds.length ? productIds[index] : null;
+  /// La fiche ne propose que les produits du fournisseur choisi ; en changer
+  /// en laissant les anciens produits ferait sortir un rapport qui attribue à
+  /// un fabricant les références d'un autre. Une seule écriture, donc une seule
+  /// entrée d'outbox : aucun état intermédiaire incohérent ne part au serveur.
+  ///
+  /// Les emplacements vidés ne se tassent pas : la position est signifiante,
+  /// « Produit utilisé (3) » reste le troisième même si le deuxième est vide.
+  Future<void> setSupplier(String pointId, String? supplierId) {
+    return transaction(() async {
+      final current = await (select(points)..where((t) => t.id.equals(pointId)))
+          .getSingle();
 
-    return updatePoint(
-      pointId,
-      product1Id: Value(at(0)),
-      product2Id: Value(at(1)),
-      product3Id: Value(at(2)),
-      product4Id: Value(at(3)),
-      product5Id: Value(at(4)),
-    );
+      final siens = supplierId == null
+          ? const <String>{}
+          : {
+              for (final produit in await (select(settingOptions)
+                    ..where((t) => t.parentId.equals(supplierId)))
+                  .get())
+                produit.id,
+            };
+      Value<String?> garde(String? id) =>
+          Value(id != null && siens.contains(id) ? id : null);
+
+      await updatePoint(
+        pointId,
+        supplierId: Value(supplierId),
+        product1Id: garde(current.product1Id),
+        product2Id: garde(current.product2Id),
+        product3Id: garde(current.product3Id),
+        product4Id: garde(current.product4Id),
+        product5Id: garde(current.product5Id),
+      );
+    });
   }
 
   /// Suppression **logique**.

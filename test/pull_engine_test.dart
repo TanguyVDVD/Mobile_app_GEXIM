@@ -47,7 +47,11 @@ class _FakeGateway implements RemoteGateway {
   }
 
   @override
-  Future<void> upsert(OutboxEntity entity, Map<String, Object?> payload) async {}
+  Future<void> upsert(
+      OutboxEntity entity, Map<String, Object?> payload) async {}
+
+  @override
+  Future<void> deleteProject(String projectId) async {}
 
   @override
   Future<void> uploadPhoto({
@@ -57,13 +61,6 @@ class _FakeGateway implements RemoteGateway {
 
   @override
   Future<Uint8List> downloadPhoto(String remotePath) async => Uint8List(0);
-
-  @override
-  Future<void> publishReport({
-    required String projectId,
-    required String remotePath,
-    required Uint8List bytes,
-  }) async {}
 
   @override
   Future<void> setUserRole(String userId, UserRole role) async {}
@@ -507,6 +504,65 @@ void main() {
 
       expect(received, 3 + 7);
       expect(await db.select(db.points).get(), hasLength(7));
+    });
+  });
+
+  group('chantier supprime definitivement', () {
+    // Une ligne effacée du serveur ne redescend plus : sans la trace que le
+    // serveur garde de la suppression, les autres appareils afficheraient le
+    // chantier pour toujours.
+    Map<String, dynamic> trace(String id, {required DateTime at}) =>
+        {'id': id, 'deleted_at': _iso(at), 'synced_at': _iso(at)};
+
+    test('la trace efface le chantier et tout ce qui en depend', () async {
+      seedRemoteGraph(at: t0);
+      gateway
+        ..put(PullEntity.projectMember, memberRow(at: t0))
+        ..put(PullEntity.point, pointRow(at: t0, refNumber: 1));
+      await PullEngine(db, gateway).drain();
+      expect(await db.select(db.points).get(), hasLength(1));
+
+      gateway.put(
+        PullEntity.deletedProject,
+        trace('p1', at: t0.add(const Duration(minutes: 5))),
+      );
+      await PullEngine(db, gateway).drain();
+
+      expect(await db.select(db.projects).get(), isEmpty);
+      expect(await db.select(db.projectMembers).get(), isEmpty);
+      expect(await db.select(db.points).get(), isEmpty);
+      // Le client et le profil, eux, n'appartiennent pas au chantier.
+      expect(await db.select(db.clients).get(), hasLength(1));
+      expect(await db.select(db.profiles).get(), hasLength(1));
+    });
+
+    test('la trace d\'un chantier jamais recu est sans effet', () async {
+      seedRemoteGraph(at: t0);
+      gateway.put(PullEntity.deletedProject, trace('ailleurs', at: t0));
+
+      await PullEngine(db, gateway).drain();
+
+      expect(await db.select(db.projects).get(), hasLength(1));
+    });
+
+    test('la trace emporte aussi le travail non envoye de l\'appareil',
+        () async {
+      // Le sens de « définitivement » : un relevé resté sur une tablette
+      // n'a plus de chantier où aller. Le garder en file le laisserait en
+      // échec, à bloquer la déconnexion.
+      seedRemoteGraph(at: t0);
+      await PullEngine(db, gateway).drain();
+      await db.pointDao.createPoint(projectId: 'p1', authorId: 'u1');
+      expect(await db.select(db.outboxEntries).get(), hasLength(1));
+
+      gateway.put(
+        PullEntity.deletedProject,
+        trace('p1', at: t0.add(const Duration(minutes: 5))),
+      );
+      await PullEngine(db, gateway).drain();
+
+      expect(await db.select(db.points).get(), isEmpty);
+      expect(await db.select(db.outboxEntries).get(), isEmpty);
     });
   });
 }

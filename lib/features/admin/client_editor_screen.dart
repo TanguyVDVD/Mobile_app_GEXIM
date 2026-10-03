@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../core/ids.dart';
+import '../../database/daos/project_dao.dart';
 import '../../database/database.dart';
 import '../../shared/widgets/plate.dart';
 import '../../sync/backoff.dart';
@@ -85,7 +86,7 @@ class _ClientEditorScreenState extends ConsumerState<ClientEditorScreen> {
     if (name.isEmpty) return _refuser('Le nom du client est obligatoire.');
     if (address.isEmpty) {
       return _refuser(
-        'L\'adresse est obligatoire : elle figure sur chaque fiche du rapport.',
+        'L\'adresse est obligatoire : elle figure sur chaque fiche.',
       );
     }
     // Vérifié ici, avec les autres champs obligatoires, et non dans `_creer` :
@@ -264,7 +265,7 @@ class _ClientEditorScreenState extends ConsumerState<ClientEditorScreen> {
               textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(
                 labelText: 'Adresse *',
-                helperText: 'Reportée en tête de chaque fiche du rapport.',
+                helperText: 'Reportée en tête de chaque fiche.',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -313,11 +314,96 @@ class _ClientEditorScreenState extends ConsumerState<ClientEditorScreen> {
               ),
             ),
 
+            if (client != null) ...[
+              const SizedBox(height: Fs.xl),
+              TextButton.icon(
+                onPressed: _busy ? null : () => _delete(client!),
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error,
+                ),
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Supprimer le client'),
+              ),
+            ],
             const SizedBox(height: 40),
           ],
         ),
       ),
     );
+  }
+
+  /// Suppression du client — logique, et refusée tant qu'il a des chantiers.
+  Future<void> _delete(Client client) async {
+    final dao = ref.read(projectDaoProvider);
+    // Lecture ponctuelle : une boîte de dialogue destructive ne doit pas se
+    // tromper de chiffre parce qu'un flux n'a pas encore émis.
+    final chantiers = await dao.liveProjectCount(client.id);
+    if (!mounted) return;
+
+    if (chantiers > 0) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Ce client a encore des chantiers'),
+          content: Text(
+            chantiers == 1
+                ? '1 chantier désigne « ${client.name} ». Supprimez-le, ou '
+                    'rattachez-le à un autre client, avant de supprimer '
+                    'celui-ci.'
+                : '$chantiers chantiers désignent « ${client.name} ». '
+                    'Supprimez-les, ou rattachez-les à un autre client, avant '
+                    'de supprimer celui-ci.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Compris'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Supprimer « ${client.name} » ?'),
+        content: const Text(
+          'Le client disparaîtra des listes et ne pourra plus être choisi '
+          'pour un nouveau chantier, sur cet appareil comme sur les autres.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (!(confirmed ?? false) || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await dao.deleteClient(client.id);
+      if (mounted) Navigator.of(context).pop();
+    } on ClientEncoreUtilise {
+      // Un chantier a été créé pendant que la boîte était ouverte.
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Suppression refusée : un chantier désigne maintenant ce client.',
+          ),
+        ),
+      );
+    }
   }
 }
 
@@ -366,7 +452,7 @@ class _Logo extends StatelessWidget {
               Expanded(
                 child: Text(
                   present ??
-                      'Aucun logo. Il figure sur chaque fiche du rapport : '
+                      'Aucun logo. Il figure sur chaque fiche : '
                           'un client ne se crée pas sans.',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,

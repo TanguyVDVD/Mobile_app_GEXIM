@@ -11,9 +11,9 @@ import '../../core/plateforme.dart';
 ///
 /// Deux implémentations, parce que `flutter_image_compress` **n'existe pas sur
 /// Windows** (android, ios, macos, web uniquement). Or la réduction ne sert pas
-/// qu'à la capture : la génération du rapport y passe pour chaque cliché
-/// embarqué dans le PDF, et générer un rapport est justement ce que
-/// l'administrateur vient faire depuis son PC.
+/// qu'à la capture : l'export y passe pour chaque cliché embarqué dans le
+/// classeur Excel, et exporter est justement ce que l'administrateur vient
+/// faire depuis son PC.
 ///
 /// Sans ce repli, l'appel remonterait un `MissingPluginException` attrapé par
 /// le `try` de `ReportService._photoBytes`, qui rend `null` sur erreur. Le
@@ -121,9 +121,9 @@ Uint8List? _reduireHorsInterface(_Demande demande) {
 
   // L'EXIF porte l'orientation du capteur. `package:image` ne l'applique pas au
   // décodage, contrairement au greffon natif : sans cette normalisation, les
-  // clichés pris en portrait sortiraient couchés dans le PDF produit sur PC, et
-  // droits dans celui produit sur tablette. Le même chantier donnerait deux
-  // rapports différents.
+  // clichés pris en portrait sortiraient couchés dans le classeur produit sur
+  // PC, et droits dans celui produit sur tablette — Excel n'applique pas
+  // l'EXIF non plus. Le même chantier donnerait deux documents différents.
   final droite = img.bakeOrientation(source);
 
   // Minimum par axe : on ne réduit que jusqu'à ce que le plus contraignant des

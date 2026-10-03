@@ -112,8 +112,7 @@ class _Register extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final incomplete =
-        points.where((s) => !s.hasBefore || !s.hasAfter).length;
+    final incomplete = points.where((s) => !s.isComplete).length;
 
     return ReadableWidth(
       child: ListView.separated(
@@ -135,7 +134,8 @@ class _Register extends StatelessWidget {
 ///
 /// Le seul chiffre qui décide de quelque chose sur le terrain : peut-on quitter
 /// le site ? Y revenir coûte une demi-journée, donc il est en tête, et il
-/// bascule au rouge dès qu'il manque un cliché.
+/// bascule au rouge dès qu'une fiche n'est pas complète — même règle que
+/// l'état affiché sur chaque ligne, voir `Completude`.
 class _Tally extends StatelessWidget {
   const _Tally({required this.total, required this.incomplete});
 
@@ -183,7 +183,7 @@ class _PointPlate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final point = summary.point;
-    final complete = summary.hasBefore && summary.hasAfter;
+    final complete = summary.isComplete;
     // Bâtiment, étage, local — dans l'ordre où on situe une traversée sur un
     // site, du plus large au plus précis. L'étage passe par `floorLabel` et non
     // par son entier brut : « Rez-de-chaussée » se lit, « 0 » se déchiffre.
@@ -221,7 +221,10 @@ class _PointPlate extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: Fs.sm),
-                SealRule(before: summary.hasBefore, after: summary.hasAfter),
+                PointStatus(
+                  photos: summary.photoCount,
+                  missingValues: summary.missingValues,
+                ),
               ],
             ),
           ),
@@ -229,8 +232,8 @@ class _PointPlate extends StatelessWidget {
             const Padding(
               padding: EdgeInsets.only(left: Fs.sm),
               child: Tooltip(
-                message: 'Numéro définitif attribué à la synchronisation',
-                child: Icon(Icons.schedule, size: 16, color: Fs.inkMuted),
+                message: 'Numéro du point à saisir',
+                child: Icon(Icons.edit_outlined, size: 16, color: Fs.inkMuted),
               ),
             ),
         ],

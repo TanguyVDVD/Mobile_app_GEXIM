@@ -107,52 +107,73 @@ class ReferenceTag extends StatelessWidget {
   }
 }
 
-/// État des deux clichés réglementaires, en deux segments.
+/// Où en est une fiche : « Complet », ou ce qu'elle a et ce qui lui manque.
 ///
-/// Se lit d'un coup d'œil sans lire de texte : plein = présent, creux =
-/// manquant. C'est l'information que l'opérateur balaie des dizaines de fois
-/// avant de quitter le chantier.
-class SealRule extends StatelessWidget {
-  const SealRule({required this.before, required this.after, super.key});
+/// Deux nombres plutôt qu'un seul mot, parce qu'ils appellent deux gestes
+/// différents : les clichés se prennent devant le mur, les valeurs se
+/// complètent aussi bien au bureau. C'est l'information que l'opérateur
+/// balaie des dizaines de fois avant de quitter le chantier.
+///
+/// **Chaque moitié a sa couleur**, et le rouge ne marque que ce qui manque :
+/// l'absence de tout cliché, et les valeurs à remplir. « 1 photo ajoutée »
+/// est un constat, pas une alerte — il reste gris à côté de valeurs
+/// manquantes en rouge.
+class PointStatus extends StatelessWidget {
+  const PointStatus({
+    required this.photos,
+    required this.missingValues,
+    super.key,
+  });
 
-  final bool before;
-  final bool after;
+  /// Clichés enregistrés sur la fiche.
+  final int photos;
+
+  /// Champs de la fiche encore vides.
+  final int missingValues;
+
+  /// Au moins un cliché, et plus rien à remplir.
+  bool get complete => missingValues == 0 && photos > 0;
+
+  String get photosTexte => switch (photos) {
+        // En toutes lettres : « 0 photo ajoutée » se lit comme une erreur
+        // d'affichage.
+        0 => 'Aucune photo ajoutée',
+        1 => '1 photo ajoutée',
+        _ => '$photos photos ajoutées',
+      };
+
+  /// `null` quand rien ne manque : il n'y a alors rien à dire.
+  String? get manquantesTexte => switch (missingValues) {
+        0 => null,
+        1 => '1 valeur manquante',
+        _ => '$missingValues valeurs manquantes',
+      };
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _segment(before),
-        const SizedBox(width: 3),
-        _segment(after),
-        const SizedBox(width: Fs.sm),
-        Text(
-          switch ((before, after)) {
-            (true, true) => 'Complet',
-            (false, false) => 'Aucun cliché',
-            (true, false) => 'Après manquant',
-            (false, true) => 'Avant manquant',
-          },
-          style: TextStyle(
-            fontSize: 14,
-            color: before && after ? Fs.inkMuted : Fs.signal,
-            fontWeight: before && after ? FontWeight.w400 : FontWeight.w600,
-          ),
-        ),
-      ],
+    const neutre = TextStyle(fontSize: 14, color: Fs.inkMuted);
+    const alerte = TextStyle(
+      fontSize: 14,
+      color: Fs.signal,
+      fontWeight: FontWeight.w600,
     );
-  }
 
-  Widget _segment(bool filled) {
-    return Container(
-      width: 20,
-      height: 5,
-      decoration: BoxDecoration(
-        color: filled ? Fs.ink : Colors.transparent,
-        border: filled ? null : Border.all(color: Fs.signal, width: 1),
-        borderRadius: const BorderRadius.all(Radius.circular(1)),
+    final manquantes = manquantesTexte;
+    return Text.rich(
+      TextSpan(
+        style: neutre,
+        children: complete
+            ? const [TextSpan(text: 'Complet')]
+            : [
+                TextSpan(text: photosTexte, style: photos == 0 ? alerte : null),
+                if (manquantes != null) ...[
+                  const TextSpan(text: ', '),
+                  TextSpan(text: manquantes, style: alerte),
+                ],
+              ],
       ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }

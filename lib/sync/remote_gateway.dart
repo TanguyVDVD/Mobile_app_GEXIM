@@ -59,17 +59,12 @@ abstract interface class RemoteGateway {
   /// droits doit être immédiat, ou ne pas avoir lieu.
   Future<void> setUserRole(String userId, UserRole role);
 
-  /// Dépose un rapport et enregistre sa génération.
+  /// Supprime **définitivement** un chantier, ses traversées et leurs
+  /// clichés. **Exige du réseau**, et les droits d'administrateur.
   ///
-  /// Hors du circuit de la file d'attente, et volontairement : un PDF est une
-  /// donnée **dérivée**, reconstructible à tout moment depuis les traversées.
-  /// Faire transiter plusieurs dizaines de mégaoctets par l'outbox pour un
-  /// document que l'on sait régénérer serait un mauvais échange.
-  Future<void> publishReport({
-    required String projectId,
-    required String remotePath,
-    required Uint8List bytes,
-  });
+  /// Hors de la file d'attente, comme [setUserRole] : un effacement ne se
+  /// rattrape pas, il doit être immédiat ou ne pas avoir lieu.
+  Future<void> deleteProject(String projectId);
 
   /// Lignes dont le serveur a accusé réception après [since].
   ///
@@ -282,32 +277,54 @@ class SupabaseRemoteGateway implements RemoteGateway {
   }
 
   @override
-  Future<void> publishReport({
-    required String projectId,
-    required String remotePath,
-    required Uint8List bytes,
-  }) async {
+  Future<void> deleteProject(String projectId) async {
+    const page = 1000;
+    const lot = 100;
+
     try {
+      // 1. Les fichiers, tant que `photos` dit encore lesquels ils sont — une
+      //    fois les lignes effacées, plus rien ne permettrait de les retrouver
+      //    et ils resteraient dans le bucket pour toujours. Lignes supprimées
+      //    logiquement comprises : leur fichier existe toujours.
+      final chemins = <String>[];
+      for (var debut = 0;; debut += page) {
+        final lignes = await _borne(
+          () => _client
+              .from('photos')
+              .select('storage_path, points!inner(project_id)')
+              .eq('points.project_id', projectId)
+              .order('id')
+              .range(debut, debut + page - 1),
+          delaiRequete,
+        );
+        chemins.addAll([for (final l in lignes) l['storage_path'] as String]);
+        if (lignes.length < page) break;
+      }
+      for (var i = 0; i < chemins.length; i += lot) {
+        final tranche = chemins.sublist(
+          i,
+          i + lot > chemins.length ? chemins.length : i + lot,
+        );
+        await _borne(
+          () => _client.storage.from('point-photos').remove(tranche),
+          delaiTransfert,
+        );
+      }
+      // L'ancien rapport PDF, s'il en a été déposé un. Retirer un objet
+      // absent n'est pas une erreur.
       await _borne(
-        () => _client.storage.from('reports').uploadBinary(
-              remotePath,
-              bytes,
-              fileOptions: const FileOptions(
-                contentType: 'application/pdf',
-                // Regénérer écrase : le chemin est déterministe par rapport.
-                upsert: true,
-              ),
-            ),
-        delaiTransfert * 3,
+        () =>
+            _client.storage.from('reports').remove(['$projectId/rapport.pdf']),
+        delaiRequete,
       );
 
-      // La ligne n'est écrite qu'après le dépôt : jamais de rapport référencé
-      // sans son fichier.
+      // 2. Les lignes, en une transaction côté serveur. Reprendre après une
+      //    coupure est sans danger : chaque étape se rejoue à l'identique.
       await _borne(
-        () => _client.from('reports').insert({
-          'project_id': projectId,
-          'storage_path': remotePath,
-        }),
+        () => _client.rpc<void>(
+          'delete_project',
+          params: {'p_project': projectId},
+        ),
         delaiRequete,
       );
     } on StorageException catch (e) {
@@ -329,6 +346,7 @@ class SupabaseRemoteGateway implements RemoteGateway {
         PullEntity.projectMember => 'project_members',
         PullEntity.point => 'points',
         PullEntity.photo => 'photos',
+        PullEntity.deletedProject => 'deleted_projects',
       };
 
   /// Clé de départage, appliquée après `synced_at`.
