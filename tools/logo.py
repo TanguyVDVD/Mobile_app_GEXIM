@@ -16,7 +16,7 @@
 #   assets/branding/logo.png                    1024 px
 #   android/.../mipmap-*/ic_launcher.png        icône classique (Android 7)
 #   android/.../mipmap-*/ic_launcher_foreground.png   icône adaptative
-#   windows/runner/resources/app_icon.ico       16 à 256 px
+#   web/favicon.png, web/icons/Icon-*.png       version navigateur
 from pathlib import Path
 
 from PIL import Image, ImageDraw
@@ -109,10 +109,20 @@ def main():
             dossier / 'ic_launcher_foreground.png'
         )
 
-    logo.save(
-        RACINE / 'windows' / 'runner' / 'resources' / 'app_icon.ico',
-        sizes=[(n, n) for n in (16, 24, 32, 48, 64, 128, 256)],
-    )
+    # Version navigateur : l'onglet, l'écran d'accueil, et les variantes
+    # « masquables » que le système rogne à sa forme — même raisonnement que
+    # l'icône adaptative d'Android, d'où le premier plan sur fond d'encre.
+    web = RACINE / 'web'
+    logo.resize((32, 32), Image.LANCZOS).save(web / 'favicon.png')
+    masquable = Image.new('RGBA', (BASE, BASE), ENCRE)
+    masquable.alpha_composite(avant)
+    for cote in (192, 512):
+        logo.resize((cote, cote), Image.LANCZOS).save(
+            web / 'icons' / f'Icon-{cote}.png'
+        )
+        masquable.resize((cote, cote), Image.LANCZOS).save(
+            web / 'icons' / f'Icon-maskable-{cote}.png'
+        )
     print('logo régénéré')
 
 

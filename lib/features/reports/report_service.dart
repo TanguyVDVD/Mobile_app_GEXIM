@@ -4,6 +4,7 @@ import 'package:firestop_excel/firestop_excel.dart';
 import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/services.dart' show rootBundle;
 
+import '../../core/plateforme.dart';
 import '../../database/daos/point_dao.dart';
 import '../../database/database.dart';
 import '../../database/tables/enums.dart' as app;
@@ -70,9 +71,9 @@ class ReportService {
   final PhotoRepository _photos;
   final RemoteGateway _gateway;
 
-  /// Injectée plutôt qu'appelée en dur : le greffon de compression n'existe pas
-  /// sur Windows, où la génération du classeur est pourtant l'usage principal.
-  /// Voir `ReductionJpeg`.
+  /// Injectée plutôt qu'appelée en dur : le greffon de compression n'existe
+  /// pas dans la machine virtuelle des tests. Sur tablette seulement — le
+  /// navigateur passe par `reduireOctets`.
   final ReductionJpeg _reduction;
 
   /// Le modèle, tel que déclaré dans `pubspec.yaml`.
@@ -155,22 +156,17 @@ class ReportService {
       }
 
       final point = summary.point;
-      final etage = point.floorLevel;
       final id = PointDao.identification(point, project);
       points.add(
         ReportPoint(
-          number: point.refNumber?.toString(),
+          number: point.refNumber,
           capturedAt: point.capturedAt,
           // Ce que dit le chantier, sauf si la traversée s'en écarte.
           projectCode: id.code,
           projectName: id.name,
           purchaseOrder: id.purchaseOrder,
           building: point.building,
-          // « Niveau 2 », et non le « Étage 2 » de l'écran de saisie : c'est
-          // l'intitulé exact de la liste « Étages » du classeur. Une fiche
-          // retouchée à la main dans Excel doit retrouver sa valeur dans le
-          // menu déroulant.
-          floor: etage == null ? null : 'Niveau $etage',
+          floor: options[point.floorId],
           configuration: options[point.configurationId],
           configurationDetail: options[point.configurationDetailId],
           eiLevel: options[point.eiLevelId],
@@ -253,6 +249,20 @@ class ReportService {
   /// l'appelant compte l'absence.
   Future<Uint8List?> _photoBytes(Photo photo) async {
     try {
+      // Navigateur : pas de disque, le cliché vient du serveur et se réduit
+      // en Dart pur. Même cote, même qualité — le classeur doit être le même
+      // d'où qu'on l'exporte.
+      if (!Plateforme.fichiersLocaux) {
+        final octets =
+            await _photos.octetsDistants(photo).timeout(_downloadTimeout);
+        if (octets == null) return null;
+        return await reduireOctets(
+          octets,
+          coteMin: _coteClasseur,
+          qualite: _qualiteClasseur,
+        );
+      }
+
       final file = await _photos.fileFor(photo).timeout(_downloadTimeout);
       if (file == null) return null;
 

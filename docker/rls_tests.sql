@@ -256,19 +256,20 @@ declare
   p1 uuid := gen_random_uuid();
   p2 uuid := gen_random_uuid();
   p3 uuid := gen_random_uuid();
-  lu integer;
+  lu text;
 begin
   insert into public.points
     (id, project_id, ref_number, author_id, captured_at, updated_at)
   values
-    (p1, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 47,
+    (p1, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '1.40',
      '22222222-2222-4222-8222-222222222222', now(), now()),
     (p2, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', null,
      '22222222-2222-4222-8222-222222222222', now(), now());
 
   select ref_number into lu from public.points where id = p1;
-  assert lu = 47,
-    format('REGRESSION: numero saisi 47, enregistre %s', lu);
+  -- « 1.40 » et non 1.4 : le numero est un texte, il se garde tel quel.
+  assert lu = '1.40',
+    format('REGRESSION: numero saisi 1.40, enregistre %s', lu);
 
   select ref_number into lu from public.points where id = p2;
   assert lu is null,
@@ -278,7 +279,7 @@ begin
   insert into public.points
     (id, project_id, ref_number, author_id, captured_at, updated_at)
   values
-    (p1, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 12,
+    (p1, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '12',
      '22222222-2222-4222-8222-222222222222', now(),
      now() + interval '1 minute')
   on conflict (id) do update set
@@ -286,17 +287,28 @@ begin
     updated_at = excluded.updated_at;
 
   select ref_number into lu from public.points where id = p1;
-  assert lu = 12,
+  assert lu = '12',
     format('REGRESSION: numero corrige en 12, enregistre %s', lu);
 
   -- Le doublon passe.
   insert into public.points
     (id, project_id, ref_number, author_id, captured_at, updated_at)
   values
-    (p3, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 12,
+    (p3, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '12',
      '22222222-2222-4222-8222-222222222222', now(), now());
 
-  raise notice 'OK   numero de point : saisi, corrigeable, doublon accepte';
+  -- Un numero vide n'est pas un numero.
+  declare refuse boolean := false;
+  begin
+    begin
+      update public.points set ref_number = '  ' where id = p2;
+    exception when check_violation then
+      refuse := true;
+    end;
+    assert refuse, 'REGRESSION: un numero de point vide a ete accepte';
+  end;
+
+  raise notice 'OK   numero de point : texte libre, corrigeable, doublon accepte';
 end
 $$;
 rollback;
@@ -670,27 +682,48 @@ $$;
 rollback;
 
 -- -----------------------------------------------------------------------------
--- 17. L'etage est borne en base, pas seulement dans la liste deroulante
+-- 17. Les etages sont une liste administree, deja garnie
 -- -----------------------------------------------------------------------------
+--
+-- L'etage etait un entier borne de -3 a 5 ; il est desormais une option de
+-- `setting_options`. Deux choses a prouver : les neuf niveaux d'origine
+-- existent — sans eux la fiche n'aurait rien a proposer —, et un point ne
+-- peut designer qu'une option qui existe.
 
 begin;
 
 do $$
-declare refuse boolean := false;
+declare
+  niveaux integer;
+  rdc uuid;
+  refuse boolean := false;
 begin
+  select count(*) into niveaux from public.setting_options
+   where kind = 'floor' and deleted_at is null;
+  assert niveaux = 9,
+    format('REGRESSION: %s etages d''origine au lieu de 9', niveaux);
+
+  select id into rdc from public.setting_options
+   where kind = 'floor' and label = 'Niveau 0';
+  insert into public.points
+    (id, project_id, author_id, floor_id, captured_at, updated_at)
+  values
+    (gen_random_uuid(), 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+     '22222222-2222-4222-8222-222222222222', rdc, now(), now());
+
   begin
     insert into public.points
-      (id, project_id, author_id, floor_level, captured_at, updated_at)
+      (id, project_id, author_id, floor_id, captured_at, updated_at)
     values
       (gen_random_uuid(), 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-       '22222222-2222-4222-8222-222222222222', 42, now(), now());
-  exception when check_violation then
+       '22222222-2222-4222-8222-222222222222', gen_random_uuid(), now(), now());
+  exception when foreign_key_violation then
     refuse := true;
   end;
-
   assert refuse,
-    'REGRESSION: un etage hors plage a ete accepte par la base';
-  raise notice 'OK   floor_level borne a -3..5 cote serveur';
+    'REGRESSION: un point a pu designer un etage qui n''existe pas';
+
+  raise notice 'OK   etages : liste administree, garnie de ses neuf niveaux';
 end
 $$;
 rollback;
@@ -1265,6 +1298,86 @@ begin
     'REGRESSION: un chantier supprime est revenu par une ecriture tardive';
 
   raise notice 'OK   suppression de chantier : definitive, sans retour';
+end
+$$;
+rollback;
+
+-- -----------------------------------------------------------------------------
+-- 31. Supprimer un point l'efface pour de bon, et il ne revient pas
+-- -----------------------------------------------------------------------------
+--
+-- La tablette marque la ligne (`deleted_at`) et l'envoie, comme toute autre
+-- modification — c'est ce qui garde la suppression possible hors ligne. Le
+-- serveur en fait un effacement, garde une trace pour les autres appareils,
+-- et ecarte toute ecriture tardive.
+
+begin;
+select set_config('request.jwt.claims',
+  '{"sub":"22222222-2222-4222-8222-222222222222"}', true);
+set local role authenticated;
+
+do $$
+declare
+  p uuid := 'dead3333-3333-4333-8333-333333333333';
+  restes integer;
+begin
+  insert into public.points
+    (id, project_id, ref_number, author_id, captured_at, updated_at)
+  values
+    (p, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '1.40',
+     '22222222-2222-4222-8222-222222222222', now(), now());
+  insert into public.photos
+    (id, point_id, kind, storage_path, taken_at, updated_at)
+  values
+    ('fade3333-3333-4333-8333-333333333333', p, 'before',
+     'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/' || p || '/'
+     || 'fade3333-3333-4333-8333-333333333333.jpg', now(), now());
+
+  -- Le geste de la tablette : un upsert qui porte `deleted_at`.
+  insert into public.points
+    (id, project_id, author_id, captured_at, updated_at, deleted_at)
+  values
+    (p, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+     '22222222-2222-4222-8222-222222222222', now(),
+     now() + interval '1 minute', now())
+  on conflict (id) do update set
+    deleted_at = excluded.deleted_at,
+    updated_at = excluded.updated_at;
+
+  select (select count(*) from public.points where id = p)
+       + (select count(*) from public.photos where point_id = p)
+    into restes;
+  assert restes = 0,
+    format('REGRESSION: %s lignes du point subsistent', restes);
+
+  assert exists (select 1 from public.deleted_points
+                  where id = p
+                    and project_id = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
+    'REGRESSION: aucune trace de la suppression — les autres appareils '
+    'garderaient le point';
+
+  -- Un appareil reste hors ligne repousse le point, puis un cliche : ecartes
+  -- sans erreur.
+  insert into public.points
+    (id, project_id, author_id, captured_at, updated_at)
+  values
+    (p, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+     '22222222-2222-4222-8222-222222222222', now(), now() + interval '1 hour')
+  on conflict (id) do update set updated_at = excluded.updated_at;
+  insert into public.photos
+    (id, point_id, kind, storage_path, taken_at, updated_at)
+  values
+    ('fade4444-4444-4444-8444-444444444444', p, 'after',
+     'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/' || p || '/'
+     || 'fade4444-4444-4444-8444-444444444444.jpg', now(), now());
+
+  select (select count(*) from public.points where id = p)
+       + (select count(*) from public.photos where point_id = p)
+    into restes;
+  assert restes = 0,
+    'REGRESSION: un point supprime est revenu par une ecriture tardive';
+
+  raise notice 'OK   suppression de point : definitive, sans retour';
 end
 $$;
 rollback;

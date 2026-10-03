@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app/providers.dart';
 import 'app/router.dart';
 import 'app/theme.dart';
+import 'core/plateforme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -74,16 +75,19 @@ Future<void> main() async {
   // Ménage des fichiers laissés par un crash entre la compression d'un cliché
   // et son enregistrement en base. Sans attendre : c'est de l'entretien, il n'a
   // aucune raison de retarder l'affichage — ni de le faire échouer.
-  unawaited(
-    container
-        .read(photoStorageProvider)
-        .sweepOrphans(container.read(databaseProvider))
-        .catchError((Object e) {
-      developer.log('Ménage des clichés orphelins interrompu',
-          name: 'main', error: e);
-      return 0;
-    }),
-  );
+  // Sur tablette seulement : un navigateur n'a pas de fichiers de clichés.
+  if (Plateforme.fichiersLocaux) {
+    unawaited(
+      container
+          .read(photoStorageProvider)
+          .sweepOrphans(container.read(databaseProvider))
+          .catchError((Object e) {
+        developer.log('Ménage des clichés orphelins interrompu',
+            name: 'main', error: e);
+        return 0;
+      }),
+    );
+  }
 
   runApp(
     UncontrolledProviderScope(

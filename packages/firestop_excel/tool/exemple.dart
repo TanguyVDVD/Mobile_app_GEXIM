@@ -23,7 +23,9 @@ void main(List<String> args) {
   final image = Uint8List.fromList(
     ZipDecoder()
         .decodeBytes(octets)
-        .firstWhere((f) => f.name == 'xl/media/image6.jpeg')
+        .firstWhere(
+          (f) => f.name.startsWith('xl/media/') && f.name.endsWith('.jpeg'),
+        )
         .readBytes()!,
   );
 

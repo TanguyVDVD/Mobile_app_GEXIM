@@ -47,7 +47,7 @@ void main() {
 
   tearDown(() => db.close());
 
-  Future<String> creer({int? numero}) => db.pointDao.createPoint(
+  Future<String> creer({String? numero}) => db.pointDao.createPoint(
         projectId: projectId,
         authorId: auteur,
         refNumber: numero,
@@ -202,7 +202,7 @@ void main() {
       final promat = await option(SettingKind.supplier, 'Promat');
       await db.pointDao.updatePoint(
         id,
-        floorLevel: const Value(0),
+        floorId: Value(await option(SettingKind.floor, 'Niveau 0')),
         configurationId:
             Value(await option(SettingKind.configuration, 'Percement')),
         configurationDetailId:
@@ -283,30 +283,47 @@ void main() {
   });
 
   group('le numero de point', () {
-    test('est propose a la suite du plus grand, et part au serveur', () async {
-      expect((await lePoint(await creer())).refNumber, 1);
-      expect((await lePoint(await creer(numero: 40))).refNumber, 40);
-      // A la suite du plus grand, pas du nombre de points : le reperage du
-      // chantier peut commencer ailleurs qu'a 1.
-      expect((await lePoint(await creer())).refNumber, 41);
+    test('suit le reperage du chantier, pas seulement des entiers', () async {
+      // « 1.40 » : la forme des numéros du bureau. Un entier ne savait pas la
+      // porter.
+      final id = await creer(numero: '1.40');
+      expect((await lePoint(id)).refNumber, '1.40');
+      expect((await derniereCharge(OutboxEntity.point))['ref_number'], '1.40');
 
-      expect((await derniereCharge(OutboxEntity.point))['ref_number'], 41);
+      // Et le suivant est proposé dans la même forme.
+      expect((await lePoint(await creer())).refNumber, '1.41');
+    });
+
+    test('rien n\'est propose a la suite d\'un numero sans chiffre', () async {
+      await creer(numero: 'Gaine technique');
+      expect((await lePoint(await creer())).refNumber, isNull);
+    });
+
+    test('est propose a la suite du dernier releve, et part au serveur',
+        () async {
+      expect((await lePoint(await creer())).refNumber, '1');
+      expect((await lePoint(await creer(numero: '40'))).refNumber, '40');
+      // A la suite du dernier releve, pas du nombre de points : le reperage
+      // du chantier peut commencer ailleurs qu'a 1.
+      expect((await lePoint(await creer())).refNumber, '41');
+
+      expect((await derniereCharge(OutboxEntity.point))['ref_number'], '41');
     });
 
     test('se corrige et s\'efface comme tout autre champ', () async {
       final id = await creer();
 
-      await db.pointDao.updatePoint(id, refNumber: const Value(12));
-      expect((await lePoint(id)).refNumber, 12);
-      expect((await derniereCharge(OutboxEntity.point))['ref_number'], 12);
+      await db.pointDao.updatePoint(id, refNumber: const Value('12'));
+      expect((await lePoint(id)).refNumber, '12');
+      expect((await derniereCharge(OutboxEntity.point))['ref_number'], '12');
 
       await db.pointDao.updatePoint(id, refNumber: const Value(null));
       expect((await lePoint(id)).refNumber, isNull);
 
       // Un champ non passe n'y touche pas.
-      await db.pointDao.updatePoint(id, refNumber: const Value(7));
+      await db.pointDao.updatePoint(id, refNumber: const Value('7'));
       await db.pointDao.updatePoint(id, building: const Value('Bloc B'));
-      expect((await lePoint(id)).refNumber, 7);
+      expect((await lePoint(id)).refNumber, '7');
     });
 
     test('un numero libere par une suppression est repropose', () async {
@@ -314,17 +331,17 @@ void main() {
       final dernier = await creer();
       await db.pointDao.deletePoint(dernier);
 
-      expect((await lePoint(await creer())).refNumber, 2);
+      expect((await lePoint(await creer())).refNumber, '2');
     });
 
     test('un doublon est accepte, et signale des deux cotes', () async {
       // Rien ne l'interdit : une contrainte ferait refuser a la
       // synchronisation le releve du second technicien. Mais il doit se voir.
-      final a = await creer(numero: 5);
-      final b = await creer(numero: 6);
+      final a = await creer(numero: '5');
+      final b = await creer(numero: '6');
       expect(await db.pointDao.watchRefNumberTaken(a).first, isFalse);
 
-      await db.pointDao.updatePoint(b, refNumber: const Value(5));
+      await db.pointDao.updatePoint(b, refNumber: const Value('5'));
 
       expect(await db.pointDao.watchRefNumberTaken(a).first, isTrue);
       expect(await db.pointDao.watchRefNumberTaken(b).first, isTrue);
@@ -340,8 +357,8 @@ void main() {
     });
 
     test('un point supprime ne fait pas doublon', () async {
-      final a = await creer(numero: 5);
-      final b = await creer(numero: 5);
+      final a = await creer(numero: '5');
+      final b = await creer(numero: '5');
       await db.pointDao.deletePoint(b);
 
       expect(await db.pointDao.watchRefNumberTaken(a).first, isFalse);
@@ -351,12 +368,18 @@ void main() {
       // Le classeur suit cet ordre : celui du reperage, pas celui de la saisie.
       final sans = await creer();
       await db.pointDao.updatePoint(sans, refNumber: const Value(null));
-      await creer(numero: 12);
-      await creer(numero: 3);
+      await creer(numero: '12');
+      await creer(numero: '3');
+      await creer(numero: '1.40');
+      await creer(numero: '1.9');
 
+      // L'ordre d'un lecteur, pas celui de l'alphabet : « 3 » avant « 12 »,
+      // « 1.9 » avant « 1.40 ».
       final releve = await db.pointDao.pointSummaries(projectId);
-      expect([for (final s in releve) s.label], ['3', '12', '—']);
-      expect([for (final s in releve) s.isProvisional], [false, false, true]);
+      expect(
+        [for (final s in releve) s.label],
+        ['1.9', '1.40', '3', '12', '—'],
+      );
     });
   });
 }

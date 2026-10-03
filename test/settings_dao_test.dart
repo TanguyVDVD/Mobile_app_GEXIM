@@ -327,14 +327,15 @@ void main() {
       final config = await creer(SettingKind.configuration, 'Percement');
       final detail = await creer(SettingKind.configurationDetail, 'Trou');
       final ei = await creer(SettingKind.eiLevel, 'EI120');
+      final etage = await creer(SettingKind.floor, 'Niveau -2');
       final fournisseur = await creer(SettingKind.supplier, 'Promat');
       await db.delete(db.outboxEntries).go();
 
       await db.pointDao.updatePoint(
         pointId,
-        refNumber: const Value(47),
+        refNumber: const Value('47'),
         building: const Value('Bloc A'),
-        floorLevel: const Value(-2),
+        floorId: Value(etage),
         configurationId: Value(config),
         configurationDetailId: Value(detail),
         eiLevelId: Value(ei),
@@ -347,9 +348,9 @@ void main() {
 
       // Saisi par le technicien, donc transmis : il etait auparavant attribue
       // par le serveur, et absent de la charge utile.
-      expect(payload['ref_number'], 47);
+      expect(payload['ref_number'], '47');
       expect(payload['building'], 'Bloc A');
-      expect(payload['floor_level'], -2);
+      expect(payload['floor_id'], etage);
       expect(payload['configuration_id'], config);
       expect(payload['configuration_detail_id'], detail);
       expect(payload['ei_level_id'], ei);

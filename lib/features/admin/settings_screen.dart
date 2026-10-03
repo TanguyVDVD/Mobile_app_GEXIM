@@ -23,6 +23,7 @@ extension SettingKindLabel on SettingKind {
         SettingKind.supplier => 'Fournisseurs',
         SettingKind.productType => 'Types de produit',
         SettingKind.product => 'Produits',
+        SettingKind.floor => 'Étages',
       };
 
   /// Intitulé du bouton d'ajout, accordé. Écrit en toutes lettres plutôt que
@@ -34,6 +35,7 @@ extension SettingKindLabel on SettingKind {
         SettingKind.supplier => 'Nouveau fournisseur',
         SettingKind.productType => 'Nouveau type de produit',
         SettingKind.product => 'Nouveau produit',
+        SettingKind.floor => 'Nouvel étage',
       };
 
   /// Où la liste apparaît sur la fiche — rien de plus : la note d'en-tête sert
@@ -49,6 +51,7 @@ extension SettingKindLabel on SettingKind {
           'Ligne « Type de produit utilisé » de la fiche.',
         SettingKind.product =>
           'Lignes « Produit utilisé (1) » à « (5) » de la fiche.',
+        SettingKind.floor => 'Ligne « Etage » de la fiche.',
       };
 }
 
@@ -67,9 +70,17 @@ class SettingsScreen extends ConsumerWidget {
   /// fournisseur**. Une liste à plat de tous les produits inviterait à en
   /// créer un sans dire de qui il est — et celui-là ne serait proposé sur
   /// aucune fiche.
-  static final _onglets = [
-    for (final kind in SettingKind.values)
-      if (kind != SettingKind.product) kind,
+  ///
+  /// Dans l'ordre de la fiche : l'étage, qui est dans son bloc
+  /// d'identification, passe avant les caractéristiques — bien qu'il soit le
+  /// dernier arrivé dans l'enum.
+  static const _onglets = [
+    SettingKind.floor,
+    SettingKind.configuration,
+    SettingKind.configurationDetail,
+    SettingKind.eiLevel,
+    SettingKind.supplier,
+    SettingKind.productType,
   ];
 
   @override

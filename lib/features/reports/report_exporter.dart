@@ -1,35 +1,34 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../core/plateforme.dart';
+import 'telechargement/telechargement_absent.dart'
+    if (dart.library.js_interop) 'telechargement/telechargement_web.dart';
 
-/// Ce qu'il est advenu d'une demande d'enregistrement.
+/// Ce qu'il est advenu d'une demande d'export.
 sealed class ResultatExport {
   const ResultatExport();
 }
 
-/// Le fichier est écrit. [chemin] est absolu, et destiné à être montré tel quel
-/// à l'administrateur : c'est ce qu'il ira chercher dans son explorateur.
+/// Le classeur est sorti. [nom] est le nom du fichier, à montrer tel quel :
+/// c'est ce que l'administrateur ira chercher dans ses téléchargements.
 class ExportReussi extends ResultatExport {
-  const ExportReussi(this.chemin);
+  const ExportReussi(this.nom);
 
-  final String chemin;
+  final String nom;
 }
 
-/// L'administrateur a fermé le sélecteur. Ce n'est pas une erreur, et rien ne
-/// doit s'afficher : le distinguer d'un échec évite le message d'alerte absurde
-/// après une annulation volontaire.
+/// Rien à annoncer : le système a pris la main (feuille de partage), ou
+/// l'utilisateur a renoncé. Le distinguer d'un échec évite le message d'alerte
+/// absurde après une annulation volontaire.
 class ExportAnnule extends ResultatExport {
   const ExportAnnule();
 }
 
-/// Le dossier est en lecture seule, le disque plein, le fichier ouvert dans
-/// Excel qui le verrouille — cas courant quand on régénère un classeur.
 class ExportEchoue extends ResultatExport {
   const ExportEchoue(this.raison);
 
@@ -38,84 +37,54 @@ class ExportEchoue extends ResultatExport {
 
 /// Sortie du classeur hors de l'application.
 ///
-/// Deux gestes différents pour deux postes de travail, et non un réglage :
+/// Deux gestes pour deux postes, et non un réglage :
 ///
 ///  * sur **tablette**, il n'y a pas d'arborescence à proposer. Le classeur
-///    part par le sélecteur de partage du système — courriel, Drive — c'est le
-///    seul geste qui ait un sens là-bas.
-///  * sur **PC**, l'administrateur range le document dans le dossier client,
-///    celui que son classement impose, et l'ouvre dans Excel. Lui imposer un
-///    emplacement, puis lui demander de retrouver le fichier pour le déplacer,
-///    serait un détour pour rien.
+///    part par le sélecteur de partage du système — courriel, Drive ;
+///  * dans un **navigateur**, il se télécharge, comme tout fichier qu'un site
+///    remet. L'administrateur le range ensuite où son classement l'impose.
 abstract interface class ReportExporter {
-  /// Vrai si [enregistrer] ouvre un sélecteur d'emplacement.
+  /// Vrai si [exporter] fait télécharger le fichier.
   ///
-  /// L'écran s'en sert pour intituler le bouton — « Enregistrer sous… » n'a
-  /// aucun sens en face d'une feuille de partage.
-  bool get proposeUnEmplacement;
+  /// L'écran s'en sert pour intituler le bouton — « Télécharger » n'a aucun
+  /// sens en face d'une feuille de partage.
+  bool get telecharge;
 
-  Future<ResultatExport> enregistrer({
+  Future<ResultatExport> exporter({
     required String nomPropose,
     required Uint8List octets,
   });
 
-  factory ReportExporter.pourLaPlateforme() =>
-      Plateforme.enregistrementLocalDisponible
-          ? const ExportVersLeDisque()
-          : const ExportParPartage();
+  factory ReportExporter.pourLaPlateforme() => Plateforme.estNavigateur
+      ? const ExportParTelechargement()
+      : const ExportParPartage();
 
   /// Classeur Excel **avec macros** : le modèle du bureau porte du VBA.
   static const extension = 'xlsm';
   static const typeMime = 'application/vnd.ms-excel.sheet.macroEnabled.12';
 }
 
-/// Bureau : sélecteur d'emplacement natif, puis écriture.
-class ExportVersLeDisque implements ReportExporter {
-  const ExportVersLeDisque();
+/// Navigateur : le fichier est téléchargé.
+class ExportParTelechargement implements ReportExporter {
+  const ExportParTelechargement();
 
   @override
-  bool get proposeUnEmplacement => true;
+  bool get telecharge => true;
 
   @override
-  Future<ResultatExport> enregistrer({
+  Future<ResultatExport> exporter({
     required String nomPropose,
     required Uint8List octets,
   }) async {
-    String? chemin;
     try {
-      // `bytes` n'est volontairement pas passé : sur les plateformes de bureau
-      // `saveFile` écrirait le fichier lui-même et ne rendrait qu'un chemin,
-      // sans distinguer un disque plein d'une annulation. On écrit donc nous
-      // mêmes, pour pouvoir dire ce qui a échoué.
-      chemin = await FilePicker.platform.saveFile(
-        dialogTitle: 'Enregistrer le classeur',
-        fileName: nomPropose,
-        type: FileType.custom,
-        allowedExtensions: const [ReportExporter.extension],
-        // Le sélecteur doit rester modal au-dessus de la fenêtre : sans cela il
-        // peut s'ouvrir derrière, et l'application paraît figée.
-        lockParentWindow: true,
+      telecharger(
+        nom: nomPropose,
+        octets: octets,
+        typeMime: ReportExporter.typeMime,
       );
+      return ExportReussi(nomPropose);
     } on Object catch (e) {
-      return ExportEchoue('Sélecteur d\'emplacement indisponible : $e');
-    }
-
-    if (chemin == null) return const ExportAnnule();
-
-    // Certains sélecteurs rendent le nom sans suffixe quand l'utilisateur l'a
-    // effacé. Sans extension le classeur ne s'ouvre pas d'un double-clic — et
-    // enregistré en `.xlsx`, Excel le refuserait : il contient des macros.
-    if (!chemin.toLowerCase().endsWith('.${ReportExporter.extension}')) {
-      chemin = '$chemin.${ReportExporter.extension}';
-    }
-
-    try {
-      await File(chemin).writeAsBytes(octets, flush: true);
-      return ExportReussi(chemin);
-    } on FileSystemException catch (e) {
-      // Cas le plus fréquent en pratique : le classeur précédent est encore
-      // ouvert dans Excel, qui verrouille le fichier.
-      return ExportEchoue(e.osError?.message ?? e.message);
+      return ExportEchoue('$e');
     }
   }
 }
@@ -125,10 +94,10 @@ class ExportParPartage implements ReportExporter {
   const ExportParPartage();
 
   @override
-  bool get proposeUnEmplacement => false;
+  bool get telecharge => false;
 
   @override
-  Future<ResultatExport> enregistrer({
+  Future<ResultatExport> exporter({
     required String nomPropose,
     required Uint8List octets,
   }) async {

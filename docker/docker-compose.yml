@@ -40,6 +40,9 @@ services:
       - ../supabase/migrations/20261003110000_project_fields_point_number.sql:/docker-entrypoint-initdb.d/50_project_fields_point_number.sql:ro
       - ../supabase/migrations/20261003130000_point_project_overrides.sql:/docker-entrypoint-initdb.d/60_point_project_overrides.sql:ro
       - ../supabase/migrations/20261003140000_delete_project.sql:/docker-entrypoint-initdb.d/70_delete_project.sql:ro
+      - ../supabase/migrations/20261003150000_ref_number_text.sql:/docker-entrypoint-initdb.d/80_ref_number_text.sql:ro
+      - ../supabase/migrations/20261003160000_delete_point.sql:/docker-entrypoint-initdb.d/90_delete_point.sql:ro
+      - ../supabase/migrations/20261003170000_floors_as_options.sql:/docker-entrypoint-initdb.d/95_floors_as_options.sql:ro
 
       # Les GRANT que Supabase pose automatiquement, et qu'un Postgres nu ignore.
       - ./postgres/99_grants.sql:/docker-entrypoint-initdb.d/99_grants.sql:ro

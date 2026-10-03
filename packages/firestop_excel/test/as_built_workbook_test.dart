@@ -25,8 +25,15 @@ void main() {
 
   final partsModele = ouvrir(modele);
 
-  /// L'image d'en-tête du modèle : un vrai JPEG, large (1417 × 225).
-  final jpeg = partsModele['xl/media/image6.jpeg']!;
+  /// L'image d'en-tête du modèle : un vrai JPEG, large. Cherchée par son
+  /// extension et non par son nom — Excel la renomme quand il réenregistre le
+  /// classeur.
+  final jpeg = partsModele.entries
+      .firstWhere(
+          (e) => e.key.startsWith('xl/media/') && e.key.endsWith('.jpeg'))
+      .value;
+
+  final feuilleModele = utf8.decode(partsModele['xl/worksheets/sheet1.xml']!);
 
   /// En-tête d'un PNG de 300 × 600 : assez pour être reconnu et mesuré.
   final png = Uint8List.fromList([
@@ -237,10 +244,31 @@ void main() {
       }
     });
 
+    test('a une marge haute de 4,5 cm, les autres marges du modele', () {
+      // Excel affiche les marges en centimètres et les enregistre en pouces.
+      String? marge(String xml, String cote) =>
+          RegExp('<pageMargins [^>]*?$cote="([^"]*)"').firstMatch(xml)?[1];
+
+      expect(double.parse(marge(feuille, 'top')!) * 2.54, closeTo(4.5, 0.001));
+      for (final cote in ['left', 'right', 'bottom', 'header', 'footer']) {
+        expect(marge(feuille, cote), marge(feuilleModele, cote), reason: cote);
+      }
+    });
+
     test('garde la mise en forme du modele', () {
-      expect(cellule(feuille, 'E11').$1, contains('s="43"'));
-      expect(cellule(feuille, 'F20').$1, contains('s="42"'));
-      expect(cellule(feuille, 'D5').$1, contains('s="5"'));
+      // Chaque cellule remplie garde le style que **le modèle** lui donne.
+      // Comparé au modèle et non à un numéro : Excel renumérote ses styles à
+      // chaque réenregistrement.
+      String? style(String xml, String ref) =>
+          RegExp(' s="(\\d+)"').firstMatch(cellule(xml, ref).$1)?[1];
+
+      for (final ref in ['D5', 'K5', 'F7', 'E11', 'E13', 'F20', 'F29']) {
+        expect(style(feuille, ref), style(feuilleModele, ref), reason: ref);
+        expect(style(feuille, ref), isNotNull, reason: ref);
+      }
+      // « Numéro du point » : le modèle y porte un format de date ; la fiche
+      // prend le style de la ligne « Intitulé Projet ».
+      expect(style(feuille, 'E15'), style(feuilleModele, 'E11'));
     });
   });
 
@@ -284,6 +312,23 @@ void main() {
       final parts = construire([point()]);
       expect(images(parts, 'Photo'), isEmpty);
       expect(parts.keys, isNot(contains('xl/drawings/_rels/fiche1.xml.rels')));
+    });
+
+    test('prennent les dimensions de la case, lues dans le modele', () {
+      // 2 px de retrait de chaque côté, pour laisser voir les traits. La
+      // ligne 18 du modèle fait 160,15 pt ; ses colonnes C à E, 93 + 89 + 92 px.
+      final parts = construire([
+        point(photos: [ReportPhoto(bytes: jpeg)]),
+      ]);
+      final taille =
+          RegExp(r'<a:ext cx="(\d+)" cy="(\d+)"/></a:xfrm>').firstMatch(
+        texte(parts, 'xl/drawings/fiche1.xml')
+            .split('<xdr:twoCellAnchor')
+            .firstWhere((a) => a.contains('name="Photo 1"')),
+      )!;
+
+      expect(int.parse(taille[1]!), (93 + 89 + 92 - 4) * 9525);
+      expect(int.parse(taille[2]!), (160.15 * 12700).round() - 4 * 9525);
     });
 
     test('remplissent chacun toute sa case', () {
@@ -471,6 +516,24 @@ void main() {
           expect(
             texte(parts, 'xl/worksheets/fiche$n.xml'),
             contains('shapeId="${id.substring(8)}"'),
+          );
+        }
+      }
+    });
+
+    test('chaque feuille a son propre numero de plage de formes', () {
+      // Le pendant du test précédent, côté ancien format : deux fichiers VML
+      // de même numéro, et Excel « répare ». La balise s'écrit de deux façons
+      // selon l'Excel qui a enregistré le modèle en dernier.
+      final parts =
+          construire([for (var i = 1; i <= 3; i++) point(numero: '$i')]);
+      for (var n = 1; n <= 3; n++) {
+        for (final fichier in ['ficheBoutons$n.vml', 'ficheEntete$n.vml']) {
+          expect(
+            RegExp(r'<o:idmap v:ext="edit" data="(\d+)"')
+                .firstMatch(texte(parts, 'xl/drawings/$fichier'))?[1],
+            '$n',
+            reason: fichier,
           );
         }
       }

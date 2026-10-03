@@ -1,13 +1,11 @@
-import 'dart:io';
-
 import 'package:drift/drift.dart';
-import 'package:drift/native.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
-import 'package:sqlite3/sqlite3.dart';
-import 'package:sqlite3_flutter_libs/sqlite3_flutter_libs.dart';
 
-import '../core/emplacements.dart';
+// La base s'ouvre différemment sur tablette (un fichier SQLite) et dans un
+// navigateur (SQLite en WebAssembly). Le choix se fait **à la compilation** :
+// la connexion native importe `dart:ffi`, qui n'existe pas côté web — un
+// simple test à l'exécution ne suffirait pas, le fichier ne compilerait pas.
+import 'connexion/connexion_native.dart'
+    if (dart.library.js_interop) 'connexion/connexion_web.dart';
 import 'daos/outbox_dao.dart';
 import 'daos/point_dao.dart';
 import 'daos/project_dao.dart';
@@ -41,7 +39,7 @@ part 'database.g.dart';
   daos: [ProjectDao, PointDao, SettingsDao, OutboxDao],
 )
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(_openConnection());
+  AppDatabase() : super(ouvrirConnexion());
 
   /// Constructeur de test : base en mémoire, sans I/O disque.
   ///
@@ -53,13 +51,15 @@ class AppDatabase extends _$AppDatabase {
   /// Version 2 : `setting_options.parent_id`, le fournisseur d'un produit.
   /// Version 3 : `projects.purchase_order` et `projects.building`.
   /// Version 4 : `points.project_code` et `points.project_name`.
+  /// Version 5 : `points.ref_number` passe d'entier à texte.
+  /// Version 6 : l'étage devient une option de liste (`points.floor_id`).
   ///
   /// Toute modification de table doit s'accompagner d'une migration, et d'un
   /// test qui la rejoue (`test/migration_test.dart`) : les pièges rencontrés
   /// avant la remise à plat du schéma sont décrits dans `CLAUDE.md` (« Une
   /// migration est écrite hier mais s'exécute avec le code d'aujourd'hui »).
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -115,6 +115,44 @@ class AppDatabase extends _$AppDatabase {
             await customStatement(
               'ALTER TABLE points ADD COLUMN project_name TEXT',
             );
+          }
+
+          // 4 → 5. Le numéro de point devient un texte (« 1.40 »).
+          //
+          // SQLite ne sait pas changer le type d'une colonne, et il ne suffit
+          // pas de la *déclarer* texte côté Dart : une colonne créée INTEGER
+          // garde son **affinité** numérique, et « 1.40 » y serait rangé comme
+          // le nombre 1,4 — relu « 1.4 ». D'où une vraie colonne neuve : on
+          // écarte l'ancienne, on crée la nouvelle, on recopie, on retire.
+          if (from < 5) {
+            await customStatement(
+              'ALTER TABLE points RENAME COLUMN ref_number TO ref_number_entier',
+            );
+            await customStatement(
+              'ALTER TABLE points ADD COLUMN ref_number TEXT',
+            );
+            await customStatement(
+              'UPDATE points SET ref_number = CAST(ref_number_entier AS TEXT) '
+              'WHERE ref_number_entier IS NOT NULL',
+            );
+            await customStatement(
+              'ALTER TABLE points DROP COLUMN ref_number_entier',
+            );
+          }
+
+          // 5 → 6. L'étage n'est plus un entier mais une option de liste.
+          //
+          // L'ancienne colonne est retirée sans être convertie ici : les
+          // options « Niveau N » sont créées par le serveur, avec des
+          // identifiants que cet appareil ne connaît pas encore. C'est la
+          // migration SQL qui rattache chaque traversée à son étage et la
+          // réestampille ; elle redescend alors avec son `floor_id`.
+          if (from < 6) {
+            await customStatement(
+              'ALTER TABLE points ADD COLUMN floor_id TEXT '
+              'REFERENCES setting_options(id)',
+            );
+            await customStatement('ALTER TABLE points DROP COLUMN floor_level');
           }
         },
         beforeOpen: (OpeningDetails details) async {
@@ -228,21 +266,4 @@ class AppDatabase extends _$AppDatabase {
       readsFrom: {outboxEntries, photos},
     );
   }
-}
-
-LazyDatabase _openConnection() {
-  return LazyDatabase(() async {
-    // Pas `getApplicationDocumentsDirectory()` directement : sur Windows il
-    // rend les vrais Documents de l'utilisateur, souvent synchronises par
-    // OneDrive — un mode de corruption SQLite connu. Voir `racineDonnees`.
-    final dir = await racineDonnees();
-    final file = File(p.join(dir.path, 'firestop.sqlite'));
-
-    // Répare le résolveur de tmpdir sur certains Android, faute de quoi les
-    // requêtes qui débordent en mémoire échouent sur appareil bas de gamme.
-    await applyWorkaroundToOpenSqlite3OnOldAndroidVersions();
-    sqlite3.tempDirectory = (await getTemporaryDirectory()).path;
-
-    return NativeDatabase.createInBackground(file);
-  });
 }

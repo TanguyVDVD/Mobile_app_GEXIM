@@ -8,7 +8,6 @@ import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../database/daos/point_dao.dart';
 import '../../database/tables/enums.dart';
-import '../../database/tables/tables.dart' show floorLabel;
 import '../../shared/widgets/plate.dart';
 import '../../shared/widgets/sync_status_bar.dart';
 
@@ -175,21 +174,25 @@ class _Tally extends StatelessWidget {
   }
 }
 
-class _PointPlate extends StatelessWidget {
+class _PointPlate extends ConsumerWidget {
   const _PointPlate(this.summary);
 
   final PointSummary summary;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final point = summary.point;
     final complete = summary.isComplete;
+    // L'étage est une option de liste : la traversée n'en porte que
+    // l'identifiant. Les libellés incluent les options retirées du
+    // catalogue — une fiche relevée l'an dernier garde son étage.
+    final libelles = ref.watch(settingOptionLabelsProvider).valueOrNull ??
+        const <String, String>{};
     // Bâtiment, étage, local — dans l'ordre où on situe une traversée sur un
-    // site, du plus large au plus précis. L'étage passe par `floorLabel` et non
-    // par son entier brut : « Rez-de-chaussée » se lit, « 0 » se déchiffre.
+    // site, du plus large au plus précis.
     final location = [
       point.building,
-      if (point.floorLevel case final int niveau) floorLabel(niveau),
+      libelles[point.floorId],
       point.room,
     ].where((s) => s != null && s.isNotEmpty).join(' · ');
 

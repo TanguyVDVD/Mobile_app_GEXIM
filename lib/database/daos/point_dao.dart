@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../core/ids.dart';
+import '../../core/numero_point.dart';
 import '../../sync/payloads.dart';
 import '../database.dart';
 import '../tables/enums.dart';
@@ -87,7 +88,7 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
                ON ph.point_id = p.id AND ph.deleted_at IS NULL
        WHERE p.project_id = ?1 AND p.deleted_at IS NULL
        GROUP BY p.id
-       ORDER BY p.ref_number IS NULL, p.ref_number ASC, p.id ASC
+       ORDER BY p.id ASC
       ''',
       variables: [Variable<String>(projectId)],
       // `projects` aussi : corriger le chantier change ce qui manque à ses
@@ -97,13 +98,24 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
   }
 
   List<PointSummary> _toSummaries(List<QueryRow> rows) {
+    // Triés ici et non par SQL : un numéro est un texte, et l'ordre
+    // alphabétique rangerait « 10 » avant « 2 ». La requête livre l'ordre de
+    // création, qui départage les numéros égaux ou absents — le tri de Dart
+    // est stable.
+    final tries = [...rows]..sort(
+        (a, b) => comparerNumeros(
+          a.readNullable<String>('ref_number'),
+          b.readNullable<String>('ref_number'),
+        ),
+      );
+
     return [
-      for (final row in rows)
+      for (final row in tries)
         () {
           final point = points.map(row.data);
           return (
             point: point,
-            label: point.refNumber?.toString() ?? '—',
+            label: point.refNumber ?? '—',
             isProvisional: point.refNumber == null,
             photoCount: row.read<int>('photo_count'),
             missingValues: valeursManquantes(
@@ -151,9 +163,9 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
       vide(chantier.code),
       vide(chantier.name),
       vide(chantier.purchaseOrder),
-      point.refNumber == null,
+      vide(point.refNumber),
       vide(point.building),
-      point.floorLevel == null,
+      point.floorId == null,
       point.configurationId == null,
       point.configurationDetailId == null,
       point.eiLevelId == null,
@@ -227,7 +239,7 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
   ///
   /// Seuls le chantier et l'auteur sont exigés : une traversée se photographie
   /// devant le mur et se caractérise ensuite, souvent de retour au bureau.
-  /// Réclamer les six listes déroulantes avant de pouvoir déclencher l'appareil
+  /// Réclamer toutes les listes déroulantes avant de pouvoir déclencher l'appareil
   /// inverserait l'ordre réel du travail.
   ///
   /// [capturedAt] est la « Date » de la fiche. Paramétrable parce qu'un relevé
@@ -237,14 +249,14 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
   /// Deux champs arrivent **préremplis**, et restent modifiables sur la fiche :
   ///
   ///  * le bâtiment reprend celui que le chantier propose par défaut ;
-  ///  * [refNumber] propose le suivant du plus grand numéro du chantier. Une
-  ///    proposition, pas une attribution : le technicien la corrige si son
-  ///    repérage ne suit pas l'ordre de saisie.
+  ///  * [refNumber] propose le suivant du dernier point relevé (« 1.40 » →
+  ///    « 1.41 »). Une proposition, pas une attribution : le technicien la
+  ///    corrige si son repérage ne suit pas l'ordre de saisie.
   Future<String> createPoint({
     required String projectId,
     required String authorId,
     DateTime? capturedAt,
-    int? refNumber,
+    String? refNumber,
   }) {
     // Une transaction : la lecture du plus grand numéro et l'insertion ne
     // doivent pas être séparées par une autre création.
@@ -269,17 +281,30 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
     });
   }
 
-  /// Le suivant du plus grand numéro **vivant** du chantier, 1 s'il n'y en a
-  /// pas. Les points supprimés ne comptent pas : leur numéro est libre.
-  Future<int> _nextRefNumber(String projectId) async {
-    final max = points.refNumber.max();
-    final row = await (selectOnly(points)
-          ..addColumns([max])
+  /// Le numéro à proposer : celui qui suit le **dernier point relevé** du
+  /// chantier, « 1 » s'il n'y en a aucun.
+  ///
+  /// Le dernier relevé et non « le plus grand » : avec des numéros en texte,
+  /// le plus grand n'a pas de sens sûr, alors qu'un technicien qui vient de
+  /// faire le 1.40 fait presque toujours le 1.41 ensuite. Les points
+  /// supprimés ne comptent pas : leur numéro est libre.
+  ///
+  /// `null` si ce dernier point n'a pas de numéro, ou un numéro sans chiffre :
+  /// le champ reste vide plutôt que de recevoir une invention.
+  Future<String?> _nextRefNumber(String projectId) async {
+    final dernier = await (select(points)
           ..where(
-            points.projectId.equals(projectId) & points.deletedAt.isNull(),
-          ))
-        .getSingle();
-    return (row.read(max) ?? 0) + 1;
+            (t) => t.projectId.equals(projectId) & t.deletedAt.isNull(),
+          )
+          // Les identifiants sont des UUID v7 : leur ordre est celui de la
+          // création.
+          ..orderBy([(t) => OrderingTerm.desc(t.id)])
+          ..limit(1))
+        .getSingleOrNull();
+
+    if (dernier == null) return '1';
+    final numero = dernier.refNumber;
+    return numero == null ? null : numeroSuivant(numero);
   }
 
   /// Modifie une fiche, champ par champ.
@@ -297,12 +322,12 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
   Future<void> updatePoint(
     String pointId, {
     Value<DateTime>? capturedAt,
-    Value<int?>? refNumber,
+    Value<String?>? refNumber,
     Value<String?>? projectCode,
     Value<String?>? projectName,
     Value<String?>? purchaseOrder,
     Value<String?>? building,
-    Value<int?>? floorLevel,
+    Value<String?>? floorId,
     Value<String?>? description,
     Value<String?>? configurationId,
     Value<String?>? configurationDetailId,
@@ -326,7 +351,7 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
         projectName: projectName ?? Value(current.projectName),
         purchaseOrder: purchaseOrder ?? Value(current.purchaseOrder),
         building: building ?? Value(current.building),
-        floorLevel: floorLevel ?? Value(current.floorLevel),
+        floorId: floorId ?? Value(current.floorId),
         description: description ?? Value(current.description),
         configurationId: configurationId ?? Value(current.configurationId),
         configurationDetailId:
@@ -381,10 +406,57 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
     });
   }
 
-  /// Suppression **logique**.
+  /// Efface **physiquement** une traversée de cet appareil : ses clichés, et
+  /// ce qui attendait d'être envoyé pour eux. Rend les chemins des fichiers de
+  /// clichés, que l'appelant retire du disque.
   ///
-  /// Un DELETE physique serait annulé au prochain réveil d'un appareil resté
-  /// hors-ligne : il repousserait sa copie de la ligne, qui ressusciterait.
+  /// N'est appelée que par `PullEngine`, à la réception de la trace que le
+  /// serveur garde d'une suppression : le serveur a alors déjà effacé la
+  /// ligne. Le geste de l'utilisateur, lui, reste [deletePoint].
+  ///
+  /// Rend `null` si la traversée n'était pas sur cet appareil : il n'y avait
+  /// rien à faire, et l'appelant n'a pas de ménage à lancer.
+  Future<List<String>?> purgePoint(String pointId) {
+    final point = [Variable<String>(pointId)];
+
+    return transaction(() async {
+      final presente = await (select(points)
+            ..where((t) => t.id.equals(pointId)))
+          .getSingleOrNull();
+      if (presente == null) return null;
+
+      final fichiers = await customSelect(
+        'SELECT local_path FROM photos '
+        'WHERE point_id = ?1 AND local_path IS NOT NULL',
+        variables: point,
+      ).map((row) => row.read<String>('local_path')).get();
+
+      await customUpdate(
+        '''
+        DELETE FROM outbox_entries
+         WHERE (entity_type = 'point' AND entity_id = ?1)
+            OR (entity_type = 'photo' AND entity_id IN
+                 (SELECT id FROM photos WHERE point_id = ?1))
+        ''',
+        variables: point,
+        updates: {attachedDatabase.outboxEntries},
+        updateKind: UpdateKind.delete,
+      );
+      await (delete(photos)..where((t) => t.pointId.equals(pointId))).go();
+      await (delete(points)..where((t) => t.id.equals(pointId))).go();
+
+      return fichiers;
+    });
+  }
+
+  /// Suppression d'une traversée, **telle que l'utilisateur la demande**.
+  ///
+  /// La ligne est marquée (`deleted_at`) et mise en file, comme toute autre
+  /// modification : c'est ce qui permet de supprimer une fiche hors ligne,
+  /// devant le mur. Elle disparaît aussitôt de l'écran. Le **serveur**, en
+  /// recevant la marque, efface réellement le point et ses clichés et en
+  /// garde une trace ; cette trace redescend, et [purgePoint] efface alors la
+  /// ligne de cet appareil aussi.
   ///
   /// Les clichés suivent. Sans cela, `PhotoUploader` continuerait de téléverser
   /// les binaires d'une traversée abandonnée — plusieurs centaines de kilooctets

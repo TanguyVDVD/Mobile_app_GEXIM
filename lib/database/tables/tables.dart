@@ -186,18 +186,23 @@ class Points extends Table {
   TextColumn get projectId =>
       text().customConstraint('NOT NULL REFERENCES projects(id)')();
 
-  /// Numéro de la traversée, **saisi par le technicien**.
+  /// Numéro de la traversée, **saisi par le technicien**, en texte libre.
   ///
-  /// Il suit le repérage du chantier — plans, étiquettes posées sur place. La
-  /// création propose le suivant du plus grand numéro connu de l'appareil,
+  /// Il suit le repérage du chantier — plans, étiquettes posées sur place —
+  /// qui n'est pas toujours une suite d'entiers : « 12 », mais aussi « 1.40 »
+  /// ou « A-07 ». La création propose le suivant du dernier point relevé,
   /// modifiable. Nullable : une fiche peut rester sans numéro le temps de la
-  /// saisie.
+  /// saisie. L'ordre et la proposition sont dans `core/numero_point.dart`.
   ///
   /// **Aucune unicité n'est imposée**, ni ici ni sur le serveur. Deux
   /// techniciens hors ligne peuvent saisir le même numéro ; une contrainte
   /// ferait refuser le second relevé à la synchronisation. Le doublon est
   /// signalé sur la fiche (`PointDao.watchRefNumberTaken`).
-  IntColumn get refNumber => integer().nullable()();
+  ///
+  /// La colonne était un entier jusqu'à la version 5 du schéma : voir la
+  /// migration dans `AppDatabase`, et pourquoi elle ne pouvait pas se
+  /// contenter de changer le type déclaré.
+  TextColumn get refNumber => text().nullable()();
 
   // ---------------------------------------------------------------------------
   // Écarts au chantier
@@ -225,11 +230,13 @@ class Points extends Table {
   /// d'un site à l'autre.
   TextColumn get building => text().nullable()();
 
-  /// Étage, de -3 à 5 (voir [floorRange]).
+  /// Étage, choisi dans la liste administrée (`SettingKind.floor`).
   ///
-  /// Entier et non texte : l'étage est un axe ordonné, et c'est ce qui permet
-  /// de lire un relevé du sous-sol au dernier niveau.
-  IntColumn get floorLevel => integer().nullable()();
+  /// C'était un entier borné de -3 à 5 jusqu'à la version 6 du schéma. Une
+  /// option de liste, désormais : le bureau ajoute lui-même un « Niveau 6 » ou
+  /// une « Toiture », et l'ordre est celui qu'il donne à la liste.
+  TextColumn get floorId =>
+      text().nullable().customConstraint('REFERENCES setting_options(id)')();
 
   /// Local. Hors gabarit du rapport, conservé comme repère de terrain.
   TextColumn get room => text().nullable()();
@@ -242,7 +249,7 @@ class Points extends Table {
   // ---------------------------------------------------------------------------
   //
   // Toutes nullable : une traversée se photographie d'abord et se qualifie
-  // ensuite, souvent de retour au bureau. Exiger les six listes à la création
+  // ensuite, souvent de retour au bureau. Exiger toutes les listes à la création
   // reviendrait à faire remplir un formulaire devant un trou dans un mur.
 
   TextColumn get configurationId =>
@@ -284,21 +291,6 @@ class Points extends Table {
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
-
-/// Étages proposés, du troisième sous-sol au cinquième niveau.
-///
-/// Borné plutôt que libre : au-delà c'est une tour, et le relevé s'y ferait de
-/// toute façon bâtiment par bâtiment. La liste vit ici et non dans l'écran de
-/// saisie, pour que la contrainte SQL du schéma (`points_floor_level_range`)
-/// et la liste déroulante restent démontrablement la même chose.
-const List<int> floorRange = [-3, -2, -1, 0, 1, 2, 3, 4, 5];
-
-/// Libellé d'un étage. Le rez-de-chaussée se nomme, il ne se numérote pas.
-String floorLabel(int level) => switch (level) {
-      0 => 'Rez-de-chaussée',
-      < 0 => '$level (sous-sol)',
-      _ => 'Étage $level',
-    };
 
 /// Photo rattachée à un point.
 ///

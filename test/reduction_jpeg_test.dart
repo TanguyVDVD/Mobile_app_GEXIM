@@ -5,19 +5,19 @@ import 'package:firestop_tracker/features/capture/reduction_jpeg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
-/// Le repli Dart pur sert **Windows**, où `flutter_image_compress` n'existe
-/// pas. Et il ne sert pas qu'à la capture : la génération du rapport y passe
-/// pour chaque cliché du PDF, ce qui est précisément ce que l'administrateur
-/// vient faire depuis son PC.
+/// La réduction en Dart pur est celle du **navigateur**, où il n'y a ni
+/// fichiers ni codec natif. Elle sert à l'export des fiches, pour chaque
+/// cliché du classeur — c'est-à-dire précisément ce que l'administrateur
+/// vient y faire.
 ///
 /// Une erreur ici ne lève rien : `ReportService._photoBytes` attrape tout et
-/// rend `null`, donc le rapport sortirait complet, paginé — et sans photos. Ces
+/// rend `null`, donc le classeur sortirait complet — et sans photos. Ces
 /// tests existent pour que ce silence ne puisse pas s'installer.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late Directory tmp;
-  const reduction = ReductionDart();
+  const reduction = _DepuisUnFichier();
 
   setUp(() async {
     tmp = await Directory.systemTemp.createTemp('firestop_reduction_');
@@ -146,4 +146,23 @@ void main() {
     // pas volontairement le bloc, contrairement a son absence.
     expect(avec, isNotNull);
   });
+}
+
+/// `reduireOctets` prend des octets ; les cas d'essai, eux, sont des fichiers
+/// de synthèse. Ce pont garde les tests lisibles.
+class _DepuisUnFichier {
+  const _DepuisUnFichier();
+
+  Future<Uint8List?> reduire(
+    File source, {
+    required int coteMin,
+    required int qualite,
+    bool garderExif = false,
+  }) =>
+      reduireOctets(
+        source.readAsBytesSync(),
+        coteMin: coteMin,
+        qualite: qualite,
+        garderExif: garderExif,
+      );
 }

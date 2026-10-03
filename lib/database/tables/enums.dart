@@ -44,6 +44,13 @@ enum SettingKind {
 
   /// Référence du produit (Promastop-FC…).
   product,
+
+  /// Étage de la traversée (« Niveau -1 », « Niveau 2 », « Toiture »…).
+  ///
+  /// Ajouté après coup : c'était un entier borné de -3 à 5, que le bureau a
+  /// voulu administrer comme le reste. En dernier dans l'enum, pour ne pas
+  /// changer le sens d'une valeur déjà enregistrée par son nom.
+  floor,
 }
 
 /// Nature d'une photo dans le dossier d'un point.
@@ -108,6 +115,10 @@ enum PullEntity {
   /// dépend, y compris ce que les entités précédentes viennent de faire
   /// descendre.
   deletedProject,
+
+  /// Trace d'une traversée supprimée définitivement — même rôle, à l'échelle
+  /// d'un point (`PointDao.purgePoint`).
+  deletedPoint,
 }
 
 /// État d'une entrée d'outbox.

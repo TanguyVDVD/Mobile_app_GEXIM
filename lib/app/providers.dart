@@ -67,14 +67,13 @@ final photoCaptureServiceProvider = Provider<PhotoCaptureService>(
   ),
 );
 
-/// Réduction des clichés : codec natif sur mobile, repli Dart sur Windows.
-/// Voir `ReductionJpeg` — sans ce repli, un classeur généré sur PC sortirait
-/// sans aucune photo.
+/// Réduction des clichés par le codec de la tablette. Le navigateur, lui,
+/// passe par `reduireOctets` — voir `ReductionJpeg`.
 final reductionJpegProvider = Provider<ReductionJpeg>(
-  (ref) => ReductionJpeg.pourLaPlateforme(),
+  (ref) => const ReductionNative(),
 );
 
-/// Sortie du classeur Excel : sélecteur d'emplacement sur PC, feuille de
+/// Sortie du classeur Excel : téléchargement dans un navigateur, feuille de
 /// partage sur tablette.
 final reportExporterProvider = Provider<ReportExporter>(
   (ref) => ReportExporter.pourLaPlateforme(),

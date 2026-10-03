@@ -122,7 +122,10 @@ void main() {
     await (db.update(db.settingOptions)..where((t) => t.id.equals('p1')))
         .write(const SettingOptionsCompanion(parentId: Value(fournisseur)));
     expect(
-      [for (final o in await db.settingsDao.watchProducts(fournisseur).first) o.id],
+      [
+        for (final o in await db.settingsDao.watchProducts(fournisseur).first)
+          o.id
+      ],
       ['p1'],
     );
   });
@@ -137,7 +140,8 @@ void main() {
     ..execute('PRAGMA user_version = 2');
 
   for (final (depart, base) in [(1, baseV1), (2, baseV2)]) {
-    test('$depart vers 3 : le chantier survit, bon de commande et batiment nuls',
+    test(
+        '$depart vers 3 : le chantier survit, bon de commande et batiment nuls',
         () async {
       final db = AppDatabase.forTesting(NativeDatabase.opened(base()));
       addTearDown(db.close);
@@ -173,7 +177,7 @@ void main() {
       addTearDown(db.close);
 
       final point = await db.select(db.points).getSingle();
-      expect(point.refNumber, 12);
+      expect(point.refNumber, '12');
       // Nuls, et non le texte « project_code » : voir le piège de CLAUDE.md.
       expect(point.projectCode, isNull);
       expect(point.projectName, isNull);
@@ -189,6 +193,97 @@ void main() {
       final apres = await db.select(db.points).getSingle();
       expect(apres.projectCode, '2026-999');
       expect(apres.projectName, 'Zone B');
+    });
+  }
+
+  /// La base telle que la version 4 la laissait.
+  Database baseV4() => baseV3()
+    ..execute('ALTER TABLE points ADD COLUMN project_code TEXT')
+    ..execute('ALTER TABLE points ADD COLUMN project_name TEXT')
+    ..execute('PRAGMA user_version = 4');
+
+  for (final (depart, base) in [
+    (1, baseV1),
+    (2, baseV2),
+    (3, baseV3),
+    (4, baseV4)
+  ]) {
+    test('$depart vers 5 : le numero de point devient un texte, pour de bon',
+        () async {
+      final db = AppDatabase.forTesting(NativeDatabase.opened(base()));
+      addTearDown(db.close);
+
+      // Le numéro saisi quand la colonne était un entier est conservé.
+      expect((await db.select(db.points).getSingle()).refNumber, '12');
+
+      // Le piège de cette migration : une colonne créée INTEGER garde son
+      // affinité numérique, même relue comme un texte. « 1.40 » y serait
+      // rangé comme le nombre 1,4 et relu « 1.4 » — un autre point. Seule une
+      // vraie colonne neuve le garde intact.
+      await (db.update(db.points)..where((t) => t.id.equals('pt1'))).write(
+        const PointsCompanion(refNumber: Value('1.40')),
+      );
+      expect((await db.select(db.points).getSingle()).refNumber, '1.40');
+
+      await (db.update(db.points)..where((t) => t.id.equals('pt1'))).write(
+        const PointsCompanion(refNumber: Value('007')),
+      );
+      expect((await db.select(db.points).getSingle()).refNumber, '007');
+    });
+  }
+
+  /// La base telle que la version 5 la laissait.
+  Database baseV5() => baseV4()
+    ..execute(
+        'ALTER TABLE points RENAME COLUMN ref_number TO ref_number_entier')
+    ..execute('ALTER TABLE points ADD COLUMN ref_number TEXT')
+    ..execute(
+      'UPDATE points SET ref_number = CAST(ref_number_entier AS TEXT) '
+      'WHERE ref_number_entier IS NOT NULL',
+    )
+    ..execute('ALTER TABLE points DROP COLUMN ref_number_entier')
+    ..execute('UPDATE points SET floor_level = 2')
+    ..execute('PRAGMA user_version = 5');
+
+  for (final (depart, base) in [
+    (1, baseV1),
+    (2, baseV2),
+    (3, baseV3),
+    (4, baseV4),
+    (5, baseV5),
+  ]) {
+    test('$depart vers 6 : l\'etage devient une option de liste', () async {
+      final db = AppDatabase.forTesting(NativeDatabase.opened(base()));
+      addTearDown(db.close);
+
+      // La traversée survit ; son étage attend que le serveur le lui rende
+      // sous sa nouvelle forme.
+      final point = await db.select(db.points).getSingle();
+      expect(point.refNumber, '12');
+      expect(point.floorId, isNull);
+
+      // L'ancienne colonne est partie.
+      final colonnes = await db
+          .customSelect('PRAGMA table_info(points)')
+          .map((r) => r.read<String>('name'))
+          .get();
+      expect(colonnes, isNot(contains('floor_level')));
+      expect(colonnes, contains('floor_id'));
+
+      // Et la nouvelle désigne bien une option, clé étrangère comprise.
+      await db.into(db.settingOptions).insert(
+            SettingOption(
+              id: 'etage',
+              kind: SettingKind.floor,
+              label: 'Toiture',
+              sortOrder: 0,
+              updatedAt: DateTime(2026, 10, 3),
+            ),
+          );
+      await (db.update(db.points)..where((t) => t.id.equals('pt1'))).write(
+        const PointsCompanion(floorId: Value('etage')),
+      );
+      expect((await db.select(db.points).getSingle()).floorId, 'etage');
     });
   }
 

@@ -5,49 +5,29 @@ import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image/image.dart' as img;
 
-import '../../core/plateforme.dart';
 
 /// Réduction d'un JPEG : redimensionnement puis réencodage.
 ///
-/// Deux implémentations, parce que `flutter_image_compress` **n'existe pas sur
-/// Windows** (android, ios, macos, web uniquement). Or la réduction ne sert pas
-/// qu'à la capture : l'export y passe pour chaque cliché embarqué dans le
-/// classeur Excel, et exporter est justement ce que l'administrateur vient
-/// faire depuis son PC.
+/// Sur **tablette**, par le codec natif (`flutter_image_compress`), depuis un
+/// fichier : c'est le chemin de la capture, et celui de l'export des fiches.
 ///
-/// Sans ce repli, l'appel remonterait un `MissingPluginException` attrapé par
-/// le `try` de `ReportService._photoBytes`, qui rend `null` sur erreur. Le
-/// document serait produit sans la moindre alerte : complet, paginé, et **vide
-/// de toute photo**. C'est la panne silencieuse type de ce dépôt — celle qu'on
-/// ne découvre qu'en ouvrant le rapport livré au client.
+/// Une interface et non une fonction, pour que les tests remplacent le
+/// greffon — qui n'existe pas dans la machine virtuelle où ils tournent.
 abstract interface class ReductionJpeg {
-  /// Réduit [source] et rend les octets du JPEG produit.
+  /// Rend le JPEG réduit, ou `null` si la source est illisible.
   ///
-  /// [coteMin] est un **minimum par axe**, pas une boîte englobante : un
-  /// 4000×3000 réduit à 2000 donne ~2667×2000. C'est la sémantique de
-  /// `flutter_image_compress`, reprise à l'identique par le repli pour que les
-  /// deux plateformes produisent le même document.
-  ///
-  /// [garderExif] conserve les métadonnées du capteur — horodatage, appareil.
-  /// L'orientation, elle, est **toujours** appliquée aux pixels puis remise à
-  /// neutre : c'est la seule façon d'obtenir le même rendu des deux côtés.
-  ///
-  /// Rend `null` si l'image est illisible.
+  /// [coteMin] est un **minimum par axe**, pas une boîte englobante : l'image
+  /// est réduite jusqu'à ce que le plus contraignant des deux axes atteigne la
+  /// cible, et jamais agrandie.
   Future<Uint8List?> reduire(
     File source, {
     required int coteMin,
     required int qualite,
     bool garderExif = false,
   });
-
-  /// L'implémentation qui convient à la plateforme courante.
-  factory ReductionJpeg.pourLaPlateforme() => Plateforme
-          .compressionNativeDisponible
-      ? const ReductionNative()
-      : const ReductionDart();
 }
 
-/// Repli natif : le codec du système, rapide et économe en mémoire.
+/// Le codec de la plateforme.
 class ReductionNative implements ReductionJpeg {
   const ReductionNative();
 
@@ -68,34 +48,33 @@ class ReductionNative implements ReductionJpeg {
   }
 }
 
-/// Repli Dart pur, pour Windows et Linux.
+/// Même réduction, en **Dart pur** et depuis des octets : celle du
+/// navigateur, qui n'a ni fichiers ni codec natif.
 ///
-/// Plus lent que le codec système, et c'est assumé : il tourne sur un PC de
-/// bureau, pas sur une tablette de 2018. Le décodage a lieu dans un **isolat**
-/// (`compute`) — un JPEG 12 Mpx décompressé occupe ~48 Mo et son traitement
-/// bloquerait l'interface plusieurs centaines de millisecondes par cliché, soit
-/// une fenêtre figée pendant toute la génération d'un rapport de 200 photos.
-class ReductionDart implements ReductionJpeg {
-  const ReductionDart();
-
-  @override
-  Future<Uint8List?> reduire(
-    File source, {
-    required int coteMin,
-    required int qualite,
-    bool garderExif = false,
-  }) async {
-    final octets = await source.readAsBytes();
-    return compute(
-      _reduireHorsInterface,
-      (
-        octets: octets,
-        coteMin: coteMin,
-        qualite: qualite,
-        garderExif: garderExif,
-      ),
-    );
-  }
+/// Elle sert à l'export des fiches, où chaque cliché arrive du serveur. Elle
+/// reproduit la sémantique exacte de [ReductionNative] — minimum par axe,
+/// orientation redressée — sans quoi le même chantier donnerait deux
+/// classeurs différents selon qu'on l'exporte d'une tablette ou d'un
+/// navigateur. `test/reduction_jpeg_test.dart` verrouille ces équivalences.
+///
+/// Par `compute` : un JPEG 12 Mpx occupe ~48 Mo décompressé. Dans un
+/// navigateur il n'y a pas d'isolat et le calcul reste sur le fil de
+/// l'interface ; l'écran d'export annonce sa progression cliché par cliché.
+Future<Uint8List?> reduireOctets(
+  Uint8List octets, {
+  required int coteMin,
+  required int qualite,
+  bool garderExif = false,
+}) {
+  return compute(
+    _reduireHorsInterface,
+    (
+      octets: octets,
+      coteMin: coteMin,
+      qualite: qualite,
+      garderExif: garderExif,
+    ),
+  );
 }
 
 typedef _Demande = ({
@@ -121,9 +100,9 @@ Uint8List? _reduireHorsInterface(_Demande demande) {
 
   // L'EXIF porte l'orientation du capteur. `package:image` ne l'applique pas au
   // décodage, contrairement au greffon natif : sans cette normalisation, les
-  // clichés pris en portrait sortiraient couchés dans le classeur produit sur
-  // PC, et droits dans celui produit sur tablette — Excel n'applique pas
-  // l'EXIF non plus. Le même chantier donnerait deux documents différents.
+  // clichés pris en portrait sortiraient couchés dans le classeur exporté d'un
+  // navigateur, et droits dans celui exporté d'une tablette — Excel n'applique
+  // pas l'EXIF non plus. Le même chantier donnerait deux documents différents.
   final droite = img.bakeOrientation(source);
 
   // Minimum par axe : on ne réduit que jusqu'à ce que le plus contraignant des

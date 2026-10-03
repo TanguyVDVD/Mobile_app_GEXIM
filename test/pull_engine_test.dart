@@ -53,6 +53,21 @@ class _FakeGateway implements RemoteGateway {
   @override
   Future<void> deleteProject(String projectId) async {}
 
+  /// Dossiers de clichés dont le ménage a été demandé, `chantier/point`.
+  final List<String> menages = [];
+
+  /// Fait échouer le ménage du stockage, pour vérifier qu'il n'arrête rien.
+  Object? menageEchoue;
+
+  @override
+  Future<void> removePointFiles({
+    required String projectId,
+    required String pointId,
+  }) async {
+    menages.add('$projectId/$pointId');
+    if (menageEchoue != null) throw menageEchoue!;
+  }
+
   @override
   Future<void> uploadPhoto({
     required String remotePath,
@@ -170,7 +185,7 @@ void main() {
         'ref_number': refNumber,
         'purchase_order': 'PO-2026-118',
         'building': 'Bloc A',
-        'floor_level': 2,
+        'floor_id': null,
         'room': 'Local technique',
         'description': description,
         'configuration_id': null,
@@ -207,7 +222,10 @@ void main() {
       expect(received, 4);
       final point = await db.select(db.points).getSingle();
       expect(point.projectId, 'p1');
-      expect(point.refNumber, 1);
+      // Le serveur de ce test renvoie un entier, comme un serveur dont la
+      // migration vers le texte n'aurait pas encore été jouée : la descente
+      // doit le prendre quand même.
+      expect(point.refNumber, '1');
     });
 
     test('le numero definitif du serveur remplace le provisoire', () async {
@@ -225,7 +243,7 @@ void main() {
       );
       await PullEngine(db, gateway).drain();
 
-      expect((await db.select(db.points).getSingle()).refNumber, 47);
+      expect((await db.select(db.points).getSingle()).refNumber, '47');
     });
   });
 
@@ -563,6 +581,79 @@ void main() {
 
       expect(await db.select(db.points).get(), isEmpty);
       expect(await db.select(db.outboxEntries).get(), isEmpty);
+    });
+  });
+
+  group('point supprime definitivement', () {
+    Map<String, dynamic> trace({required DateTime at}) => {
+          'id': 'pt1',
+          'project_id': 'p1',
+          'deleted_at': _iso(at),
+          'synced_at': _iso(at),
+        };
+
+    /// Le serveur efface le point et en garde la trace : après une
+    /// suppression, il ne sert plus la ligne, seulement la trace.
+    void supprimerSurLeServeur({required DateTime at}) {
+      gateway.tables[PullEntity.point]!.clear();
+      gateway.put(PullEntity.deletedPoint, trace(at: at));
+    }
+
+    Future<void> recevoirLePoint() async {
+      seedRemoteGraph(at: t0);
+      gateway.put(PullEntity.point, pointRow(at: t0, refNumber: 1));
+      await PullEngine(db, gateway).drain();
+      expect(await db.select(db.points).get(), hasLength(1));
+    }
+
+    test('la trace efface le point, et demande le menage de ses fichiers',
+        () async {
+      await recevoirLePoint();
+
+      supprimerSurLeServeur(at: t0.add(const Duration(minutes: 5)));
+      await PullEngine(db, gateway).drain();
+
+      expect(await db.select(db.points).get(), isEmpty);
+      // Le chantier, lui, reste.
+      expect(await db.select(db.projects).get(), hasLength(1));
+      expect(gateway.menages, ['p1/pt1']);
+    });
+
+    test('la trace emporte la ligne marquee par l\'appareil qui a supprime',
+        () async {
+      // Le trajet complet, vu de la tablette qui supprime : elle marque la
+      // ligne et la met en file ; le serveur efface et renvoie la trace ; la
+      // ligne marquée et son entrée de file disparaissent alors d'ici aussi.
+      await recevoirLePoint();
+      await db.pointDao.deletePoint('pt1');
+      expect(
+        (await db.select(db.points).getSingle()).deletedAt,
+        isNotNull,
+      );
+      expect(await db.select(db.outboxEntries).get(), isNotEmpty);
+
+      supprimerSurLeServeur(at: t0.add(const Duration(minutes: 5)));
+      await PullEngine(db, gateway).drain();
+
+      expect(await db.select(db.points).get(), isEmpty);
+      expect(await db.select(db.outboxEntries).get(), isEmpty);
+    });
+
+    test('un menage du stockage en echec n\'arrete pas la descente', () async {
+      // Chantier clôturé pour un technicien, réseau qui tombe : la ligne est
+      // purgée quand même, et le curseur avance — sinon la même trace
+      // reviendrait à chaque cycle.
+      await recevoirLePoint();
+      gateway.menageEchoue = const SyncException('refus', isTransient: false);
+      supprimerSurLeServeur(at: t0.add(const Duration(minutes: 5)));
+
+      await PullEngine(db, gateway).drain();
+      expect(await db.select(db.points).get(), isEmpty);
+
+      // La descente relit ses deux dernières minutes : la trace repasse. Le
+      // ménage, lui, n'est pas redemandé à chaque cycle.
+      await PullEngine(db, gateway).drain();
+      expect(gateway.menages, hasLength(1));
     });
   });
 }

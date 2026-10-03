@@ -30,7 +30,8 @@ void main() {
   Future<void> ouvrirLaSaisie(WidgetTester tester) async {
     await tester.pumpWidget(ecran());
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Nouvelle configuration'));
+    // Le premier onglet : « Étages », dans l'ordre de la fiche.
+    await tester.tap(find.text('Nouvel étage'));
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsOneWidget);
   }

@@ -1,53 +1,37 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 /// Ce que la plateforme courante sait faire.
 ///
-/// Un seul endroit interroge `Platform`. Disséminés dans les écrans, ces tests
-/// finissent toujours par diverger : un bouton reste affiché là où le plugin
-/// qui le sert n'existe pas, et l'appui remonte un `MissingPluginException`
-/// que personne n'attrape.
+/// Deux cibles, deux métiers :
 ///
-/// Les réponses ne sont pas des préférences d'interface mais des **faits sur
-/// les greffons embarqués**, vérifiés dans leur `pubspec.yaml` :
+///  * la **tablette Android** est l'outil du technicien, et le cœur du projet :
+///    relevé hors ligne, prise de vue, clichés gardés sur l'appareil ;
+///  * le **navigateur** est le poste de l'administrateur : chantiers, clients,
+///    listes, affectations, et l'export des fiches. Il est en ligne par
+///    nature.
 ///
-/// | Greffon | Plateformes déclarées |
-/// |---|---|
-/// | `camera` 0.11.4 | android, ios, web |
-/// | `flutter_image_compress` 2.5.1 | android, ios, macos, web |
-/// | `share_plus` 12.0.2 | android, ios, linux, macos, web, **windows** |
-/// | `file_picker` 10.3.10 | android, ios, linux, macos, web, **windows** |
-/// | `sqlite3_flutter_libs` 0.5.42 | android, ios, linux, macos, **windows** |
-/// | `path_provider` 2.1.6 | android, ios, linux, macos, **windows** |
-/// | `connectivity_plus` 6.1.5 | android, ios, linux, macos, web, **windows** |
+/// Un seul endroit décide de ce qui les sépare. Disséminés dans les écrans,
+/// ces tests finissent toujours par diverger : un bouton reste affiché là où
+/// ce qui le sert n'existe pas.
 ///
-/// Le socle — base locale, synchronisation, export du classeur Excel — est
-/// donc complet sur Windows. Ne manquent que la capture et la compression
-/// native, toutes deux liées au capteur photo.
+/// **Aucun `dart:io` ici.** `Platform.isAndroid` lève dans un navigateur ;
+/// `kIsWeb` et `defaultTargetPlatform` se lisent partout.
 abstract final class Plateforme {
-  /// Poste de bureau : l'administrateur depuis son PC.
-  static bool get estBureau =>
-      Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+  /// L'application tourne dans un navigateur.
+  static bool get estNavigateur => kIsWeb;
 
-  /// `camera` n'a pas d'implémentation Windows ni Linux.
+  /// Un système de fichiers existe : les clichés vivent sur l'appareil, sont
+  /// lus depuis le disque, et se rangent dans un dossier.
   ///
-  /// Ce n'est pas une privation : photographier une traversée est le travail du
-  /// technicien sur place, pas de l'administrateur devant son écran. L'écran de
-  /// traversée masque donc la prise de vue plutôt que de proposer un bouton qui
-  /// échouerait.
-  static bool get captureDisponible => Platform.isAndroid || Platform.isIOS;
+  /// Un navigateur n'en a pas. Les clichés y sont lus depuis le serveur, à la
+  /// demande, et rien de ce qui manipule un `File` ne doit y être appelé —
+  /// le code compile, mais lève à l'exécution.
+  static bool get fichiersLocaux => !kIsWeb;
 
-  /// `flutter_image_compress` s'arrête à android, ios, macos et web.
-  ///
-  /// Windows en est absent, et c'est le piège de ce portage : la réduction des
-  /// clichés sert **aussi** à l'export du classeur, qui est précisément ce que
-  /// l'administrateur vient faire sur son PC. Sans repli, chaque cliché
-  /// remonterait `null` et toutes les fiches sortiraient sans photo. Voir
-  /// `ReductionJpeg`.
-  static bool get compressionNativeDisponible =>
-      Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
-
-  /// Sur un poste de bureau, un fichier produit se range où son propriétaire
-  /// le décide. Sur une tablette il n'y a pas d'arborescence à proposer : le
-  /// classeur part par le sélecteur de partage du système.
-  static bool get enregistrementLocalDisponible => estBureau;
+  /// La prise de vue est le travail du technicien, devant le mur : elle se
+  /// fait sur tablette. Le navigateur consulte les clichés, il n'en prend pas.
+  static bool get captureDisponible =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
 }

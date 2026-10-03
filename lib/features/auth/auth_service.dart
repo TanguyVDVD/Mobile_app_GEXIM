@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../../database/database.dart';
 import '../../database/tables/enums.dart';
+import '../../core/plateforme.dart';
 import '../capture/photo_storage.dart';
 import 'auth_backend.dart';
 
@@ -196,7 +197,10 @@ class AuthService {
     // Les fichiers ne sont plus référencés par aucune ligne : le balayage des
     // orphelins les emportera. On l'appelle sans délai de grâce puisqu'aucune
     // capture n'est en cours au moment d'un changement de compte.
-    await _storage.sweepOrphans(_db, grace: Duration.zero);
+    // Sans objet dans un navigateur, qui ne garde aucun fichier de cliché.
+    if (Plateforme.fichiersLocaux) {
+      await _storage.sweepOrphans(_db, grace: Duration.zero);
+    }
   }
 
   Future<String?> _readSetting(String key) async {

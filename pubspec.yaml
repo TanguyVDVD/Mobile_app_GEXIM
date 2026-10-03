@@ -1,7 +1,7 @@
 name: firestop_tracker
 description: Recensement, photographie et documentation des calfeutrements sur chantier.
 publish_to: none
-version: 0.2.3+5
+version: 0.5.1+11
 
 environment:
   sdk: ^3.5.0
@@ -34,29 +34,33 @@ dependencies:
   # --- Backend distant ---
   supabase_flutter: ^2.6.0
 
-  # --- Choix de fichiers (papier à en-tête, logo client) ---
+  # --- Choix d'un fichier (logo client) ---
   file_picker: ^10.0.0
 
   # --- Capture & compression photo ---
-  # `camera` (android, ios, web) et `flutter_image_compress` (android, ios,
-  # macos, web) n'ont PAS d'implémentation Windows. Aucun des deux ne casse la
-  # compilation — un greffon sans implémentation n'est simplement pas
-  # enregistré — mais l'appel échoue à l'exécution.
-  #
-  # La capture est masquée sur PC (`Plateforme.captureDisponible`) ; la
-  # réduction, elle, sert aussi au rapport, d'où le repli Dart pur ci-dessous.
+  # Le travail de la tablette. La version navigateur consulte les clichés,
+  # elle n'en prend pas : voir `Plateforme`.
   camera: ^0.11.0
   flutter_image_compress: ^2.3.0
 
-  # Repli de réduction JPEG pour Windows et Linux : Dart pur, donc partout.
-  # Voir `lib/features/capture/reduction_jpeg.dart`.
+  # Réduction JPEG en Dart pur : celle du navigateur, à l'export des fiches.
+  # Voir `reduireOctets`, dans `lib/features/capture/reduction_jpeg.dart`.
   image: ^4.5.0
+
+  # --- Sortie du classeur ---
+  # Feuille de partage sur tablette ; téléchargement dans un navigateur, par
+  # `package:web`.
+  share_plus: ^12.0.2
+  web: ^1.1.1
+
+  # `ClientException` : une panne réseau, telle qu'un navigateur la remonte.
+  # Voir `RemoteGateway`.
+  http: ^1.2.0
 
   # --- Utilitaires ---
   uuid: ^4.5.1
   connectivity_plus: ^6.0.5
   crypto: ^3.0.5
-  share_plus: ^12.0.2
 
 dev_dependencies:
   flutter_test:
@@ -64,9 +68,6 @@ dev_dependencies:
   build_runner: ^2.4.13
   drift_dev: ^2.20.0
   flutter_lints: ^4.0.0
-  # `MockClient` : simuler une panne réseau sous `GoTrueClient`, sans réseau.
-  # Déjà présent en dépendance transitive de `supabase_flutter`.
-  http: ^1.2.0
   archive: ^4.3.0
 
 flutter:

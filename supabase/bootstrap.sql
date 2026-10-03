@@ -1458,3 +1458,270 @@ create policy point_photos_delete_admin on storage.objects
 create policy reports_delete_admin on storage.objects
   for delete to authenticated
   using (bucket_id = 'reports' and public.is_admin());
+
+-- >>>>>>>>>>>>>>>>>>>>  supabase/migrations/20261003150000_ref_number_text.sql  <<<<<<<<<<<<<<<<<<<<
+
+-- =============================================================================
+-- Le numéro d'un point est un texte
+-- =============================================================================
+--
+-- Le repérage d'un chantier n'est pas toujours une suite d'entiers : le modèle
+-- Excel du bureau nomme ses fiches « 1.40 », « 1.167 ». Un entier ne sait pas
+-- porter cela — « 1.40 » y deviendrait 1, ou serait refusé.
+--
+-- Les numéros déjà saisis sont conservés tels quels : 12 devient « 12 ».
+--
+-- Sans conséquence sur les règles d'accès : aucune policy, aucun trigger ne
+-- lit cette colonne depuis que le serveur ne l'attribue plus.
+
+alter table public.points
+  alter column ref_number type text using ref_number::text;
+
+-- Un numéro vide n'est pas un numéro : il se confondrait avec « pas de
+-- numéro » tout en échappant au test `is null`.
+alter table public.points
+  add constraint points_ref_number_not_blank
+  check (ref_number is null or length(btrim(ref_number)) > 0);
+
+comment on column public.points.ref_number is
+  'Numéro de la traversée, saisi par le technicien, en texte libre (« 12 », '
+  '« 1.40 »). Ni attribué ni garanti unique par le serveur.';
+
+-- >>>>>>>>>>>>>>>>>>>>  supabase/migrations/20261003160000_delete_point.sql  <<<<<<<<<<<<<<<<<<<<
+
+-- =============================================================================
+-- Supprimer un point l'efface pour de bon
+-- =============================================================================
+--
+-- Même demande que pour les chantiers, et même mécanique (voir la migration
+-- `delete_project`) : la ligne est réellement effacée, une **trace** dit aux
+-- autres appareils de purger leur copie, et un trigger empêche le retour.
+--
+-- Une différence, et elle compte : supprimer un point reste possible **hors
+-- ligne**. Un technicien efface une fiche créée par erreur devant le mur, sans
+-- réseau. La tablette ne change donc rien à son geste — elle marque la ligne
+-- (`deleted_at`) et l'envoie par la file d'attente, comme avant. C'est le
+-- serveur qui, en la recevant, fait de cette marque un effacement.
+
+create table public.deleted_points (
+  id         uuid primary key,
+  project_id uuid not null,
+  deleted_at timestamptz not null default now(),
+  synced_at  timestamptz not null default clock_timestamp()
+);
+
+comment on table public.deleted_points is
+  'Trace des traversées supprimées définitivement. Descend vers les '
+  'appareils, qui purgent alors leur copie ; interdit aussi leur retour.';
+comment on column public.deleted_points.project_id is
+  'Sans clé étrangère : le chantier peut avoir été supprimé à son tour. Sert '
+  'à retrouver le dossier des clichés dans le stockage.';
+
+create index deleted_points_synced_at_idx
+  on public.deleted_points (synced_at);
+
+alter table public.deleted_points enable row level security;
+
+-- Lisible par tout compte connecté, comme `deleted_projects` : la ligne ne
+-- porte que des identifiants. Aucune policy d'écriture — seul le trigger
+-- ci-dessous, en `security definer`, y inscrit quelque chose.
+create policy deleted_points_select on public.deleted_points
+  for select to authenticated
+  using (true);
+
+-- -----------------------------------------------------------------------------
+-- La marque devient un effacement
+-- -----------------------------------------------------------------------------
+--
+-- Après l'écriture, et non avant : la ligne marquée a alors passé les policies
+-- — seul qui peut écrire sur le chantier peut y supprimer un point — et
+-- l'arbitrage du plus récent (`reject_stale_write`).
+--
+-- `security definer` : il n'existe aucune policy DELETE, et il n'en faut pas.
+
+create or replace function public.erase_deleted_point()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.deleted_points (id, project_id)
+  values (new.id, new.project_id)
+  on conflict (id) do nothing;
+
+  delete from public.photos where point_id = new.id;
+  delete from public.points where id = new.id;
+  return null;
+end;
+$$;
+
+create trigger points_erase_deleted
+  after insert or update on public.points
+  for each row
+  when (new.deleted_at is not null)
+  execute function public.erase_deleted_point();
+
+-- Une fonction de trigger ne s'appelle pas par `/rpc/`, mais autant ne rien
+-- laisser d'ouvert par défaut. Voir la migration `revoke_anon_helpers`.
+revoke execute on function public.erase_deleted_point() from public, anon;
+
+-- -----------------------------------------------------------------------------
+-- Pas de retour d'un point supprimé
+-- -----------------------------------------------------------------------------
+--
+-- Un appareil resté hors ligne repousse sa copie du point, ou un cliché pris
+-- pour lui : écartés en silence, pour la même raison que
+-- `drop_if_project_deleted` — la file de la tablette avance, et la trace
+-- qu'elle reçoit ensuite efface le reste.
+
+create or replace function public.drop_if_point_deleted()
+returns trigger
+language plpgsql
+as $$
+declare
+  -- Par le JSON de la ligne : `photos` n'a pas de colonne `id` de point, et
+  -- PL/pgSQL résout chaque champ nommé même dans la branche non prise.
+  point uuid := (to_jsonb(new) ->> case tg_table_name
+                                     when 'points' then 'id'
+                                     else 'point_id'
+                                   end)::uuid;
+begin
+  if exists (select 1 from public.deleted_points where id = point) then
+    return null;
+  end if;
+  return new;
+end;
+$$;
+
+-- `a_…` : avant les autres triggers de la table, qui se déclenchent par ordre
+-- alphabétique. Inutile de vérifier l'auteur d'une traversée, ou le chemin
+-- d'un cliché, qu'on va écarter.
+create trigger a_points_drop_if_deleted
+  before insert on public.points
+  for each row execute function public.drop_if_point_deleted();
+create trigger a_photos_drop_if_point_deleted
+  before insert on public.photos
+  for each row execute function public.drop_if_point_deleted();
+
+-- -----------------------------------------------------------------------------
+-- Les fichiers
+-- -----------------------------------------------------------------------------
+--
+-- Les clichés d'un point supprimé sont retirés du stockage par l'appareil qui
+-- reçoit la trace. Un technicien doit donc pouvoir retirer un fichier de
+-- **son** chantier — et seulement de là ; l'administrateur le pouvait déjà.
+
+create policy point_photos_delete_member on storage.objects
+  for delete to authenticated
+  using (
+    bucket_id = 'point-photos'
+    and public.can_write_project(((storage.foldername(name))[1])::uuid)
+  );
+
+-- -----------------------------------------------------------------------------
+-- L'existant
+-- -----------------------------------------------------------------------------
+--
+-- Les points déjà supprimés logiquement le deviennent pour de bon : même
+-- traitement que ceux qui le seront désormais.
+
+insert into public.deleted_points (id, project_id)
+select id, project_id from public.points where deleted_at is not null
+on conflict (id) do nothing;
+
+delete from public.photos
+ where point_id in (select id from public.deleted_points);
+delete from public.points
+ where id in (select id from public.deleted_points);
+
+-- >>>>>>>>>>>>>>>>>>>>  supabase/migrations/20261003170000_floors_as_options.sql  <<<<<<<<<<<<<<<<<<<<
+
+-- =============================================================================
+-- Les étages deviennent une liste administrée
+-- =============================================================================
+--
+-- L'étage était un entier borné de -3 à 5, la borne écrite dans le schéma. Le
+-- bureau veut l'administrer comme les autres listes de la fiche : ajouter un
+-- « Niveau 6 », une « Toiture », un « Entresol ». Il rejoint donc
+-- `setting_options`, sous une septième nature de liste.
+
+-- -----------------------------------------------------------------------------
+-- 1. Une septième nature de liste
+-- -----------------------------------------------------------------------------
+--
+-- Pas `alter type … add value` : l'étiquette ajoutée serait inutilisable
+-- **dans sa propre transaction**, et cette migration doit l'employer aussitôt
+-- pour créer les étages. Or `bootstrap.sql` et l'éditeur Supabase jouent tout
+-- d'un bloc. Le type est donc refait, et la colonne basculée dessus — ce qui,
+-- lui, tient dans une transaction.
+
+-- La contrainte compare `kind` à une étiquette de l'ancien type : elle ne
+-- survivrait pas au changement. Retirée, puis reposée à l'identique.
+alter table public.setting_options
+  drop constraint setting_options_parent_only_product;
+
+create type public.setting_kind_v2 as enum (
+  'configuration',
+  'configuration_detail',
+  'ei_level',
+  'supplier',
+  'product_type',
+  'product',
+  'floor'
+);
+
+alter table public.setting_options
+  alter column kind type public.setting_kind_v2
+  using kind::text::public.setting_kind_v2;
+
+drop type public.setting_kind;
+alter type public.setting_kind_v2 rename to setting_kind;
+
+alter table public.setting_options
+  add constraint setting_options_parent_only_product
+  check (parent_id is null or kind = 'product');
+
+-- -----------------------------------------------------------------------------
+-- 2. Le point désigne son étage, comme ses autres caractéristiques
+-- -----------------------------------------------------------------------------
+
+alter table public.points
+  add column floor_id uuid references public.setting_options (id);
+
+comment on column public.points.floor_id is
+  'Étage, choisi dans la liste administrée (setting_options, nature floor).';
+
+-- -----------------------------------------------------------------------------
+-- 3. Les étages d'origine, et les traversées déjà relevées
+-- -----------------------------------------------------------------------------
+--
+-- Libellés « Niveau -3 » à « Niveau 5 » : ceux de la liste « Étages » du
+-- classeur Excel, pour qu'une fiche exportée retrouve sa valeur dans le menu
+-- déroulant. Le rang suit l'ordre des niveaux, du plus bas au plus haut.
+
+insert into public.setting_options (id, kind, label, sort_order, updated_at)
+select gen_random_uuid(), 'floor', 'Niveau ' || n, n + 3, now()
+  from generate_series(-3, 5) as n
+ where not exists (
+   select 1 from public.setting_options s
+    where s.kind = 'floor' and s.label = 'Niveau ' || n
+ );
+
+-- `updated_at = now()` : la ligne doit l'emporter sur la copie des tablettes
+-- à la descente, qui arbitre au plus récent. `synced_at` est réestampillé par
+-- son trigger, donc chaque traversée concernée redescend.
+update public.points p
+   set floor_id   = s.id,
+       updated_at = now()
+  from public.setting_options s
+ where p.floor_level is not null
+   and s.kind = 'floor'
+   and s.label = 'Niveau ' || p.floor_level;
+
+-- -----------------------------------------------------------------------------
+-- 4. L'ancienne colonne s'en va, sa borne avec
+-- -----------------------------------------------------------------------------
+
+alter table public.points drop constraint points_floor_level_range;
+alter table public.points drop column floor_level;

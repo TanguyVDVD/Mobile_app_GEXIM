@@ -112,7 +112,7 @@ void main() {
   Future<String> creerPoint(int numero) => db.pointDao.createPoint(
         projectId: projectId,
         authorId: auteur,
-        refNumber: numero,
+        refNumber: '$numero',
         capturedAt: DateTime(2026, 10, 3),
       );
 
@@ -162,6 +162,10 @@ void main() {
       kind: SettingKind.eiLevel,
       label: 'EI60',
     );
+    final etage = await db.settingsDao.create(
+      kind: SettingKind.floor,
+      label: 'Niveau 2',
+    );
     final promat = await db.settingsDao.create(
       kind: SettingKind.supplier,
       label: 'Promat',
@@ -178,7 +182,7 @@ void main() {
     final point = await creerPoint(12);
     await db.pointDao.updatePoint(
       point,
-      floorLevel: const Value(2),
+      floorId: Value(etage),
       eiLevelId: Value(ei),
       supplierId: Value(promat),
       product3Id: Value(produit),
@@ -202,7 +206,7 @@ void main() {
     expect(valeur(fiche, 'E11'), 'Hall logistique');
     expect(valeur(fiche, 'E12'), 'PO-4471');
     expect(valeur(fiche, 'E13'), 'Bloc A');
-    // L'intitulé de la liste « Étages » du classeur, pas celui de l'écran.
+    // Le libellé de l'étage, tel que la liste administrée le donne.
     expect(valeur(fiche, 'E14'), 'Niveau 2');
     // Le numéro du point : en M5, que « Numéro du point » reprend par formule.
     expect(valeur(fiche, 'M5'), '12');

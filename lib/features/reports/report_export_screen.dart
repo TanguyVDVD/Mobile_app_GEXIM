@@ -33,7 +33,7 @@ class _ReportExportScreenState extends ConsumerState<ReportExportScreen> {
   int _total = 0;
   bool _exporting = false;
 
-  /// Nom proposé au sélecteur d'emplacement.
+  /// Nom donné au fichier.
   ///
   /// Daté, et le chantier nommé : un dossier client finit par contenir
   /// plusieurs révisions du même classeur, et « as-built.xlsm » ne dit ni
@@ -67,16 +67,16 @@ class _ReportExportScreenState extends ConsumerState<ReportExportScreen> {
     final messenger = ScaffoldMessenger.of(context);
 
     try {
-      final resultat = await ref.read(reportExporterProvider).enregistrer(
+      final resultat = await ref.read(reportExporterProvider).exporter(
             nomPropose: _nomDeFichier(projet),
             octets: classeur.octets,
           );
 
       switch (resultat) {
-        case ExportReussi(:final chemin):
+        case ExportReussi(:final nom):
           messenger.showSnackBar(
             SnackBar(
-              content: Text('Classeur enregistré : $chemin'),
+              content: Text('Classeur téléchargé : $nom'),
               duration: const Duration(seconds: 8),
             ),
           );
@@ -237,13 +237,13 @@ class _Pret extends StatelessWidget {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : Icon(
-                    exporter.proposeUnEmplacement
-                        ? Icons.save_alt
+                    exporter.telecharge
+                        ? Icons.download
                         : Icons.ios_share,
                   ),
             label: Text(
-              exporter.proposeUnEmplacement
-                  ? 'Enregistrer sous…'
+              exporter.telecharge
+                  ? 'Télécharger le classeur'
                   : 'Partager le classeur',
             ),
           ),

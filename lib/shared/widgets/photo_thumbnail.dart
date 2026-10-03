@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
+import '../../core/plateforme.dart';
 import '../../database/database.dart';
 import '../../database/tables/enums.dart';
 
@@ -24,12 +25,12 @@ class _PhotoThumbnailState extends ConsumerState<PhotoThumbnail> {
   /// Un `FutureBuilder` alimenté directement depuis `build` relance sa requête
   /// à chaque reconstruction — donc à chaque image d'un défilement. La vignette
   /// clignoterait, et un téléchargement serait relancé en boucle.
-  late Future<File?> _file;
+  late Future<ImageProvider?> _image;
 
   @override
   void initState() {
     super.initState();
-    _file = _resolve();
+    _image = _resolve();
   }
 
   @override
@@ -37,12 +38,22 @@ class _PhotoThumbnailState extends ConsumerState<PhotoThumbnail> {
     super.didUpdateWidget(old);
     if (old.photo.id != widget.photo.id ||
         old.photo.localPath != widget.photo.localPath) {
-      _file = _resolve();
+      _image = _resolve();
     }
   }
 
-  Future<File?> _resolve() =>
-      ref.read(photoRepositoryProvider).fileFor(widget.photo);
+  /// Sur tablette, le fichier du cliché — rapatrié au besoin. Dans un
+  /// navigateur, qui n'a pas de disque, ses octets lus depuis le serveur.
+  Future<ImageProvider?> _resolve() async {
+    final depot = ref.read(photoRepositoryProvider);
+
+    if (Plateforme.fichiersLocaux) {
+      final File? fichier = await depot.fileFor(widget.photo);
+      return fichier == null ? null : FileImage(fichier);
+    }
+    final octets = await depot.octetsDistants(widget.photo);
+    return octets == null ? null : MemoryImage(octets);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,8 +64,8 @@ class _PhotoThumbnailState extends ConsumerState<PhotoThumbnail> {
       child: SizedBox(
         width: widget.size,
         height: widget.size,
-        child: FutureBuilder<File?>(
-          future: _file,
+        child: FutureBuilder<ImageProvider?>(
+          future: _image,
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
               return _placeholder(
@@ -69,8 +80,8 @@ class _PhotoThumbnailState extends ConsumerState<PhotoThumbnail> {
               );
             }
 
-            final file = snapshot.data;
-            if (file == null) {
+            final image = snapshot.data;
+            if (image == null) {
               // Photo prise ailleurs, pas encore rapatriée, et pas de réseau
               // pour le faire maintenant.
               return _placeholder(
@@ -82,7 +93,7 @@ class _PhotoThumbnailState extends ConsumerState<PhotoThumbnail> {
             return Stack(
               fit: StackFit.expand,
               children: [
-                Image.file(file, fit: BoxFit.cover),
+                Image(image: image, fit: BoxFit.cover),
                 if (widget.photo.uploadState != PhotoUploadState.uploaded)
                   const Positioned(
                     right: 4,

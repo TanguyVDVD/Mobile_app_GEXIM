@@ -13,7 +13,6 @@ import '../../core/plateforme.dart';
 import '../../database/daos/point_dao.dart';
 import '../../database/database.dart';
 import '../../database/tables/enums.dart';
-import '../../database/tables/tables.dart' show floorLabel, floorRange;
 import '../../shared/widgets/photo_thumbnail.dart';
 import '../../shared/widgets/plate.dart';
 import '../../shared/widgets/sync_status_bar.dart';
@@ -104,9 +103,8 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
 
     await ref.read(pointDaoProvider).updatePoint(
           widget.pointId,
-          // Champ vidé ⇒ numéro effacé. Le filtre de saisie ne laisse passer
-          // que des chiffres, `tryParse` ne rend donc `null` que sur le vide.
-          refNumber: Value(int.tryParse(_refNumber.text.trim())),
+          // Champ vidé ⇒ numéro effacé.
+          refNumber: Value(_texteOuNull(_refNumber)),
           projectCode: Value(_ecart(_projectCode, _project?.code)),
           projectName: Value(_ecart(_projectName, _project?.name)),
           purchaseOrder: Value(_ecart(_purchaseOrder, _project?.purchaseOrder)),
@@ -164,6 +162,8 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
           dao.updatePoint(widget.pointId, configurationDetailId: valeur),
         (SettingKind.eiLevel, _) =>
           dao.updatePoint(widget.pointId, eiLevelId: valeur),
+        (SettingKind.floor, _) =>
+          dao.updatePoint(widget.pointId, floorId: valeur),
         // Changer de fournisseur vide les produits qui ne sont pas les
         // siens, dans la même écriture. Voir `PointDao.setSupplier`.
         (SettingKind.supplier, _) =>
@@ -217,10 +217,11 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Supprimer cette traversée ?'),
+        title: const Text('Supprimer définitivement cette traversée ?'),
         content: const Text(
-          'Ses clichés et ses caractéristiques disparaîtront avec elle, et elle '
-          'ne figurera pas dans l\'export.',
+          'La traversée, ses caractéristiques et ses photos seront '
+          'définitivement supprimées, sur cet appareil comme sur les '
+          'autres. Cette action est irréversible.',
         ),
         actions: [
           TextButton(
@@ -285,7 +286,11 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
           IconButton(
             tooltip: 'Supprimer la traversée',
             icon: const Icon(Icons.delete_outline),
-            onPressed: _loaded ? _delete : null,
+            // Actif dès que la traversée est lue — et non sur `_loaded`, qui
+            // est posé plus bas **pendant ce même affichage** : le bouton,
+            // construit avant, le voyait encore faux et restait inerte
+            // jusqu'au geste suivant.
+            onPressed: point.valueOrNull == null ? null : _delete,
           ),
         ],
       ),
@@ -310,7 +315,7 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
             _projectCode.text = id.code ?? '';
             _projectName.text = id.name;
             _purchaseOrder.text = id.purchaseOrder ?? '';
-            _refNumber.text = row.refNumber?.toString() ?? '';
+            _refNumber.text = row.refNumber ?? '';
             _building.text = row.building ?? '';
             _description.text = row.description ?? '';
             _loaded = true;
@@ -334,12 +339,7 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
                         building: _building,
                         onEdit: _scheduleSave,
                         onDate: () => _choisirDate(row.capturedAt),
-                        onFloor: (niveau) => _ecrire(
-                          (dao) => dao.updatePoint(
-                            widget.pointId,
-                            floorLevel: Value(niveau),
-                          ),
-                        ),
+                        onChoisir: _choisirOption,
                       ),
 
                       const SizedBox(height: Fs.xl),
@@ -413,7 +413,7 @@ class _Identification extends ConsumerWidget {
     required this.building,
     required this.onEdit,
     required this.onDate,
-    required this.onFloor,
+    required this.onChoisir,
   });
 
   final Point point;
@@ -424,7 +424,7 @@ class _Identification extends ConsumerWidget {
   final TextEditingController building;
   final VoidCallback onEdit;
   final VoidCallback onDate;
-  final ValueChanged<int?> onFloor;
+  final ChoixOption onChoisir;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -437,21 +437,23 @@ class _Identification extends ConsumerWidget {
         _ChampDate(valeur: point.capturedAt, onTap: onDate),
         const SizedBox(height: Fs.md),
 
-        // Saisi par le technicien : il suit le repérage du chantier. La
-        // création a proposé le suivant du plus grand numéro connu.
+        // Saisi par le technicien, en texte libre : il suit le repérage du
+        // chantier (« 12 », « 1.40 », « A-07 »). La création a proposé le
+        // suivant du dernier point relevé.
         //
         // Le doublon est signalé, pas interdit — voir `Points.refNumber`. Il
         // porte sur la valeur **enregistrée**, donc apparaît à la fin de la
         // temporisation, pas à chaque frappe.
         TextField(
           controller: refNumber,
-          keyboardType: TextInputType.number,
+          // Le clavier complet, pas le pavé numérique : il y a des lettres et
+          // des points dans un repérage.
+          keyboardType: TextInputType.text,
+          textCapitalization: TextCapitalization.characters,
           inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly,
-            // Six chiffres : loin sous la borne d'un entier Postgres, qu'un
-            // doigt resté appuyé dépasserait sinon — et le serveur refuserait
-            // alors la fiche entière.
-            LengthLimitingTextInputFormatter(6),
+            // 31 caractères : la longueur d'un nom de feuille Excel, que le
+            // numéro deviendra à l'export.
+            LengthLimitingTextInputFormatter(31),
           ],
           decoration: InputDecoration(
             labelText: 'Numéro du point',
@@ -508,22 +510,13 @@ class _Identification extends ConsumerWidget {
           onChanged: (_) => onEdit(),
         ),
         const SizedBox(height: Fs.md),
-        DropdownButtonFormField<int?>(
-          initialValue: point.floorLevel,
-          isExpanded: true,
-          decoration: const InputDecoration(
-            labelText: 'Étage',
-            border: OutlineInputBorder(),
-          ),
-          items: [
-            const DropdownMenuItem<int?>(child: Text('—')),
-            for (final niveau in floorRange)
-              DropdownMenuItem<int?>(
-                value: niveau,
-                child: Text(floorLabel(niveau)),
-              ),
-          ],
-          onChanged: onFloor,
+        // Une liste administrée comme les autres : le bureau y ajoute ses
+        // propres niveaux depuis Paramètres.
+        _ListeOptions(
+          kind: SettingKind.floor,
+          libelle: 'Étage',
+          selection: point.floorId,
+          onChanged: (id) => onChoisir(kind: SettingKind.floor, optionId: id),
         ),
       ],
     );
@@ -805,10 +798,8 @@ class _PhotoSlots extends StatelessWidget {
   final Future<void> Function(PhotoKind kind, String title) onShoot;
   final Future<void> Function(String photoId) onRetire;
 
-  /// Faux sur PC : `camera` n'a pas d'implémentation Windows. Mieux vaut ne
-  /// rien proposer que d'afficher un bouton dont l'appui remonterait un
-  /// `MissingPluginException` — et de toute façon, photographier une traversée
-  /// est le travail du technicien sur place.
+  /// Faux dans un navigateur : photographier une traversée est le travail du
+  /// technicien sur place, avec sa tablette. Voir `Plateforme`.
   final bool captureDisponible;
 
   Photo? _of(PhotoKind kind) {

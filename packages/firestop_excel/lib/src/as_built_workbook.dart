@@ -82,31 +82,31 @@ class AsBuiltWorkbook {
   );
 
   // Les cases qui reçoivent une image : des cellules fusionnées, que l'image
-  // remplit. Géométrie relevée dans le modèle — colonnes et lignes comptées à
-  // partir de zéro, largeurs en pixels (largeur Excel × 7 px, la chasse de la
-  // police par défaut du modèle), hauteurs en points.
+  // remplit. Colonnes et lignes comptées à partir de zéro. Leurs dimensions
+  // ne sont **pas** écrites ici : elles sont lues dans la feuille du modèle,
+  // voir [_Case.lire].
 
-  /// C18:E18 et F18:H18, les deux cases photo. Ligne 18 : 160,15 pt.
+  /// C18:E18 et F18:H18, les deux cases photo.
   static const _casesPhoto = [
-    _Case(colonne: 2, largeurs: [93, 89, 92], ligne: 17, hauteurs: [160.15]),
-    _Case(colonne: 5, largeurs: [98, 96, 94], ligne: 17, hauteurs: [160.15]),
+    (colonne: 2, colonnes: 3, ligne: 17, lignes: 1),
+    (colonne: 5, colonnes: 3, ligne: 17, lignes: 1),
   ];
 
-  /// D7:E8, la case « Client » de la fiche. Lignes 7 (15 pt) et 8 (14,25 pt).
-  static const _caseClient = _Case(
-    colonne: 3,
-    largeurs: [89, 92],
-    ligne: 6,
-    hauteurs: [15, 14.25],
-  );
+  /// D7:E8, la case « Client » de la fiche.
+  static const _caseClient = (colonne: 3, colonnes: 2, ligne: 6, lignes: 2);
 
   /// K7:L8, hors de la zone imprimée : là où le modèle attend le client.
-  static const _caseSaisieClient = _Case(
-    colonne: 10,
-    largeurs: [80, 80],
-    ligne: 6,
-    hauteurs: [15, 14.25],
-  );
+  static const _caseSaisieClient =
+      (colonne: 10, colonnes: 2, ligne: 6, lignes: 2);
+
+  /// Marge haute de la mise en page de chaque fiche, en centimètres — l'unité
+  /// dans laquelle Excel l'affiche. Le fichier, lui, la compte en pouces.
+  ///
+  /// Imposée ici plutôt que laissée au modèle (1,9 cm) : l'image d'en-tête du
+  /// bureau fait près de 3 cm de haut et débordait sur le titre de la fiche à
+  /// l'impression. À 4,5 cm, la fiche commence sous l'en-tête. La macro
+  /// « Nouveau point » copie la feuille, donc la marge avec.
+  static const _margeHautCm = 4.5;
 
   /// Rang, dans la plage d'identifiants de sa feuille, de l'image liée de la
   /// case « Client ». Les boutons occupent 1 à 3.
@@ -144,6 +144,13 @@ class AsBuiltWorkbook {
     if (enteteRels == null || controle == null) {
       throw const ModeleInattendu('boutons ou en-tête incomplets');
     }
+
+    // Les dimensions des cases à image, telles que **ce** modèle les donne.
+    final casesPhoto = [
+      for (final c in _casesPhoto) _Case.lire(feuille, c),
+    ];
+    final caseClient = _Case.lire(feuille, _caseClient);
+    final caseSaisieClient = _Case.lire(feuille, _caseSaisieClient);
 
     var types = lire('[Content_Types].xml');
     var classeur = lire('xl/workbook.xml');
@@ -213,9 +220,12 @@ class AsBuiltWorkbook {
               .replaceAll('shapeId="$avant"', 'shapeId="$apres"')
               .replaceAll('<xdr:cNvPr id="$avant"', '<xdr:cNvPr id="$apres"');
         }
-        return sortie.replaceAll(
-          '<o:idmap v:ext="edit" data="1">',
-          '<o:idmap v:ext="edit" data="$n">',
+        // Le numéro de plage du fichier VML. Selon qu'Excel en ligne ou
+        // Excel de bureau a enregistré le modèle en dernier, la balise est
+        // écrite `…></o:idmap>` ou `…/>` : les deux sont prises.
+        return sortie.replaceAllMapped(
+          RegExp(r'(<o:idmap v:ext="edit" data=")1(")'),
+          (m) => '${m[1]}$n${m[2]}',
         );
       }
 
@@ -235,7 +245,7 @@ class AsBuiltWorkbook {
         );
         ancres.write(
           _ancre(
-            _casesPhoto[rang],
+            casesPhoto[rang],
             id: rang + 2,
             nom: 'Photo ${rang + 1}',
             rel: 'rIdPhoto${rang + 1}',
@@ -254,13 +264,13 @@ class AsBuiltWorkbook {
         ancres
           ..write(
             _ancre(
-              _caseSaisieClient,
+              caseSaisieClient,
               id: 4,
               nom: 'Logo client',
               rel: 'rIdLogo',
             ),
           )
-          ..write(_imageLiee(_caseClient, id: idLiee, rel: 'rIdLogo'));
+          ..write(_imageLiee(caseClient, id: idLiee, rel: 'rIdLogo'));
       }
 
       parts['xl/worksheets/fiche$n.xml'] = _octets(
@@ -318,7 +328,7 @@ class AsBuiltWorkbook {
         avecLogo
             ? formes(boutons).replaceFirst(
                 '</xml>',
-                '${_imageLieeVml(_caseClient, id: idLiee)}</xml>',
+                '${_imageLieeVml(caseClient, id: idLiee)}</xml>',
               )
             : formes(boutons),
       );
@@ -440,7 +450,12 @@ class AsBuiltWorkbook {
             '</sheetViews>',
           )
           // La référence aux réglages d'imprimante, retirés du classeur.
-          .replaceFirst(RegExp(r'(<pageSetup [^>]*?) r:id="rId1"'), r'$1'),
+          .replaceFirst(RegExp(r'(<pageSetup [^>]*?) r:id="rId1"'), r'$1')
+          // La marge haute, voir [_margeHautCm].
+          .replaceFirstMapped(
+            RegExp(r'(<pageMargins [^>]*?top=")[^"]*(")'),
+            (m) => '${m[1]}${(_margeHautCm / 2.54).toStringAsFixed(4)}${m[2]}',
+          ),
     )
       // En-tête
       ..nombre('D5', _jourExcel(point.capturedAt))
@@ -460,7 +475,6 @@ class AsBuiltWorkbook {
       ..texte('E12', point.purchaseOrder)
       ..texte('E13', point.building)
       ..texte('E14', point.floor)
-      ..texte('E15', '', style: '43')
       // Caractéristiques
       ..texte('F20', point.configuration)
       ..texte('F21', point.configurationDetail)
@@ -469,10 +483,17 @@ class AsBuiltWorkbook {
       ..texte('F24', point.productType);
 
     // « Numéro du point » reprend M5 par formule. Le style du modèle sur
-    // cette case est un format de date (« mmm-aa ») ; on prend celui des
-    // lignes voisines. Sans numéro, pas de formule : `=M5` sur une cellule
+    // cette case est un format de date (« mmm-aa ») ; on prend celui de la
+    // ligne « Intitulé Projet », **lu dans le modèle** — son numéro change à
+    // chaque fois qu'Excel réenregistre le classeur. Sans numéro, pas de
+    // formule : `=M5` sur une cellule
     // vide afficherait « 0 », un numéro que personne n'a donné.
-    if (numero.isNotEmpty) f.formule('E15', 'M5', numero, style: '43');
+    final styleVoisin = f.styleDe('E11');
+    if (numero.isEmpty) {
+      f.texte('E15', '', style: styleVoisin);
+    } else {
+      f.formule('E15', 'M5', numero, style: styleVoisin);
+    }
 
     for (var i = 0; i < 5; i++) {
       f.texte('F${25 + i}', i < point.products.length ? point.products[i] : '');
@@ -664,6 +685,61 @@ class _Case {
     required this.hauteurs,
   });
 
+  /// Lit dans la feuille du modèle les dimensions d'une plage de cellules.
+  ///
+  /// Lues et non recopiées : Excel retouche largeurs et hauteurs à chaque
+  /// réenregistrement du modèle (une ligne perd sa hauteur explicite, une
+  /// colonne gagne un centième). Des constantes auraient décalé les images
+  /// sans que rien ne le signale.
+  factory _Case.lire(
+    String feuille,
+    ({int colonne, int colonnes, int ligne, int lignes}) plage,
+  ) {
+    double attribut(String nom, double defaut) =>
+        double.tryParse(
+          RegExp('$nom="([\\d.]+)"').firstMatch(feuille)?[1] ?? '',
+        ) ??
+        defaut;
+
+    final largeurParDefaut = attribut('defaultColWidth', 8.43);
+    final hauteurParDefaut = attribut('defaultRowHeight', 15);
+    final colonnes = [
+      for (final m in RegExp(
+        r'<col min="(\d+)" max="(\d+)" width="([\d.]+)"',
+      ).allMatches(feuille))
+        (int.parse(m[1]!), int.parse(m[2]!), double.parse(m[3]!)),
+    ];
+
+    // Une largeur Excel se compte en caractères de la police par défaut,
+    // qui fait 7 px de chasse dans ce modèle.
+    int largeur(int index) {
+      final numero = index + 1; // les colonnes d'Excel partent de 1
+      for (final (min, max, valeur) in colonnes) {
+        if (numero >= min && numero <= max) return (valeur * 7 + 0.5).floor();
+      }
+      return (largeurParDefaut * 7 + 0.5).floor();
+    }
+
+    double hauteur(int index) =>
+        double.tryParse(
+          RegExp('<row r="${index + 1}"[^>]*? ht="([\\d.]+)"')
+                  .firstMatch(feuille)?[1] ??
+              '',
+        ) ??
+        hauteurParDefaut;
+
+    return _Case(
+      colonne: plage.colonne,
+      largeurs: [
+        for (var i = 0; i < plage.colonnes; i++) largeur(plage.colonne + i),
+      ],
+      ligne: plage.ligne,
+      hauteurs: [
+        for (var i = 0; i < plage.lignes; i++) hauteur(plage.ligne + i),
+      ],
+    );
+  }
+
   final int colonne;
 
   /// Largeur de chaque colonne couverte, en pixels.
@@ -760,6 +836,13 @@ class _Feuille {
         style: style,
       );
     }
+  }
+
+  /// Numéro de style de la cellule [ref], tel que le modèle le porte.
+  String? styleDe(String ref) {
+    final trouve = RegExp('<c r="$ref"([^>]*?)(?:/>|>)').firstMatch(xml);
+    if (trouve == null) throw ModeleInattendu('cellule $ref introuvable');
+    return RegExp(r' s="(\d+)"').firstMatch(trouve[1]!)?[1];
   }
 
   void nombre(String ref, num valeur) => brut(ref, '', '<v>$valeur</v>');

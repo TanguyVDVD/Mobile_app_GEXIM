@@ -48,6 +48,43 @@ class PhotoRepository {
     );
   }
 
+  /// Octets d'un cliché, lus **depuis le serveur** : le chemin du navigateur,
+  /// qui n'a pas de disque où le ranger. `null` si le cliché n'a pas encore
+  /// été envoyé par la tablette qui l'a pris.
+  ///
+  /// Les téléchargements sont gardés en mémoire le temps de la session, dans
+  /// la limite de [_memoireMax] clichés : la liste d'un point se rouvre sans
+  /// tout redemander, et un chantier de trois cents photos ne s'installe pas
+  /// pour autant dans la mémoire de l'onglet.
+  Future<Uint8List?> octetsDistants(Photo photo) {
+    final distant = photo.remotePath;
+    if (distant == null) return Future.value(null);
+
+    final connu = _memoire.remove(photo.id);
+    if (connu != null) {
+      // Remis en queue : le plus récemment demandé est le dernier évincé.
+      _memoire[photo.id] = connu;
+      return connu;
+    }
+
+    final demande = _gateway.downloadPhoto(distant).then<Uint8List?>((o) => o);
+    _memoire[photo.id] = demande;
+    // Un échec n'est pas gardé : le réseau peut revenir, et la prochaine
+    // demande doit pouvoir réessayer.
+    demande.catchError((Object _) {
+      _memoire.remove(photo.id);
+      return null;
+    });
+    if (_memoire.length > _memoireMax) _memoire.remove(_memoire.keys.first);
+    return demande;
+  }
+
+  static const _memoireMax = 40;
+
+  /// Dans l'ordre de dernière demande — un `Map` Dart garde l'ordre
+  /// d'insertion.
+  final Map<String, Future<Uint8List?>> _memoire = {};
+
   Future<File?> _download(Photo photo) async {
     final bytes = await _gateway.downloadPhoto(photo.remotePath!);
     final target = await _storage.fileFor(photo.id);

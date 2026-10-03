@@ -14,6 +14,10 @@ C'est un document à valeur contractuelle, opposable en cas de sinistre.
 L'application est conçue pour être utilisée **sans réseau**, sur une tablette,
 avec des gants.
 
+Elle a deux visages : l'**application Android** du technicien, cœur du projet,
+et une **version navigateur** pour l'administrateur — chantiers, clients, listes,
+export des fiches — hébergée sur un VPS (voir `deploy/nginx.conf`).
+
 ---
 
 ## Mise en route
@@ -133,7 +137,7 @@ confort. Le verrou réel est dans les policies RLS : un APK modifié, une tablet
 à l'heure fausse ou un appel direct à l'API se heurtent aux mêmes règles.
 
 Une policy trop permissive ne produit **aucune erreur** — elle laisse passer.
-Les refus sont donc prouvés par 30 tests SQL rejouant les migrations réelles sur
+Les refus sont donc prouvés par 31 tests SQL rejouant les migrations réelles sur
 un Postgres jetable :
 
 ```bash
@@ -188,8 +192,12 @@ supabase/
   bootstrap.sql généré, pour l'installation initiale
 docker/
   rls_tests.sql banc d'essai des policies
+deploy/
+  nginx.conf    configuration du VPS pour la version navigateur
+web/            page d'accueil, icônes, SQLite en WebAssembly
 tools/
   bootstrap.dart  régénère supabase/bootstrap.sql
+  web/            les deux fichiers de la base locale côté navigateur
   macros.ps1      réinscrit la macro « Nouveau point » (tools/macros/) dans le modèle
   logo.py         régénère le logo et les icônes
 AS_BUILT_Resserages_RF_model_vierge.xlsm
@@ -201,8 +209,8 @@ AS_BUILT_Resserages_RF_model_vierge.xlsm
 
 ```bash
 flutter analyze                                  # doit rester à zéro
-flutter test                                     # 145 tests
-cd packages/firestop_excel && dart test          # 35 tests
+flutter test                                     # 168 tests
+cd packages/firestop_excel && dart test          # 38 tests
 ```
 
 `dart run build_runner build` est **obligatoire** après toute modification de
@@ -216,10 +224,7 @@ table ou de DAO.
    installer, mais n'a encore tourné sur aucune tablette réelle : un relevé
    complet photos comprises, hors réseau puis au retour du réseau, jusqu'au
    classeur ouvert dans Excel et relu.
-1. **Le numéro de point est un entier.** Le modèle nomme ses feuilles
-   « 1.40 », « 1.167 » : si le repérage du bureau a cette forme, la colonne
-   doit passer en texte.
-2. **Les listes de « Menus déroulants »** du classeur sont celles du modèle,
+1. **Les listes de « Menus déroulants »** du classeur sont celles du modèle,
    pas celles de *Paramètres*. Une fiche exportée porte les bonnes valeurs ;
    seule une fiche ajoutée à la main dans Excel propose les anciennes.
 3. **La purge locale après révocation** : retirer un technicien d'un chantier lui

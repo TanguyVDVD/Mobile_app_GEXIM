@@ -154,7 +154,7 @@ class SyncEngine {
       // la descente s'arrêtait sur toutes les entités qui suivent, et le
       // bandeau restait sur « Envoi en cours ».
       //
-      // Constaté le 11 septembre 2026 : un poste Windows compilé avant la liste
+      // Constaté le 11 septembre 2026 : un poste compilé avant la liste
       // `product_type` recevait ces options, levait une `FormatException`, et
       // n'a plus rien reçu ensuite — ni client, ni logo. Ses rapports sortaient
       // avec le nom du client à la place du logo, sans un mot.

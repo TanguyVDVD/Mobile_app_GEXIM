@@ -143,6 +143,10 @@ class PullEngine {
       PullEntity.point => _upsert(_db.points, pointFromRemote(row)),
       PullEntity.photo => _upsert(_db.photos, photoFromRemote(row)),
       PullEntity.deletedProject => _purger(row['id'] as String),
+      PullEntity.deletedPoint => _purgerPoint(
+          projectId: row['project_id'] as String,
+          pointId: row['id'] as String,
+        ),
     };
   }
 
@@ -150,6 +154,35 @@ class PullEngine {
   /// fichiers de clichés compris. Sans effet si le chantier n'y est pas.
   Future<void> _purger(String projectId) async {
     await PhotoStorage.effacer(await _db.projectDao.purgeProject(projectId));
+  }
+
+  /// Une traversée a été supprimée définitivement : cet appareil efface sa
+  /// copie, puis fait le ménage du stockage.
+  ///
+  /// Le ménage est fait ici, par l'appareil qui reçoit la trace, parce que
+  /// c'est le premier moment où l'on est sûr d'être en ligne — la suppression,
+  /// elle, a pu être décidée sans réseau. Il est **sans engagement** : un
+  /// échec ne doit pas arrêter la descente, ni la faire reprendre en boucle
+  /// sur cette trace. Au pire, des fichiers restent dans le bucket ; un autre
+  /// appareil, ou la suppression du chantier, les emportera.
+  Future<void> _purgerPoint({
+    required String projectId,
+    required String pointId,
+  }) async {
+    final fichiers = await _db.pointDao.purgePoint(pointId);
+    // La descente relit toujours ses deux dernières minutes (`_overlap`) : la
+    // même trace repasse donc ici à chaque cycle, tant qu'elle est la plus
+    // récente. Le ménage ne part que la première fois — quand la traversée
+    // était encore là.
+    if (fichiers == null) return;
+
+    await PhotoStorage.effacer(fichiers);
+    try {
+      await _gateway.removePointFiles(projectId: projectId, pointId: pointId);
+    } on Object {
+      // Voir ci-dessus : refus du serveur (chantier clôturé pour un
+      // technicien), réseau qui tombe — rien qui justifie d'échouer.
+    }
   }
 
   /// Insère, ou met à jour **seulement si la version reçue est plus récente**.

@@ -1,6 +1,11 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+// `ClientException` : la forme que prend une panne réseau **dans un
+// navigateur**, où `SocketException` n'existe pas. Sur tablette, la même panne
+// arrive en `ClientException` qui *implémente* `SocketException`, et la
+// branche précédente l'a déjà prise.
+import 'package:http/http.dart' show ClientException;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../database/tables/enums.dart';
@@ -65,6 +70,16 @@ abstract interface class RemoteGateway {
   /// Hors de la file d'attente, comme [setUserRole] : un effacement ne se
   /// rattrape pas, il doit être immédiat ou ne pas avoir lieu.
   Future<void> deleteProject(String projectId);
+
+  /// Retire du stockage les clichés d'une traversée supprimée.
+  ///
+  /// Appelé par l'appareil qui reçoit la trace de la suppression : les lignes
+  /// ont déjà disparu, le dossier `{chantier}/{point}/` est tout ce qu'il
+  /// reste. Sans effet s'il est déjà vide.
+  Future<void> removePointFiles({
+    required String projectId,
+    required String pointId,
+  });
 
   /// Lignes dont le serveur a accusé réception après [since].
   ///
@@ -146,6 +161,8 @@ class SupabaseRemoteGateway implements RemoteGateway {
       throw SyncException.network(e.message);
     } on HandshakeException catch (e) {
       throw SyncException.network(e.message);
+    } on ClientException catch (e) {
+      throw SyncException.network(e.message);
     }
   }
 
@@ -174,6 +191,8 @@ class SupabaseRemoteGateway implements RemoteGateway {
       throw SyncException.network(e.message);
     } on HandshakeException catch (e) {
       throw SyncException.network(e.message);
+    } on ClientException catch (e) {
+      throw SyncException.network(e.message);
     }
   }
 
@@ -189,6 +208,8 @@ class SupabaseRemoteGateway implements RemoteGateway {
     } on SocketException catch (e) {
       throw SyncException.network(e.message);
     } on HandshakeException catch (e) {
+      throw SyncException.network(e.message);
+    } on ClientException catch (e) {
       throw SyncException.network(e.message);
     }
   }
@@ -215,6 +236,8 @@ class SupabaseRemoteGateway implements RemoteGateway {
       throw SyncException.network(e.message);
     } on HandshakeException catch (e) {
       throw SyncException.network(e.message);
+    } on ClientException catch (e) {
+      throw SyncException.network(e.message);
     }
   }
 
@@ -233,6 +256,8 @@ class SupabaseRemoteGateway implements RemoteGateway {
     } on SocketException catch (e) {
       throw SyncException.network(e.message);
     } on HandshakeException catch (e) {
+      throw SyncException.network(e.message);
+    } on ClientException catch (e) {
       throw SyncException.network(e.message);
     }
   }
@@ -272,6 +297,8 @@ class SupabaseRemoteGateway implements RemoteGateway {
     } on SocketException catch (e) {
       throw SyncException.network(e.message);
     } on HandshakeException catch (e) {
+      throw SyncException.network(e.message);
+    } on ClientException catch (e) {
       throw SyncException.network(e.message);
     }
   }
@@ -335,6 +362,36 @@ class SupabaseRemoteGateway implements RemoteGateway {
       throw SyncException.network(e.message);
     } on HandshakeException catch (e) {
       throw SyncException.network(e.message);
+    } on ClientException catch (e) {
+      throw SyncException.network(e.message);
+    }
+  }
+
+  @override
+  Future<void> removePointFiles({
+    required String projectId,
+    required String pointId,
+  }) async {
+    final dossier = '$projectId/$pointId';
+    try {
+      final depot = _client.storage.from('point-photos');
+      final fichiers = await _borne(
+        () => depot.list(path: dossier),
+        delaiRequete,
+      );
+      if (fichiers.isEmpty) return;
+      await _borne(
+        () => depot.remove([for (final f in fichiers) '$dossier/${f.name}']),
+        delaiTransfert,
+      );
+    } on StorageException catch (e) {
+      throw _classifyStorage(e);
+    } on SocketException catch (e) {
+      throw SyncException.network(e.message);
+    } on HandshakeException catch (e) {
+      throw SyncException.network(e.message);
+    } on ClientException catch (e) {
+      throw SyncException.network(e.message);
     }
   }
 
@@ -347,6 +404,7 @@ class SupabaseRemoteGateway implements RemoteGateway {
         PullEntity.point => 'points',
         PullEntity.photo => 'photos',
         PullEntity.deletedProject => 'deleted_projects',
+        PullEntity.deletedPoint => 'deleted_points',
       };
 
   /// Clé de départage, appliquée après `synced_at`.
@@ -392,6 +450,8 @@ class SupabaseRemoteGateway implements RemoteGateway {
     } on SocketException catch (e) {
       throw SyncException.network(e.message);
     } on HandshakeException catch (e) {
+      throw SyncException.network(e.message);
+    } on ClientException catch (e) {
       throw SyncException.network(e.message);
     }
   }

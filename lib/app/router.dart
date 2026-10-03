@@ -73,7 +73,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       GoRoute(path: '/users', builder: (_, __) => const UserManagementScreen()),
 
-      // Les six listes déroulantes de la fiche de traversée. Sous `/parametres`
+      // Les listes déroulantes de la fiche de traversée. Sous `/parametres`
       // et non `/settings` : le reste des chemins visibles est en français, et
       // `/projects/:id/settings` désigne déjà tout autre chose — la
       // configuration d'un chantier.

@@ -41,6 +41,7 @@ extension SettingKindWire on SettingKind {
         SettingKind.supplier => 'supplier',
         SettingKind.productType => 'product_type',
         SettingKind.product => 'product',
+        SettingKind.floor => 'floor',
       };
 }
 
@@ -106,7 +107,7 @@ Map<String, Object?> pointPayload(Point row) => {
       'project_name': row.projectName,
       'purchase_order': row.purchaseOrder,
       'building': row.building,
-      'floor_level': row.floorLevel,
+      'floor_id': row.floorId,
       'room': row.room,
       'description': row.description,
       'configuration_id': row.configurationId,
@@ -183,6 +184,7 @@ SettingKind settingKindFromWire(String value) => switch (value) {
       'supplier' => SettingKind.supplier,
       'product_type' => SettingKind.productType,
       'product' => SettingKind.product,
+      'floor' => SettingKind.floor,
       // Une liste ajoutée côté serveur ne doit surtout pas se ranger par défaut
       // dans l'une des existantes : elle apparaîtrait dans une liste déroulante
       // où elle n'a rien à faire, et un technicien la choisirait.
@@ -191,7 +193,7 @@ SettingKind settingKindFromWire(String value) => switch (value) {
       // **toute la descente** qui s'arrête ici, pour cette entité et toutes
       // celles qui la suivent dans `PullEntity`. `SyncEngine._runCycle` le
       // signale par `needsAttention`. Le remède est de mettre l'application à
-      // jour ; c'est ce qui est arrivé au poste Windows le 11 septembre 2026.
+      // jour ; c'est ce qui est arrivé à un poste le 11 septembre 2026.
       _ => throw FormatException('Liste de paramètres inconnue : $value'),
     };
 
@@ -266,12 +268,15 @@ SettingOptionsCompanion settingOptionFromRemote(Map<String, dynamic> row) =>
 PointsCompanion pointFromRemote(Map<String, dynamic> row) => PointsCompanion(
       id: Value(row['id'] as String),
       projectId: Value(row['project_id'] as String),
-      refNumber: Value(row['ref_number'] as int?),
+      // `toString` et non un transtypage : un serveur dont la migration vers
+      // le texte n'a pas encore été jouée renvoie un entier, et un `as
+      // String?` ferait tomber toute la descente des points.
+      refNumber: Value(row['ref_number']?.toString()),
       projectCode: Value(row['project_code'] as String?),
       projectName: Value(row['project_name'] as String?),
       purchaseOrder: Value(row['purchase_order'] as String?),
       building: Value(row['building'] as String?),
-      floorLevel: Value(row['floor_level'] as int?),
+      floorId: Value(row['floor_id'] as String?),
       room: Value(row['room'] as String?),
       description: Value(row['description'] as String?),
       configurationId: Value(row['configuration_id'] as String?),

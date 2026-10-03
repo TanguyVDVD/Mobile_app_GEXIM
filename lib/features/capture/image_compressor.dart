@@ -40,14 +40,12 @@ class ImageCompressor implements PhotoProcessor {
   ImageCompressor([
     this._storage = const PhotoStorage(),
     ReductionJpeg? reduction,
-  ]) : _reduction = reduction ?? ReductionJpeg.pourLaPlateforme();
+  ]) : _reduction = reduction ?? const ReductionNative();
 
   final PhotoStorage _storage;
 
-  /// Passe par l'abstraction plutot que d'appeler le greffon : celui-ci n'a pas
-  /// d'implementation Windows. La capture y est certes masquee — pas de
-  /// `camera` non plus — mais brancher un jour l'import d'un cliche depuis le
-  /// disque ne doit pas retomber dans le meme piege silencieux.
+  /// Passe par l'abstraction plutot que d'appeler le greffon : les tests le
+  /// remplacent, il n'existe pas dans la machine virtuelle ou ils tournent.
   final ReductionJpeg _reduction;
 
   /// Borne inférieure appliquée à chaque axe.

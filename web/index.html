@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <!--
+    Remplacé par la valeur de `--base-href` à la compilation. À changer
+    seulement si l'application n'est pas servie à la racine du domaine ; le
+    chemin doit commencer et finir par « / ».
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta name="description" content="FireStop Tracker — registre des traversées coupe-feu.">
+  <!-- Un outil interne : inutile qu'un moteur de recherche le référence. -->
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#14181C">
+
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="FireStop">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>FireStop Tracker</title>
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    /* Le fond de l'application, le temps qu'elle se charge : sans lui la page
+       passe du blanc au gris au premier affichage. */
+    html, body { margin: 0; height: 100%; background: #F1F3F4; }
+  </style>
+</head>
+<body>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

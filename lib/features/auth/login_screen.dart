@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../app/theme.dart';
+import '../../core/plateforme.dart';
 import 'auth_backend.dart';
 import 'auth_service.dart';
 
@@ -117,14 +118,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: const Text('Créer un compte'),
                   ),
 
-                  const SizedBox(height: Fs.xl),
-                  Text(
-                    'La première connexion demande du réseau. Ensuite, '
-                    'l\'application s\'ouvre et fonctionne hors ligne : les '
-                    'relevés partent d\'eux-mêmes au retour du signal.',
-                    textAlign: TextAlign.center,
-                    style: Fs.metaOf(context),
-                  ),
+                  // La promesse du hors-ligne est celle de la tablette. Dans
+                  // un navigateur, poste en ligne par nature, elle n'a pas
+                  // lieu d'être faite.
+                  if (!Plateforme.estNavigateur) ...[
+                    const SizedBox(height: Fs.xl),
+                    Text(
+                      'La première connexion demande du réseau. Ensuite, '
+                      'l\'application s\'ouvre et fonctionne hors ligne : les '
+                      'relevés partent d\'eux-mêmes au retour du signal.',
+                      textAlign: TextAlign.center,
+                      style: Fs.metaOf(context),
+                    ),
+                  ],
                 ],
               ),
             ),

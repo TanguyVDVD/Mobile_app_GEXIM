@@ -2255,9 +2255,9 @@ class $PointsTable extends Points with TableInfo<$PointsTable, Point> {
   static const VerificationMeta _refNumberMeta =
       const VerificationMeta('refNumber');
   @override
-  late final GeneratedColumn<int> refNumber = GeneratedColumn<int>(
+  late final GeneratedColumn<String> refNumber = GeneratedColumn<String>(
       'ref_number', aliasedName, true,
-      type: DriftSqlType.int, requiredDuringInsert: false);
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _projectCodeMeta =
       const VerificationMeta('projectCode');
   @override
@@ -2282,12 +2282,14 @@ class $PointsTable extends Points with TableInfo<$PointsTable, Point> {
   late final GeneratedColumn<String> building = GeneratedColumn<String>(
       'building', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
-  static const VerificationMeta _floorLevelMeta =
-      const VerificationMeta('floorLevel');
+  static const VerificationMeta _floorIdMeta =
+      const VerificationMeta('floorId');
   @override
-  late final GeneratedColumn<int> floorLevel = GeneratedColumn<int>(
-      'floor_level', aliasedName, true,
-      type: DriftSqlType.int, requiredDuringInsert: false);
+  late final GeneratedColumn<String> floorId = GeneratedColumn<String>(
+      'floor_id', aliasedName, true,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      $customConstraints: 'REFERENCES setting_options(id)');
   static const VerificationMeta _roomMeta = const VerificationMeta('room');
   @override
   late final GeneratedColumn<String> room = GeneratedColumn<String>(
@@ -2414,7 +2416,7 @@ class $PointsTable extends Points with TableInfo<$PointsTable, Point> {
         projectName,
         purchaseOrder,
         building,
-        floorLevel,
+        floorId,
         room,
         description,
         configurationId,
@@ -2479,11 +2481,9 @@ class $PointsTable extends Points with TableInfo<$PointsTable, Point> {
       context.handle(_buildingMeta,
           building.isAcceptableOrUnknown(data['building']!, _buildingMeta));
     }
-    if (data.containsKey('floor_level')) {
-      context.handle(
-          _floorLevelMeta,
-          floorLevel.isAcceptableOrUnknown(
-              data['floor_level']!, _floorLevelMeta));
+    if (data.containsKey('floor_id')) {
+      context.handle(_floorIdMeta,
+          floorId.isAcceptableOrUnknown(data['floor_id']!, _floorIdMeta));
     }
     if (data.containsKey('room')) {
       context.handle(
@@ -2593,7 +2593,7 @@ class $PointsTable extends Points with TableInfo<$PointsTable, Point> {
       projectId: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}project_id'])!,
       refNumber: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}ref_number']),
+          .read(DriftSqlType.string, data['${effectivePrefix}ref_number']),
       projectCode: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}project_code']),
       projectName: attachedDatabase.typeMapping
@@ -2602,8 +2602,8 @@ class $PointsTable extends Points with TableInfo<$PointsTable, Point> {
           .read(DriftSqlType.string, data['${effectivePrefix}purchase_order']),
       building: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}building']),
-      floorLevel: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}floor_level']),
+      floorId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}floor_id']),
       room: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}room']),
       description: attachedDatabase.typeMapping
@@ -2650,18 +2650,23 @@ class Point extends DataClass implements Insertable<Point> {
   final String id;
   final String projectId;
 
-  /// Numéro de la traversée, **saisi par le technicien**.
+  /// Numéro de la traversée, **saisi par le technicien**, en texte libre.
   ///
-  /// Il suit le repérage du chantier — plans, étiquettes posées sur place. La
-  /// création propose le suivant du plus grand numéro connu de l'appareil,
+  /// Il suit le repérage du chantier — plans, étiquettes posées sur place —
+  /// qui n'est pas toujours une suite d'entiers : « 12 », mais aussi « 1.40 »
+  /// ou « A-07 ». La création propose le suivant du dernier point relevé,
   /// modifiable. Nullable : une fiche peut rester sans numéro le temps de la
-  /// saisie.
+  /// saisie. L'ordre et la proposition sont dans `core/numero_point.dart`.
   ///
   /// **Aucune unicité n'est imposée**, ni ici ni sur le serveur. Deux
   /// techniciens hors ligne peuvent saisir le même numéro ; une contrainte
   /// ferait refuser le second relevé à la synchronisation. Le doublon est
   /// signalé sur la fiche (`PointDao.watchRefNumberTaken`).
-  final int? refNumber;
+  ///
+  /// La colonne était un entier jusqu'à la version 5 du schéma : voir la
+  /// migration dans `AppDatabase`, et pourquoi elle ne pouvait pas se
+  /// contenter de changer le type déclaré.
+  final String? refNumber;
   final String? projectCode;
   final String? projectName;
 
@@ -2673,11 +2678,12 @@ class Point extends DataClass implements Insertable<Point> {
   /// d'un site à l'autre.
   final String? building;
 
-  /// Étage, de -3 à 5 (voir [floorRange]).
+  /// Étage, choisi dans la liste administrée (`SettingKind.floor`).
   ///
-  /// Entier et non texte : l'étage est un axe ordonné, et c'est ce qui permet
-  /// de lire un relevé du sous-sol au dernier niveau.
-  final int? floorLevel;
+  /// C'était un entier borné de -3 à 5 jusqu'à la version 6 du schéma. Une
+  /// option de liste, désormais : le bureau ajoute lui-même un « Niveau 6 » ou
+  /// une « Toiture », et l'ordre est celui qu'il donne à la liste.
+  final String? floorId;
 
   /// Local. Hors gabarit du rapport, conservé comme repère de terrain.
   final String? room;
@@ -2708,7 +2714,7 @@ class Point extends DataClass implements Insertable<Point> {
       this.projectName,
       this.purchaseOrder,
       this.building,
-      this.floorLevel,
+      this.floorId,
       this.room,
       this.description,
       this.configurationId,
@@ -2731,7 +2737,7 @@ class Point extends DataClass implements Insertable<Point> {
     map['id'] = Variable<String>(id);
     map['project_id'] = Variable<String>(projectId);
     if (!nullToAbsent || refNumber != null) {
-      map['ref_number'] = Variable<int>(refNumber);
+      map['ref_number'] = Variable<String>(refNumber);
     }
     if (!nullToAbsent || projectCode != null) {
       map['project_code'] = Variable<String>(projectCode);
@@ -2745,8 +2751,8 @@ class Point extends DataClass implements Insertable<Point> {
     if (!nullToAbsent || building != null) {
       map['building'] = Variable<String>(building);
     }
-    if (!nullToAbsent || floorLevel != null) {
-      map['floor_level'] = Variable<int>(floorLevel);
+    if (!nullToAbsent || floorId != null) {
+      map['floor_id'] = Variable<String>(floorId);
     }
     if (!nullToAbsent || room != null) {
       map['room'] = Variable<String>(room);
@@ -2812,9 +2818,9 @@ class Point extends DataClass implements Insertable<Point> {
       building: building == null && nullToAbsent
           ? const Value.absent()
           : Value(building),
-      floorLevel: floorLevel == null && nullToAbsent
+      floorId: floorId == null && nullToAbsent
           ? const Value.absent()
-          : Value(floorLevel),
+          : Value(floorId),
       room: room == null && nullToAbsent ? const Value.absent() : Value(room),
       description: description == null && nullToAbsent
           ? const Value.absent()
@@ -2864,12 +2870,12 @@ class Point extends DataClass implements Insertable<Point> {
     return Point(
       id: serializer.fromJson<String>(json['id']),
       projectId: serializer.fromJson<String>(json['projectId']),
-      refNumber: serializer.fromJson<int?>(json['refNumber']),
+      refNumber: serializer.fromJson<String?>(json['refNumber']),
       projectCode: serializer.fromJson<String?>(json['projectCode']),
       projectName: serializer.fromJson<String?>(json['projectName']),
       purchaseOrder: serializer.fromJson<String?>(json['purchaseOrder']),
       building: serializer.fromJson<String?>(json['building']),
-      floorLevel: serializer.fromJson<int?>(json['floorLevel']),
+      floorId: serializer.fromJson<String?>(json['floorId']),
       room: serializer.fromJson<String?>(json['room']),
       description: serializer.fromJson<String?>(json['description']),
       configurationId: serializer.fromJson<String?>(json['configurationId']),
@@ -2895,12 +2901,12 @@ class Point extends DataClass implements Insertable<Point> {
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'projectId': serializer.toJson<String>(projectId),
-      'refNumber': serializer.toJson<int?>(refNumber),
+      'refNumber': serializer.toJson<String?>(refNumber),
       'projectCode': serializer.toJson<String?>(projectCode),
       'projectName': serializer.toJson<String?>(projectName),
       'purchaseOrder': serializer.toJson<String?>(purchaseOrder),
       'building': serializer.toJson<String?>(building),
-      'floorLevel': serializer.toJson<int?>(floorLevel),
+      'floorId': serializer.toJson<String?>(floorId),
       'room': serializer.toJson<String?>(room),
       'description': serializer.toJson<String?>(description),
       'configurationId': serializer.toJson<String?>(configurationId),
@@ -2924,12 +2930,12 @@ class Point extends DataClass implements Insertable<Point> {
   Point copyWith(
           {String? id,
           String? projectId,
-          Value<int?> refNumber = const Value.absent(),
+          Value<String?> refNumber = const Value.absent(),
           Value<String?> projectCode = const Value.absent(),
           Value<String?> projectName = const Value.absent(),
           Value<String?> purchaseOrder = const Value.absent(),
           Value<String?> building = const Value.absent(),
-          Value<int?> floorLevel = const Value.absent(),
+          Value<String?> floorId = const Value.absent(),
           Value<String?> room = const Value.absent(),
           Value<String?> description = const Value.absent(),
           Value<String?> configurationId = const Value.absent(),
@@ -2955,7 +2961,7 @@ class Point extends DataClass implements Insertable<Point> {
         purchaseOrder:
             purchaseOrder.present ? purchaseOrder.value : this.purchaseOrder,
         building: building.present ? building.value : this.building,
-        floorLevel: floorLevel.present ? floorLevel.value : this.floorLevel,
+        floorId: floorId.present ? floorId.value : this.floorId,
         room: room.present ? room.value : this.room,
         description: description.present ? description.value : this.description,
         configurationId: configurationId.present
@@ -2991,8 +2997,7 @@ class Point extends DataClass implements Insertable<Point> {
           ? data.purchaseOrder.value
           : this.purchaseOrder,
       building: data.building.present ? data.building.value : this.building,
-      floorLevel:
-          data.floorLevel.present ? data.floorLevel.value : this.floorLevel,
+      floorId: data.floorId.present ? data.floorId.value : this.floorId,
       room: data.room.present ? data.room.value : this.room,
       description:
           data.description.present ? data.description.value : this.description,
@@ -3036,7 +3041,7 @@ class Point extends DataClass implements Insertable<Point> {
           ..write('projectName: $projectName, ')
           ..write('purchaseOrder: $purchaseOrder, ')
           ..write('building: $building, ')
-          ..write('floorLevel: $floorLevel, ')
+          ..write('floorId: $floorId, ')
           ..write('room: $room, ')
           ..write('description: $description, ')
           ..write('configurationId: $configurationId, ')
@@ -3066,7 +3071,7 @@ class Point extends DataClass implements Insertable<Point> {
         projectName,
         purchaseOrder,
         building,
-        floorLevel,
+        floorId,
         room,
         description,
         configurationId,
@@ -3095,7 +3100,7 @@ class Point extends DataClass implements Insertable<Point> {
           other.projectName == this.projectName &&
           other.purchaseOrder == this.purchaseOrder &&
           other.building == this.building &&
-          other.floorLevel == this.floorLevel &&
+          other.floorId == this.floorId &&
           other.room == this.room &&
           other.description == this.description &&
           other.configurationId == this.configurationId &&
@@ -3117,12 +3122,12 @@ class Point extends DataClass implements Insertable<Point> {
 class PointsCompanion extends UpdateCompanion<Point> {
   final Value<String> id;
   final Value<String> projectId;
-  final Value<int?> refNumber;
+  final Value<String?> refNumber;
   final Value<String?> projectCode;
   final Value<String?> projectName;
   final Value<String?> purchaseOrder;
   final Value<String?> building;
-  final Value<int?> floorLevel;
+  final Value<String?> floorId;
   final Value<String?> room;
   final Value<String?> description;
   final Value<String?> configurationId;
@@ -3148,7 +3153,7 @@ class PointsCompanion extends UpdateCompanion<Point> {
     this.projectName = const Value.absent(),
     this.purchaseOrder = const Value.absent(),
     this.building = const Value.absent(),
-    this.floorLevel = const Value.absent(),
+    this.floorId = const Value.absent(),
     this.room = const Value.absent(),
     this.description = const Value.absent(),
     this.configurationId = const Value.absent(),
@@ -3175,7 +3180,7 @@ class PointsCompanion extends UpdateCompanion<Point> {
     this.projectName = const Value.absent(),
     this.purchaseOrder = const Value.absent(),
     this.building = const Value.absent(),
-    this.floorLevel = const Value.absent(),
+    this.floorId = const Value.absent(),
     this.room = const Value.absent(),
     this.description = const Value.absent(),
     this.configurationId = const Value.absent(),
@@ -3201,12 +3206,12 @@ class PointsCompanion extends UpdateCompanion<Point> {
   static Insertable<Point> custom({
     Expression<String>? id,
     Expression<String>? projectId,
-    Expression<int>? refNumber,
+    Expression<String>? refNumber,
     Expression<String>? projectCode,
     Expression<String>? projectName,
     Expression<String>? purchaseOrder,
     Expression<String>? building,
-    Expression<int>? floorLevel,
+    Expression<String>? floorId,
     Expression<String>? room,
     Expression<String>? description,
     Expression<String>? configurationId,
@@ -3233,7 +3238,7 @@ class PointsCompanion extends UpdateCompanion<Point> {
       if (projectName != null) 'project_name': projectName,
       if (purchaseOrder != null) 'purchase_order': purchaseOrder,
       if (building != null) 'building': building,
-      if (floorLevel != null) 'floor_level': floorLevel,
+      if (floorId != null) 'floor_id': floorId,
       if (room != null) 'room': room,
       if (description != null) 'description': description,
       if (configurationId != null) 'configuration_id': configurationId,
@@ -3258,12 +3263,12 @@ class PointsCompanion extends UpdateCompanion<Point> {
   PointsCompanion copyWith(
       {Value<String>? id,
       Value<String>? projectId,
-      Value<int?>? refNumber,
+      Value<String?>? refNumber,
       Value<String?>? projectCode,
       Value<String?>? projectName,
       Value<String?>? purchaseOrder,
       Value<String?>? building,
-      Value<int?>? floorLevel,
+      Value<String?>? floorId,
       Value<String?>? room,
       Value<String?>? description,
       Value<String?>? configurationId,
@@ -3289,7 +3294,7 @@ class PointsCompanion extends UpdateCompanion<Point> {
       projectName: projectName ?? this.projectName,
       purchaseOrder: purchaseOrder ?? this.purchaseOrder,
       building: building ?? this.building,
-      floorLevel: floorLevel ?? this.floorLevel,
+      floorId: floorId ?? this.floorId,
       room: room ?? this.room,
       description: description ?? this.description,
       configurationId: configurationId ?? this.configurationId,
@@ -3321,7 +3326,7 @@ class PointsCompanion extends UpdateCompanion<Point> {
       map['project_id'] = Variable<String>(projectId.value);
     }
     if (refNumber.present) {
-      map['ref_number'] = Variable<int>(refNumber.value);
+      map['ref_number'] = Variable<String>(refNumber.value);
     }
     if (projectCode.present) {
       map['project_code'] = Variable<String>(projectCode.value);
@@ -3335,8 +3340,8 @@ class PointsCompanion extends UpdateCompanion<Point> {
     if (building.present) {
       map['building'] = Variable<String>(building.value);
     }
-    if (floorLevel.present) {
-      map['floor_level'] = Variable<int>(floorLevel.value);
+    if (floorId.present) {
+      map['floor_id'] = Variable<String>(floorId.value);
     }
     if (room.present) {
       map['room'] = Variable<String>(room.value);
@@ -3403,7 +3408,7 @@ class PointsCompanion extends UpdateCompanion<Point> {
           ..write('projectName: $projectName, ')
           ..write('purchaseOrder: $purchaseOrder, ')
           ..write('building: $building, ')
-          ..write('floorLevel: $floorLevel, ')
+          ..write('floorId: $floorId, ')
           ..write('room: $room, ')
           ..write('description: $description, ')
           ..write('configurationId: $configurationId, ')
@@ -6889,12 +6894,12 @@ typedef $$SettingOptionsTableProcessedTableManager = ProcessedTableManager<
 typedef $$PointsTableCreateCompanionBuilder = PointsCompanion Function({
   required String id,
   required String projectId,
-  Value<int?> refNumber,
+  Value<String?> refNumber,
   Value<String?> projectCode,
   Value<String?> projectName,
   Value<String?> purchaseOrder,
   Value<String?> building,
-  Value<int?> floorLevel,
+  Value<String?> floorId,
   Value<String?> room,
   Value<String?> description,
   Value<String?> configurationId,
@@ -6916,12 +6921,12 @@ typedef $$PointsTableCreateCompanionBuilder = PointsCompanion Function({
 typedef $$PointsTableUpdateCompanionBuilder = PointsCompanion Function({
   Value<String> id,
   Value<String> projectId,
-  Value<int?> refNumber,
+  Value<String?> refNumber,
   Value<String?> projectCode,
   Value<String?> projectName,
   Value<String?> purchaseOrder,
   Value<String?> building,
-  Value<int?> floorLevel,
+  Value<String?> floorId,
   Value<String?> room,
   Value<String?> description,
   Value<String?> configurationId,
@@ -6954,6 +6959,21 @@ final class $$PointsTableReferences
     final manager = $$ProjectsTableTableManager($_db, $_db.projects)
         .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_projectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static $SettingOptionsTable _floorIdTable(_$AppDatabase db) =>
+      db.settingOptions.createAlias(
+          $_aliasNameGenerator(db.points.floorId, db.settingOptions.id));
+
+  $$SettingOptionsTableProcessedTableManager? get floorId {
+    final $_column = $_itemColumn<String>('floor_id');
+    if ($_column == null) return null;
+    final manager = $$SettingOptionsTableTableManager($_db, $_db.settingOptions)
+        .filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_floorIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
         manager.$state.copyWith(prefetchedData: [item]));
@@ -7151,7 +7171,7 @@ class $$PointsTableFilterComposer
   ColumnFilters<String> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnFilters(column));
 
-  ColumnFilters<int> get refNumber => $composableBuilder(
+  ColumnFilters<String> get refNumber => $composableBuilder(
       column: $table.refNumber, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get projectCode => $composableBuilder(
@@ -7165,9 +7185,6 @@ class $$PointsTableFilterComposer
 
   ColumnFilters<String> get building => $composableBuilder(
       column: $table.building, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<int> get floorLevel => $composableBuilder(
-      column: $table.floorLevel, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get room => $composableBuilder(
       column: $table.room, builder: (column) => ColumnFilters(column));
@@ -7196,6 +7213,26 @@ class $$PointsTableFilterComposer
             $$ProjectsTableFilterComposer(
               $db: $db,
               $table: $db.projects,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableFilterComposer get floorId {
+    final $$SettingOptionsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.floorId,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableFilterComposer(
+              $db: $db,
+              $table: $db.settingOptions,
               $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
               joinBuilder: joinBuilder,
               $removeJoinBuilderFromRootComposer:
@@ -7458,7 +7495,7 @@ class $$PointsTableOrderingComposer
   ColumnOrderings<String> get id => $composableBuilder(
       column: $table.id, builder: (column) => ColumnOrderings(column));
 
-  ColumnOrderings<int> get refNumber => $composableBuilder(
+  ColumnOrderings<String> get refNumber => $composableBuilder(
       column: $table.refNumber, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get projectCode => $composableBuilder(
@@ -7473,9 +7510,6 @@ class $$PointsTableOrderingComposer
 
   ColumnOrderings<String> get building => $composableBuilder(
       column: $table.building, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<int> get floorLevel => $composableBuilder(
-      column: $table.floorLevel, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get room => $composableBuilder(
       column: $table.room, builder: (column) => ColumnOrderings(column));
@@ -7504,6 +7538,26 @@ class $$PointsTableOrderingComposer
             $$ProjectsTableOrderingComposer(
               $db: $db,
               $table: $db.projects,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableOrderingComposer get floorId {
+    final $$SettingOptionsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.floorId,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableOrderingComposer(
+              $db: $db,
+              $table: $db.settingOptions,
               $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
               joinBuilder: joinBuilder,
               $removeJoinBuilderFromRootComposer:
@@ -7745,7 +7799,7 @@ class $$PointsTableAnnotationComposer
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<int> get refNumber =>
+  GeneratedColumn<String> get refNumber =>
       $composableBuilder(column: $table.refNumber, builder: (column) => column);
 
   GeneratedColumn<String> get projectCode => $composableBuilder(
@@ -7759,9 +7813,6 @@ class $$PointsTableAnnotationComposer
 
   GeneratedColumn<String> get building =>
       $composableBuilder(column: $table.building, builder: (column) => column);
-
-  GeneratedColumn<int> get floorLevel => $composableBuilder(
-      column: $table.floorLevel, builder: (column) => column);
 
   GeneratedColumn<String> get room =>
       $composableBuilder(column: $table.room, builder: (column) => column);
@@ -7790,6 +7841,26 @@ class $$PointsTableAnnotationComposer
             $$ProjectsTableAnnotationComposer(
               $db: $db,
               $table: $db.projects,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SettingOptionsTableAnnotationComposer get floorId {
+    final $$SettingOptionsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.floorId,
+        referencedTable: $db.settingOptions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SettingOptionsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.settingOptions,
               $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
               joinBuilder: joinBuilder,
               $removeJoinBuilderFromRootComposer:
@@ -8053,6 +8124,7 @@ class $$PointsTableTableManager extends RootTableManager<
     Point,
     PrefetchHooks Function(
         {bool projectId,
+        bool floorId,
         bool configurationId,
         bool configurationDetailId,
         bool eiLevelId,
@@ -8078,12 +8150,12 @@ class $$PointsTableTableManager extends RootTableManager<
           updateCompanionCallback: ({
             Value<String> id = const Value.absent(),
             Value<String> projectId = const Value.absent(),
-            Value<int?> refNumber = const Value.absent(),
+            Value<String?> refNumber = const Value.absent(),
             Value<String?> projectCode = const Value.absent(),
             Value<String?> projectName = const Value.absent(),
             Value<String?> purchaseOrder = const Value.absent(),
             Value<String?> building = const Value.absent(),
-            Value<int?> floorLevel = const Value.absent(),
+            Value<String?> floorId = const Value.absent(),
             Value<String?> room = const Value.absent(),
             Value<String?> description = const Value.absent(),
             Value<String?> configurationId = const Value.absent(),
@@ -8110,7 +8182,7 @@ class $$PointsTableTableManager extends RootTableManager<
             projectName: projectName,
             purchaseOrder: purchaseOrder,
             building: building,
-            floorLevel: floorLevel,
+            floorId: floorId,
             room: room,
             description: description,
             configurationId: configurationId,
@@ -8132,12 +8204,12 @@ class $$PointsTableTableManager extends RootTableManager<
           createCompanionCallback: ({
             required String id,
             required String projectId,
-            Value<int?> refNumber = const Value.absent(),
+            Value<String?> refNumber = const Value.absent(),
             Value<String?> projectCode = const Value.absent(),
             Value<String?> projectName = const Value.absent(),
             Value<String?> purchaseOrder = const Value.absent(),
             Value<String?> building = const Value.absent(),
-            Value<int?> floorLevel = const Value.absent(),
+            Value<String?> floorId = const Value.absent(),
             Value<String?> room = const Value.absent(),
             Value<String?> description = const Value.absent(),
             Value<String?> configurationId = const Value.absent(),
@@ -8164,7 +8236,7 @@ class $$PointsTableTableManager extends RootTableManager<
             projectName: projectName,
             purchaseOrder: purchaseOrder,
             building: building,
-            floorLevel: floorLevel,
+            floorId: floorId,
             room: room,
             description: description,
             configurationId: configurationId,
@@ -8189,6 +8261,7 @@ class $$PointsTableTableManager extends RootTableManager<
               .toList(),
           prefetchHooksCallback: (
               {projectId = false,
+              floorId = false,
               configurationId = false,
               configurationDetailId = false,
               eiLevelId = false,
@@ -8225,6 +8298,15 @@ class $$PointsTableTableManager extends RootTableManager<
                         $$PointsTableReferences._projectIdTable(db),
                     referencedColumn:
                         $$PointsTableReferences._projectIdTable(db).id,
+                  ) as T;
+                }
+                if (floorId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.floorId,
+                    referencedTable: $$PointsTableReferences._floorIdTable(db),
+                    referencedColumn:
+                        $$PointsTableReferences._floorIdTable(db).id,
                   ) as T;
                 }
                 if (configurationId) {
@@ -8373,6 +8455,7 @@ typedef $$PointsTableProcessedTableManager = ProcessedTableManager<
     Point,
     PrefetchHooks Function(
         {bool projectId,
+        bool floorId,
         bool configurationId,
         bool configurationDetailId,
         bool eiLevelId,
