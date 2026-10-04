@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/plateforme.dart';
 import '../database/daos/point_dao.dart';
 import '../database/daos/project_dao.dart';
 import '../database/daos/settings_dao.dart';
@@ -10,6 +11,7 @@ import '../features/admin/project_admin_service.dart';
 import '../features/admin/user_admin_service.dart';
 import '../features/auth/auth_backend.dart';
 import '../features/auth/auth_service.dart';
+import '../features/capture/galerie.dart';
 import '../features/capture/image_compressor.dart';
 import '../features/capture/photo_capture_service.dart';
 import '../features/capture/photo_repository.dart';
@@ -60,10 +62,16 @@ final photoProcessorProvider = Provider<PhotoProcessor>(
   ),
 );
 
+/// La galerie de la tablette, ou `null` là où il n'y en a pas.
+final galerieProvider = Provider<Galerie?>(
+  (ref) => Plateforme.galerieDisponible ? const GalerieAndroid() : null,
+);
+
 final photoCaptureServiceProvider = Provider<PhotoCaptureService>(
   (ref) => PhotoCaptureService(
     dao: ref.watch(pointDaoProvider),
     processor: ref.watch(photoProcessorProvider),
+    galerie: ref.watch(galerieProvider),
   ),
 );
 

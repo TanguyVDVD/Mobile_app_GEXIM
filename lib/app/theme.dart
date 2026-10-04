@@ -30,6 +30,11 @@ abstract final class Fs {
   static const signal = Color(0xFFC8102E);
   static const signalWash = Color(0xFFFCEBEE);
 
+  /// Vert de validation. **Un seul usage** : le bouton qui confirme une
+  /// traversée — demande du bureau, pour que le geste se lise d'un coup d'œil
+  /// sur chantier. Pas une couleur d'état : « complet » reste sans vert.
+  static const confirm = Color(0xFF1E7B3C);
+
   // ---------------------------------------------------------------------------
   // Rythme
   // ---------------------------------------------------------------------------

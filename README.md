@@ -108,16 +108,14 @@ s'arrête.
 flutter build web --release --dart-define-from-file=env.json --no-web-resources-cdn
 ```
 
-`build/web` est un dossier de fichiers statiques : on le copie sur le serveur,
-et rien d'autre ne tourne là-bas pour l'application — comptes, données et
-photos restent chez Supabase. `deploy/nginx.conf` est la configuration prête à
-adapter : nom de domaine, identifiant du projet Supabase, certificat HTTPS.
-Tout y est commenté, en particulier les trois réglages faciles à casser (le
-type des fichiers WebAssembly, le cache des fichiers d'entrée, les en-têtes de
-sécurité).
+`build/web` est un dossier de fichiers statiques. Sur le VPS il est servi par
+un **conteneur Docker**, derrière l'Apache de la machine qui fait le HTTPS ;
+comptes, données et photos restent chez Supabase.
 
-Pour mettre à jour : recompiler, recopier `build/web`. Les utilisateurs ont la
-nouvelle version au rechargement de la page.
+**[`DEPLOY.md`](DEPLOY.md)** déroule tout le déploiement, étape par étape : nom
+de domaine, envoi de l'application, démarrage du conteneur, site Apache et
+certificat, vérification — puis mise à jour, retour en arrière et dépannage.
+Les fichiers correspondants sont dans `deploy/`.
 
 ---
 
@@ -284,7 +282,9 @@ supabase/
 docker/
   rls_tests.sql banc d'essai des policies
 deploy/
-  nginx.conf    configuration du VPS pour la version navigateur
+  docker-compose.yml     le conteneur du VPS — mode d'emploi : DEPLOY.md
+  nginx/                 le serveur de fichiers, à l'intérieur du conteneur
+  apache-firestop.conf   le site à ajouter à l'Apache du VPS
 web/            page d'accueil, icônes, SQLite en WebAssembly
 android/        la cible tablette
 assets/

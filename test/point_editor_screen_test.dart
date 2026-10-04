@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firestop_tracker/app/providers.dart';
 import 'package:firestop_tracker/app/theme.dart';
 import 'package:firestop_tracker/database/database.dart';
@@ -7,6 +9,7 @@ import 'package:firestop_tracker/sync/sync_engine.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 /// Le bouton « Supprimer » de la fiche d'une traversée.
 ///
@@ -33,19 +36,21 @@ void main() {
     updatedAt: DateTime(2026, 10, 1),
   );
 
+  final surcharges = [
+    pointProvider.overrideWith((ref, id) => Stream.value(point)),
+    projectProvider.overrideWith((ref, id) => Stream.value(chantier)),
+    pointPhotosProvider.overrideWith((ref, id) => Stream.value([])),
+    refNumberTakenProvider.overrideWith((ref, id) => Stream.value(false)),
+    settingOptionsProvider.overrideWith((ref, kind) => Stream.value([])),
+    productsOfSupplierProvider.overrideWith((ref, id) => Stream.value([])),
+    settingOptionLabelsProvider.overrideWith((ref) => Stream.value({})),
+    syncStateProvider.overrideWith((ref) => Stream.value(SyncState.idle)),
+    pendingCountProvider.overrideWith((ref) => Stream.value(0)),
+  ];
+
   Widget fiche() {
     return ProviderScope(
-      overrides: [
-        pointProvider.overrideWith((ref, id) => Stream.value(point)),
-        projectProvider.overrideWith((ref, id) => Stream.value(chantier)),
-        pointPhotosProvider.overrideWith((ref, id) => Stream.value([])),
-        refNumberTakenProvider.overrideWith((ref, id) => Stream.value(false)),
-        settingOptionsProvider.overrideWith((ref, kind) => Stream.value([])),
-        productsOfSupplierProvider.overrideWith((ref, id) => Stream.value([])),
-        settingOptionLabelsProvider.overrideWith((ref) => Stream.value({})),
-        syncStateProvider.overrideWith((ref) => Stream.value(SyncState.idle)),
-        pendingCountProvider.overrideWith((ref) => Stream.value(0)),
-      ],
+      overrides: surcharges,
       child: MaterialApp(
         theme: Fs.build(),
         home: const PointEditorScreen(pointId: 'pt1'),
@@ -93,4 +98,60 @@ void main() {
     expect(find.text('Hall logistique'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  // Le bouton rond vert de la barre de titre : il ramène au relevé et lance
+  // l'envoi.
+  testWidgets('« Confirmer » revient au releve et declenche une synchro',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final moteur = _MoteurTemoin();
+    final router = GoRouter(
+      initialLocation: '/projects/p1',
+      routes: [
+        GoRoute(
+          path: '/projects/:id',
+          builder: (_, __) => const Scaffold(body: Text('RELEVE')),
+        ),
+        GoRoute(
+          path: '/points/:id',
+          builder: (_, __) => const PointEditorScreen(pointId: 'pt1'),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...surcharges,
+          syncEngineProvider.overrideWithValue(moteur),
+        ],
+        child: MaterialApp.router(theme: Fs.build(), routerConfig: router),
+      ),
+    );
+    unawaited(router.push('/points/pt1'));
+    await tester.pumpAndSettle();
+    expect(find.text('Hall logistique'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Confirmer la traversée'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('RELEVE'), findsOneWidget);
+    expect(find.byType(PointEditorScreen), findsNothing);
+    expect(moteur.cycles, 1);
+    expect(tester.takeException(), isNull);
+  });
+}
+
+/// Un moteur qui ne fait que compter les cycles demandés.
+class _MoteurTemoin implements SyncEngine {
+  int cycles = 0;
+
+  @override
+  Future<void> syncNow() async => cycles++;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

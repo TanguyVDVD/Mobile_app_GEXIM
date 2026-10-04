@@ -216,6 +216,22 @@ class PointDao extends DatabaseAccessor<AppDatabase> with _$PointDaoMixin {
   Stream<Point?> watchPoint(String pointId) =>
       (select(points)..where((t) => t.id.equals(pointId))).watchSingleOrNull();
 
+  /// Ce qui situe une traversée pour quelqu'un qui n'a pas la fiche sous les
+  /// yeux : l'intitulé de son chantier et son numéro. `null` si elle n'est
+  /// plus sur l'appareil.
+  Future<({String chantier, String? numero})?> repere(String pointId) async {
+    final point = await (select(points)..where((t) => t.id.equals(pointId)))
+        .getSingleOrNull();
+    if (point == null) return null;
+
+    final project = await (select(projects)
+          ..where((t) => t.id.equals(point.projectId)))
+        .getSingleOrNull();
+    if (project == null) return null;
+
+    return (chantier: project.name, numero: point.refNumber);
+  }
+
   Stream<List<Photo>> watchPhotos(String pointId) =>
       _photosQuery(pointId).watch();
 

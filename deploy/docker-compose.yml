@@ -1,0 +1,41 @@
+name: firestop
+
+# =============================================================================
+# Version navigateur de FireStop Tracker, sur le VPS.
+#
+# Mode d'emploi complet : DEPLOY.md, à la racine du dépôt.
+#
+# L'application est un dossier de fichiers statiques (`./web`, copié depuis
+# `build/web`), servi par ce conteneur. Il n'écoute que sur l'interface locale
+# du VPS : c'est l'Apache de la machine qui reçoit les visiteurs, fait le
+# HTTPS, et lui passe les requêtes. Comptes, données et photos restent chez
+# Supabase.
+#
+#   docker compose up -d
+# =============================================================================
+
+services:
+  web:
+    # Version figée : un `latest` changerait de serveur au premier
+    # redémarrage, sans que personne l'ait décidé.
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    environment:
+      # Injecté dans la Content-Security-Policy. Voir `.env`.
+      SUPABASE_HOST: ${SUPABASE_HOST:?Renseignez SUPABASE_HOST dans le fichier .env}
+    volumes:
+      # L'application. En lecture seule : rien dans le conteneur n'a à y écrire.
+      - ./web:/usr/share/nginx/html:ro
+      - ./nginx/firestop.conf.template:/etc/nginx/templates/default.conf.template:ro
+    ports:
+      # Sur l'interface locale seulement : le conteneur parle en HTTP, il ne
+      # doit être joignable que par l'Apache de la même machine, jamais
+      # directement depuis Internet.
+      - "127.0.0.1:${PORT_LOCAL:-8088}:80"
+    healthcheck:
+      # `version.json` est écrit par chaque compilation : s'il répond,
+      # l'application est bien là.
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/version.json"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

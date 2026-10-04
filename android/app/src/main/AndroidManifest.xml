@@ -4,6 +4,13 @@
 
     <uses-permission android:name="android.permission.CAMERA"/>
 
+    <!-- Copie de chaque cliché dans la galerie de la tablette. À partir
+         d'Android 10, une application y ajoute ses propres images sans rien
+         demander ; jusqu'à Android 9 il faut cet accord, que `MainActivity`
+         sollicite à la première photo. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28"/>
+
     <!-- La synchronisation observe l'état du réseau pour déclencher un cycle
          dès le retour de la connectivité. -->
     <uses-permission android:name="android.permission.INTERNET"/>

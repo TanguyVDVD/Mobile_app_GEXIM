@@ -2,10 +2,11 @@ import 'dart:io';
 
 import '../../database/daos/point_dao.dart';
 import '../../database/tables/enums.dart';
+import 'galerie.dart';
 import 'image_compressor.dart';
 
 /// Enchaînement complet d'une prise de vue : compression, écriture disque,
-/// enregistrement en base.
+/// enregistrement en base, copie dans la galerie de la tablette.
 ///
 /// Rien n'attend le réseau. L'opérateur photographie une traversée dans un
 /// sous-sol en béton, la vignette apparaît immédiatement, et le transfert se
@@ -14,24 +15,47 @@ class PhotoCaptureService {
   const PhotoCaptureService({
     required PointDao dao,
     required PhotoProcessor processor,
+    Galerie? galerie,
   })  : _dao = dao,
-        _processor = processor;
+        _processor = processor,
+        _galerie = galerie;
 
   final PointDao _dao;
   final PhotoProcessor _processor;
 
+  /// `null` là où il n'y a pas de galerie — et dans les tests qui n'en
+  /// parlent pas.
+  final Galerie? _galerie;
+
   /// Traite un cliché brut et le rattache au point. Rend l'identifiant créé.
   ///
-  /// [original] est le fichier temporaire produit par la caméra. Il est
-  /// **supprimé** une fois la version compressée écrite : à 4 Mo pièce, le
-  /// conserver remplirait la tablette en une centaine de photos.
+  /// [original] est le fichier temporaire produit par la caméra. L'application
+  /// n'en garde que la version compressée : c'est elle qui est synchronisée
+  /// et qui entre dans le classeur. L'original, lui, part dans la galerie de
+  /// la tablette, puis le fichier temporaire est **supprimé** dans tous les
+  /// cas.
+  ///
+  /// Lève [GalerieEchec] si le cliché n'a pas pu être copié dans la galerie.
+  /// À ce moment-là il est **déjà enregistré** sur la fiche : l'appelant doit
+  /// le dire tel quel, et surtout ne pas faire reprendre la photo.
   Future<String> capture({
     required String pointId,
     required PhotoKind kind,
     required File original,
   }) async {
+    try {
+      return await _enregistrer(pointId, kind, original);
+    } finally {
+      await _discard(original);
+    }
+  }
+
+  Future<String> _enregistrer(
+    String pointId,
+    PhotoKind kind,
+    File original,
+  ) async {
     final compressed = await _processor.compress(original);
-    await _discard(original);
 
     // `before` et `after` sont les deux clichés exigés par la norme : un seul
     // de chaque. Reprendre la photo doit remplacer la précédente, pas
@@ -41,7 +65,7 @@ class PhotoCaptureService {
       await _retireExisting(pointId, kind);
     }
 
-    return _dao.registerPhoto(
+    final id = await _dao.registerPhoto(
       pointId: pointId,
       kind: kind,
       localPath: compressed.path,
@@ -53,6 +77,36 @@ class PhotoCaptureService {
           ? await _dao.nextSortOrder(pointId)
           : _slotOrder(kind),
     );
+
+    // En dernier : la fiche d'abord, la galerie ensuite. Une copie qui échoue
+    // ne doit rien coûter au relevé.
+    await _versGalerie(pointId, kind, original);
+    return id;
+  }
+
+  /// Copie le cliché **original**, tel que sorti du capteur — demande du
+  /// bureau : la fiche porte la version réduite, la tablette garde la pleine
+  /// définition.
+  Future<void> _versGalerie(String pointId, PhotoKind kind, File cliche) async {
+    final galerie = _galerie;
+    if (galerie == null) return;
+
+    try {
+      final repere = await _dao.repere(pointId);
+      await galerie.ajouter(
+        cliche,
+        nom: nomDeCliche(
+          chantier: repere?.chantier ?? '',
+          numero: repere?.numero,
+          nature: kind,
+          prisLe: DateTime.now(),
+        ),
+      );
+    } on GalerieEchec {
+      rethrow;
+    } on Object catch (e) {
+      throw GalerieEchec('$e');
+    }
   }
 
   /// Retire une photo complémentaire choisie par l'opérateur.

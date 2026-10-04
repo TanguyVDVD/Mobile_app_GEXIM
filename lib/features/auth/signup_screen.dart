@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
+import '../../app/theme.dart';
 import 'auth_backend.dart';
 import 'auth_service.dart';
 
@@ -137,14 +138,11 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
                   if (_error != null) ...[
                     const SizedBox(height: 16),
-                    _Banner(_error!, color: theme.colorScheme.errorContainer),
+                    _Banner(_error!, trait: Fs.signal, fond: Fs.signalWash),
                   ],
                   if (_notice != null) ...[
                     const SizedBox(height: 16),
-                    _Banner(
-                      _notice!,
-                      color: theme.colorScheme.secondaryContainer,
-                    ),
+                    _Banner(_notice!, trait: Fs.ink, fond: Fs.plate),
                   ],
 
                   const SizedBox(height: 24),
@@ -187,21 +185,33 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   }
 }
 
+/// Message sous le formulaire : une erreur en rouge, un avis à l'encre.
+///
+/// Les couleurs sont celles de [Fs], nommées une à une, et non des rôles du
+/// `ColorScheme` : le thème n'en définit qu'une partie, et un rôle laissé à
+/// son défaut retombe sur une autre couleur sans rien dire. L'avis « compte
+/// créé » s'affichait ainsi sur `secondaryContainer`, qui vaut l'encre —
+/// texte noir sur fond noir.
 class _Banner extends StatelessWidget {
-  const _Banner(this.text, {required this.color});
+  const _Banner(this.text, {required this.trait, required this.fond});
 
   final String text;
-  final Color color;
+  final Color trait;
+  final Color fond;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(Fs.md),
       decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(8),
+        color: fond,
+        borderRadius: Fs.radius,
+        border: Border(left: BorderSide(color: trait, width: 3)),
       ),
-      child: Text(text),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 15, color: Fs.ink, height: 1.4),
+      ),
     );
   }
 }

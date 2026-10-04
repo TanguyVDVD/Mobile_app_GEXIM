@@ -1,22 +1,13 @@
-# Version navigateur de FireStop Tracker, servie par nginx sur le VPS.
+# Configuration du serveur web **à l'intérieur du conteneur**.
 #
-# L'application est un dossier de fichiers statiques : `build/web`, produit par
+# C'est un gabarit : au démarrage, l'image nginx y remplace ${SUPABASE_HOST}
+# par la valeur du fichier `.env`, et écrit le résultat dans
+# /etc/nginx/conf.d/default.conf. Seules les variables d'environnement
+# définies sont remplacées — `$uri` et les autres variables de nginx restent
+# intactes.
 #
-#   flutter build web --release --dart-define-from-file=env.json --no-web-resources-cdn
-#
-# et copié tel quel dans /var/www/firestop. Aucun programme ne tourne sur le
-# VPS pour elle : comptes, données et clichés restent chez Supabase.
-#
-# À ADAPTER avant usage :
-#   - `app.exemple.be` : le nom de domaine (quatre endroits) ;
-#   - `<projet>` : l'identifiant du projet Supabase, celui de SUPABASE_URL dans
-#     env.json (deux endroits, dans la Content-Security-Policy) ;
-#   - les chemins du certificat, une fois émis. `certbot --nginx -d
-#     app.exemple.be` les écrit lui-même.
-#
-# À placer dans /etc/nginx/sites-available/firestop, puis :
-#   ln -s /etc/nginx/sites-available/firestop /etc/nginx/sites-enabled/
-#   nginx -t && systemctl reload nginx
+# Le conteneur parle en HTTP, sur son port 80 : le HTTPS est fait devant lui,
+# par l'Apache du VPS (voir DEPLOY.md).
 
 # Les fichiers d'entrée ne sont **jamais** gardés en cache : ce sont eux qui
 # disent au navigateur quelle version charger. Mis en cache, une mise à jour
@@ -36,25 +27,15 @@ map $uri $firestop_cache {
     /version.json                 "no-cache";
 }
 
-# Tout ce qui arrive en clair repart en HTTPS. Ce n'est pas une option : la
-# session de l'utilisateur transite par cette page.
 server {
     listen 80;
-    listen [::]:80;
-    server_name app.exemple.be;
-    return 301 https://$host$request_uri;
-}
+    server_name _;
 
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name app.exemple.be;
-
-    ssl_certificate     /etc/letsencrypt/live/app.exemple.be/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/app.exemple.be/privkey.pem;
-
-    root  /var/www/firestop;
+    root  /usr/share/nginx/html;
     index index.html;
+
+    # Ne pas annoncer la version de nginx.
+    server_tokens off;
 
     gzip on;
     gzip_types application/javascript application/json application/wasm text/css;
@@ -70,8 +51,8 @@ server {
     add_header Referrer-Policy           "no-referrer" always;
 
     # Ce que la page a le droit de charger, et vers où elle a le droit de
-    # parler. Éprouvée telle quelle sur la version compilée : l'application
-    # démarre sans une seule violation.
+    # parler. Éprouvée sur la version compilée : l'application démarre sans
+    # une seule violation.
     #
     #   - `'wasm-unsafe-eval'` autorise l'exécution de WebAssembly (SQLite, le
     #     moteur de rendu), pas celle de JavaScript arbitraire ;
@@ -81,12 +62,11 @@ server {
     #     au premier affichage. La retirer d'ici laisse l'application sans
     #     aucun texte lisible ;
     #   - le projet Supabase, en HTTPS et en WebSocket.
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://fonts.gstatic.com https://<projet>.supabase.co wss://<projet>.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://fonts.gstatic.com https://${SUPABASE_HOST} wss://${SUPABASE_HOST}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
 
     # SQLite tourne en WebAssembly : servi sous un autre type, le navigateur
     # refuse de l'exécuter, la base locale ne s'ouvre pas et l'application
-    # reste sur son écran de démarrage. Les nginx récents connaissent ce type ;
-    # l'imposer ici évite de dépendre de la version installée.
+    # reste sur son écran de démarrage.
     location ~ \.wasm$ {
         types { }
         default_type application/wasm;

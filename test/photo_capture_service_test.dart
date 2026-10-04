@@ -6,6 +6,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:firestop_tracker/database/database.dart';
 import 'package:firestop_tracker/database/tables/enums.dart';
+import 'package:firestop_tracker/features/capture/galerie.dart';
 import 'package:firestop_tracker/features/capture/image_compressor.dart';
 import 'package:firestop_tracker/features/capture/photo_capture_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -31,6 +32,20 @@ class _FakeProcessor implements PhotoProcessor {
       height: 2000,
       sha256: 'sha$calls',
     );
+  }
+}
+
+/// Galerie factice : la vraie passe par un canal vers `MainActivity`.
+class _FausseGalerie implements Galerie {
+  _FausseGalerie({this.enPanne = false});
+
+  final bool enPanne;
+  final copies = <({String chemin, String nom, int octets})>[];
+
+  @override
+  Future<void> ajouter(File cliche, {required String nom}) async {
+    if (enPanne) throw const GalerieEchec('stockage plein');
+    copies.add((chemin: cliche.path, nom: nom, octets: cliche.lengthSync()));
   }
 }
 
@@ -215,6 +230,74 @@ void main() {
 
       expect(await db.pointDao.photosOf('pt1'), isEmpty);
       expect((await db.pointDao.pointSummaries('p1')).single.photoCount, 0);
+    });
+  });
+
+  group('copie dans la galerie de la tablette', () {
+    test('l\'original y est copié, sous un nom qui le situe',
+        () async {
+      await (db.update(db.points)..where((t) => t.id.equals('pt1')))
+          .write(const PointsCompanion(refNumber: Value('1.40')));
+      final galerie = _FausseGalerie();
+      service = PhotoCaptureService(
+        dao: db.pointDao,
+        processor: processor,
+        galerie: galerie,
+      );
+
+      final original = shot('brut.jpg');
+      await service.capture(
+        pointId: 'pt1',
+        kind: PhotoKind.after,
+        original: original,
+      );
+
+      expect(
+        galerie.copies.single.octets,
+        4000,
+        reason: 'le brut du capteur, lu avant son effacement — pas la '
+            'version reduite de la fiche',
+      );
+      expect(original.existsSync(), isFalse);
+      expect(
+        galerie.copies.single.nom,
+        matches(RegExp(r'^Chantier_pt1\.40_photo2_\d{8}_\d{6}\.jpg$')),
+      );
+    });
+
+    test('une copie qui échoue ne coûte pas le cliché, et se dit', () async {
+      service = PhotoCaptureService(
+        dao: db.pointDao,
+        processor: processor,
+        galerie: _FausseGalerie(enPanne: true),
+      );
+
+      await expectLater(
+        service.capture(
+          pointId: 'pt1',
+          kind: PhotoKind.before,
+          original: shot('brut.jpg'),
+        ),
+        throwsA(isA<GalerieEchec>()),
+      );
+
+      expect(
+        await db.pointDao.photosOf('pt1'),
+        hasLength(1),
+        reason: 'le releve passe avant la galerie',
+      );
+    });
+
+    test('le nom écarte ce qu\'un système de fichiers refuse', () {
+      expect(
+        nomDeCliche(
+          chantier: 'Tour A/B : phase 2',
+          numero: null,
+          nature: PhotoKind.extra,
+          prisLe: DateTime(2026, 10, 4, 9, 5, 7),
+        ),
+        'Tour A-B - phase 2_complement_20261004_090507.jpg',
+      );
     });
   });
 

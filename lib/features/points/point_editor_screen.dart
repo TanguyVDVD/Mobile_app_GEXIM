@@ -17,6 +17,7 @@ import '../../shared/widgets/photo_thumbnail.dart';
 import '../../shared/widgets/plate.dart';
 import '../../shared/widgets/sync_status_bar.dart';
 import '../capture/camera_screen.dart';
+import '../capture/galerie.dart';
 
 /// Fiche d'une traversée — la saisie de terrain, et l'exact reflet du
 /// formulaire « Resserrage RF — Fiche AS BUILT » qui sortira au rapport.
@@ -56,6 +57,10 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
 
   /// L'opérateur a-t-il réellement modifié quelque chose ?
   bool _dirty = false;
+
+  /// La confirmation est-elle déjà partie ? Lu par le geste, jamais par
+  /// l'affichage.
+  bool _confirme = false;
 
   @override
   void dispose() {
@@ -212,6 +217,37 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
     );
   }
 
+  /// Confirme la traversée : enregistre, lance l'envoi, revient au relevé.
+  ///
+  /// Rien de neuf pour la synchronisation — la fiche s'enregistrait déjà
+  /// d'elle-même, et le moteur l'aurait envoyée à son heure. Le bouton donne
+  /// au technicien un geste de fin : il voit sa traversée dans la liste, et
+  /// l'envoi part tout de suite au lieu d'attendre le prochain cycle.
+  Future<void> _confirmer(String projectId) async {
+    // Deux appuis rapprochés dépileraient deux écrans : la fiche, puis le
+    // relevé lui-même.
+    if (_confirme) return;
+    _confirme = true;
+
+    // Lu avant de quitter l'écran : `ref` ne répond plus une fois démonté.
+    final moteur = ref.read(syncEngineProvider);
+
+    _debounce?.cancel();
+    await _persist();
+
+    // Sans attendre : hors ligne, le cycle se termine sur « hors ligne » et
+    // la fiche reste en file, comme toujours. Le bandeau du relevé le dit.
+    unawaited(moteur.syncNow());
+
+    if (!mounted) return;
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      // Fiche ouverte par son adresse, dans un navigateur : rien à dépiler.
+      context.go('/projects/$projectId');
+    }
+  }
+
   /// Supprime la traversée, après confirmation.
   Future<void> _delete() async {
     final confirmed = await showDialog<bool>(
@@ -259,6 +295,17 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
             kind: kind,
             original: original,
           );
+    } on GalerieEchec catch (e) {
+      // Le cliché est sur la fiche ; seule sa copie dans la galerie manque.
+      // À dire tel quel, pour ne pas faire reprendre une photo déjà prise.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Cliché enregistré sur la fiche, mais pas copié dans '
+              'la galerie de la tablette : $e.'),
+          duration: const Duration(seconds: 8),
+        ),
+      );
     } on Object catch (e) {
       // Compression ou enregistrement en échec. Sans ce message, l'écran de
       // prise de vue se refermait comme après un succès : le technicien
@@ -292,6 +339,24 @@ class _PointEditorScreenState extends ConsumerState<PointEditorScreen> {
             // jusqu'au geste suivant.
             onPressed: point.valueOrNull == null ? null : _delete,
           ),
+          const SizedBox(width: Fs.sm),
+          // Tout à droite, rond et vert : le geste de fin, qu'on ne doit pas
+          // confondre avec son voisin qui supprime.
+          IconButton.filled(
+            tooltip: 'Confirmer la traversée',
+            style: IconButton.styleFrom(
+              backgroundColor: Fs.confirm,
+              foregroundColor: Colors.white,
+              shape: const CircleBorder(),
+              minimumSize: const Size(52, 52),
+            ),
+            icon: const Icon(Icons.check, size: 28),
+            onPressed: switch (point.valueOrNull) {
+              null => null,
+              final row => () => _confirmer(row.projectId),
+            },
+          ),
+          const SizedBox(width: Fs.md),
         ],
       ),
       body: point.when(

@@ -34,4 +34,10 @@ abstract final class Plateforme {
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.iOS);
+
+  /// Chaque cliché pris est aussi copié dans la galerie de l'appareil. Android
+  /// seulement : la copie passe par un canal vers `MainActivity`, qui n'a pas
+  /// d'équivalent ailleurs.
+  static bool get galerieDisponible =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 }

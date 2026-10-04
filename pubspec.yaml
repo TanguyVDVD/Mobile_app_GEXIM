@@ -1,7 +1,7 @@
 name: firestop_tracker
 description: Recensement, photographie et documentation des calfeutrements sur chantier.
 publish_to: none
-version: 0.5.1+11
+version: 0.5.2+12
 
 environment:
   sdk: ^3.5.0
